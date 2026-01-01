@@ -1,0 +1,27 @@
+<DiskSpaceServiceConfig>
+  <!-- Daily scheduled run time (24-hour format) -->
+  <CollectionTime>08:00</CollectionTime>
+
+  <!-- If true, the service will run immediately after wake/boot if it missed the scheduled time -->
+  <RunMissedCollection>true</RunMissedCollection>
+
+  <!-- Drives to monitor -->
+  <Drives>
+    <Drive>C</Drive>
+    <Drive>D</Drive>
+  </Drives>
+
+  <!-- Database connection -->
+  <Database>
+    <ConnectionString>CONNECTION_STRING_HERE</ConnectionString>
+  </Database>
+
+  <!-- Alert settings -->
+  <Alert>
+    <!-- Percent free threshold (e.g., 10 means alert if < 10% free) -->
+    <ThresholdPercent>10</ThresholdPercent>
+
+    <!-- Your GroupMe bot ID -->
+    <GroupMeBotId>GROUPME_BOT_ID_HERE</GroupMeBotId>
+  </Alert>
+</DiskSpaceServiceConfig>
