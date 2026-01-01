@@ -1,6 +1,6 @@
 # DiskSpaceService
 
-📄 README.md — Disk Space Monitoring Service
+📄 README.md — Disk Space Monitoring Service using .NET version 8.0
 
 🧭 Overview
 The Disk Space Monitoring Service is a lightweight Windows Service designed to:
