@@ -44,7 +44,7 @@ All settings are stored in a simple XML file that users can edit without recompi
 
 📦 Installation
 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+git clone https://github.com/tuckerproject/DiskSpaceService
 2. Build the project
 Open the solution in Visual Studio and build in Release mode.
 3. Install as a Windows Service
