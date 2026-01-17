@@ -1,10 +1,12 @@
-using DiskSpaceService.Config;
+﻿using DiskSpaceService.Config;
 using DiskSpaceService.Models;
 using DiskSpaceService.Services.Alerting;
 using DiskSpaceService.Services.Logging;
 using DiskSpaceService.Services.Monitoring;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,8 +19,10 @@ namespace DiskSpaceService.Services.Scheduling
         private readonly DiskAlertMonitor _monitor;
         private readonly RollingFileLogger _logger;
 
-        // Tracks last known state per drive: NORMAL, ALERT, NOT_READY
         private readonly Dictionary<string, string> _lastAlertState = new();
+        private readonly string _stateFilePath =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "DiskSpaceService", "alert_state.json");
 
         public NotificationLoop(
             DiskSpaceConfig config,
@@ -30,6 +34,9 @@ namespace DiskSpaceService.Services.Scheduling
             _senders = senders;
             _monitor = monitor;
             _logger = logger;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(_stateFilePath)!);
+            LoadState();
         }
 
         public async Task RunAsync(CancellationToken token)
@@ -45,9 +52,6 @@ namespace DiskSpaceService.Services.Scheduling
                         string state;
                         string message;
 
-                        // -----------------------------
-                        // 1. Drive NOT READY
-                        // -----------------------------
                         if (status.TotalSpaceGb == 0)
                         {
                             state = "NOT_READY";
@@ -55,9 +59,6 @@ namespace DiskSpaceService.Services.Scheduling
                         }
                         else
                         {
-                            // -----------------------------
-                            // 2. Drive READY � check threshold
-                            // -----------------------------
                             bool belowThreshold = status.PercentFree < _config.ThresholdPercent;
 
                             if (belowThreshold)
@@ -76,27 +77,24 @@ namespace DiskSpaceService.Services.Scheduling
                             }
                         }
 
-                        // -----------------------------
-                        // 3. Compare with last state
-                        // -----------------------------
                         _lastAlertState.TryGetValue(driveLetter, out var lastState);
 
                         if (lastState != state)
                         {
-                            // Log transition
-                            if (state == "NOT_READY")
-                                _logger.Log($"[ALERT] Drive {status.DriveName} NOT READY.");
-                            else if (state == "ALERT")
-                                _logger.Log($"[ALERT] Drive {status.DriveName} LOW SPACE ({status.PercentFree:F2}%).");
-                            else if (state == "NORMAL")
-                                _logger.Log($"[ALERT] Drive {status.DriveName} RECOVERED ({status.PercentFree:F2}%).");
+                            // Only send if network is ready
+                            if (NetworkReady())
+                            {
+                                foreach (var sender in _senders)
+                                    await sender.SendAlertAsync(message);
 
-                            // Send alert
-                            foreach (var sender in _senders)
-                                await sender.SendAlertAsync(message);
-
-                            // Update state
-                            _lastAlertState[driveLetter] = state;
+                                _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
+                                _lastAlertState[driveLetter] = state;
+                                SaveState();
+                            }
+                            else
+                            {
+                                _logger.Log("[ALERT] Network not ready — delaying alert send.");
+                            }
                         }
                     }
                 }
@@ -107,6 +105,45 @@ namespace DiskSpaceService.Services.Scheduling
 
                 await Task.Delay(TimeSpan.FromMinutes(1), token);
             }
+        }
+
+        private bool NetworkReady()
+        {
+            try
+            {
+                Dns.GetHostEntry("api.groupme.com");
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void LoadState()
+        {
+            try
+            {
+                if (File.Exists(_stateFilePath))
+                {
+                    var json = File.ReadAllText(_stateFilePath);
+                    var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                    if (dict != null)
+                        foreach (var kv in dict)
+                            _lastAlertState[kv.Key] = kv.Value;
+                }
+            }
+            catch { }
+        }
+
+        private void SaveState()
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(_lastAlertState);
+                File.WriteAllText(_stateFilePath, json);
+            }
+            catch { }
         }
     }
 }
