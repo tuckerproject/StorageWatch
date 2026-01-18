@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,9 +21,14 @@ namespace DiskSpaceService.Services.Scheduling
         private readonly RollingFileLogger _logger;
 
         private readonly Dictionary<string, string> _lastAlertState = new();
+        private readonly string _machineName = Environment.MachineName;
+
         private readonly string _stateFilePath =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DiskSpaceService", "alert_state.json");
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "DiskSpaceService",
+                "alert_state.json"
+            );
 
         public NotificationLoop(
             DiskSpaceConfig config,
@@ -52,42 +58,55 @@ namespace DiskSpaceService.Services.Scheduling
                         string state;
                         string message;
 
+                        // ----------------------------------------------------
+                        // 1. Drive NOT READY
+                        // ----------------------------------------------------
                         if (status.TotalSpaceGb == 0)
                         {
                             state = "NOT_READY";
-                            message = $"ALERT: Drive {status.DriveName} is NOT READY or unavailable.";
+                            message =
+                                $"ALERT — {_machineName}: Drive {status.DriveName} is NOT READY or unavailable.";
                         }
                         else
                         {
+                            // ----------------------------------------------------
+                            // 2. Drive READY — check threshold
+                            // ----------------------------------------------------
                             bool belowThreshold = status.PercentFree < _config.ThresholdPercent;
 
                             if (belowThreshold)
                             {
                                 state = "ALERT";
                                 message =
-                                    $"ALERT: Drive {status.DriveName} is below threshold. " +
+                                    $"ALERT — {_machineName}: Drive {status.DriveName} is below threshold. " +
                                     $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
                             }
                             else
                             {
                                 state = "NORMAL";
                                 message =
-                                    $"RECOVERY: Drive {status.DriveName} has recovered. " +
+                                    $"RECOVERY — {_machineName}: Drive {status.DriveName} has recovered. " +
                                     $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
                             }
                         }
 
+                        // ----------------------------------------------------
+                        // 3. Compare with last known state
+                        // ----------------------------------------------------
                         _lastAlertState.TryGetValue(driveLetter, out var lastState);
 
                         if (lastState != state)
                         {
-                            // Only send if network is ready
+                            // ----------------------------------------------------
+                            // 4. Only send alert if network is ready
+                            // ----------------------------------------------------
                             if (NetworkReady())
                             {
                                 foreach (var sender in _senders)
                                     await sender.SendAlertAsync(message);
 
                                 _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
+
                                 _lastAlertState[driveLetter] = state;
                                 SaveState();
                             }
@@ -107,6 +126,9 @@ namespace DiskSpaceService.Services.Scheduling
             }
         }
 
+        // ----------------------------------------------------
+        // Network readiness check (DNS)
+        // ----------------------------------------------------
         private bool NetworkReady()
         {
             try
@@ -120,6 +142,9 @@ namespace DiskSpaceService.Services.Scheduling
             }
         }
 
+        // ----------------------------------------------------
+        // State file load/save
+        // ----------------------------------------------------
         private void LoadState()
         {
             try
@@ -127,23 +152,34 @@ namespace DiskSpaceService.Services.Scheduling
                 if (File.Exists(_stateFilePath))
                 {
                     var json = File.ReadAllText(_stateFilePath);
-                    var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                    var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+
                     if (dict != null)
+                    {
                         foreach (var kv in dict)
                             _lastAlertState[kv.Key] = kv.Value;
+
+                        _logger.Log("[STATE] Loaded alert state file.");
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.Log($"[STATE] Failed to load state file: {ex}");
+            }
         }
 
         private void SaveState()
         {
             try
             {
-                var json = System.Text.Json.JsonSerializer.Serialize(_lastAlertState);
+                var json = JsonSerializer.Serialize(_lastAlertState);
                 File.WriteAllText(_stateFilePath, json);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.Log($"[STATE] Failed to save state file: {ex}");
+            }
         }
     }
 }
