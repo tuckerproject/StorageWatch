@@ -262,4 +262,4 @@ Feel free to fork the project, create feature branches, and submit pull requests
 
 ## 📜 License
 
-This project is licensed under the MIT License.
+This project is dedicated to the public domain under CC0.
