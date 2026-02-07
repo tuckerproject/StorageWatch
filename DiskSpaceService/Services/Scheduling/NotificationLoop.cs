@@ -1,4 +1,18 @@
-﻿using DiskSpaceService.Config;
+﻿/// <summary>
+/// Notification Loop for Disk Space Alerts
+/// 
+/// This class implements the main disk monitoring and alerting loop that runs continuously
+/// in the background. It monitors each configured drive's free space against the configured
+/// threshold and sends alerts when disk space status changes (e.g., from normal to low, or vice versa).
+/// 
+/// Features:
+/// - Tracks disk space state per drive to avoid sending duplicate alerts
+/// - Persists alert state to disk for recovery across service restarts
+/// - Implements network readiness checks before sending alerts
+/// - Supports multiple alert delivery methods (GroupMe, SMTP, etc.)
+/// </summary>
+
+using DiskSpaceService.Config;
 using DiskSpaceService.Models;
 using DiskSpaceService.Services.Alerting;
 using DiskSpaceService.Services.Logging;
@@ -13,6 +27,9 @@ using System.Threading.Tasks;
 
 namespace DiskSpaceService.Services.Scheduling
 {
+    /// <summary>
+    /// Continuously monitors disk space and sends alerts based on state changes.
+    /// </summary>
     public class NotificationLoop
     {
         private readonly DiskSpaceConfig _config;
@@ -20,9 +37,12 @@ namespace DiskSpaceService.Services.Scheduling
         private readonly DiskAlertMonitor _monitor;
         private readonly RollingFileLogger _logger;
 
+        // Dictionary to track the last known state for each drive (e.g., "ALERT", "NORMAL", "NOT_READY")
+        // This prevents sending the same alert multiple times for the same condition
         private readonly Dictionary<string, string> _lastAlertState = new();
         private readonly string _machineName = Environment.MachineName;
 
+        // Path to the JSON file that persists alert state between service restarts
         private readonly string _stateFilePath =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -30,6 +50,14 @@ namespace DiskSpaceService.Services.Scheduling
                 "alert_state.json"
             );
 
+        /// <summary>
+        /// Initializes a new instance of the NotificationLoop class.
+        /// Loads the last known alert state from disk if it exists.
+        /// </summary>
+        /// <param name="config">Application configuration.</param>
+        /// <param name="senders">List of alert senders for various delivery methods.</param>
+        /// <param name="monitor">The disk monitor for checking drive status.</param>
+        /// <param name="logger">Logger for recording operations.</param>
         public NotificationLoop(
             DiskSpaceConfig config,
             List<IAlertSender> senders,
@@ -41,26 +69,36 @@ namespace DiskSpaceService.Services.Scheduling
             _monitor = monitor;
             _logger = logger;
 
+            // Ensure the state directory exists before attempting to load state
             Directory.CreateDirectory(Path.GetDirectoryName(_stateFilePath)!);
             LoadState();
         }
 
+        /// <summary>
+        /// Runs the main monitoring loop.
+        /// Continuously checks each drive's free space and sends alerts on state transitions.
+        /// </summary>
+        /// <param name="token">Cancellation token for stopping the loop.</param>
         public async Task RunAsync(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
                 try
                 {
+                    // Check each configured drive
                     foreach (var driveLetter in _config.Drives)
                     {
+                        // Get the current disk status for this drive
                         var status = _monitor.GetStatus(driveLetter);
 
                         string state;
                         string message;
 
-                        // ----------------------------------------------------
-                        // 1. Drive NOT READY
-                        // ----------------------------------------------------
+                        // ====================================================================
+                        // Determine the current state of the drive
+                        // ====================================================================
+
+                        // Case 1: Drive NOT READY - the drive is disconnected, unmounted, or otherwise unavailable
                         if (status.TotalSpaceGb == 0)
                         {
                             state = "NOT_READY";
@@ -69,13 +107,12 @@ namespace DiskSpaceService.Services.Scheduling
                         }
                         else
                         {
-                            // ----------------------------------------------------
-                            // 2. Drive READY — check threshold
-                            // ----------------------------------------------------
+                            // Case 2: Drive is READY - check if free space is below the threshold
                             bool belowThreshold = status.PercentFree < _config.ThresholdPercent;
 
                             if (belowThreshold)
                             {
+                                // Drive space is critically low
                                 state = "ALERT";
                                 message =
                                     $"ALERT — {_machineName}: Drive {status.DriveName} is below threshold. " +
@@ -83,6 +120,7 @@ namespace DiskSpaceService.Services.Scheduling
                             }
                             else
                             {
+                                // Drive space has recovered or is normal
                                 state = "NORMAL";
                                 message =
                                     $"RECOVERY — {_machineName}: Drive {status.DriveName} has recovered. " +
@@ -90,16 +128,16 @@ namespace DiskSpaceService.Services.Scheduling
                             }
                         }
 
-                        // ----------------------------------------------------
-                        // 3. Compare with last known state
-                        // ----------------------------------------------------
+                        // ====================================================================
+                        // Compare current state with the last known state
+                        // ====================================================================
                         _lastAlertState.TryGetValue(driveLetter, out var lastState);
 
                         if (lastState != state)
                         {
-                            // ----------------------------------------------------
-                            // NEW: Skip network checks entirely if no senders
-                            // ----------------------------------------------------
+                            // State has changed - we may need to send an alert
+
+                            // Check: If no senders are configured, skip network check and just update state
                             if (_senders.Count == 0)
                             {
                                 _logger.Log("[ALERT FACTORY] No alert senders enabled in config.");
@@ -108,23 +146,24 @@ namespace DiskSpaceService.Services.Scheduling
                                 continue;
                             }
 
-                            // ----------------------------------------------------
-                            // NEW: Only check GroupMe DNS if GroupMe sender exists
-                            // ----------------------------------------------------
+                            // Check: Only perform network readiness check if GroupMe is enabled
+                            // (GroupMe requires internet connectivity, SMTP might not depending on network config)
                             if (GroupMeEnabled() && !NetworkReady())
                             {
                                 _logger.Log("[ALERT] Network not ready — delaying alert send.");
+                                // Don't update state yet; we'll retry on the next iteration
                                 continue;
                             }
 
-                            // ----------------------------------------------------
-                            // 4. Send alerts
-                            // ----------------------------------------------------
+                            // ================================================================
+                            // Send the alert through all configured senders
+                            // ================================================================
                             foreach (var sender in _senders)
                                 await sender.SendAlertAsync(message);
 
                             _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
 
+                            // Update and persist the new state
                             _lastAlertState[driveLetter] = state;
                             SaveState();
                         }
@@ -135,13 +174,16 @@ namespace DiskSpaceService.Services.Scheduling
                     _logger.Log($"[ALERT] Notification loop error: {ex}");
                 }
 
+                // Wait 1 minute before checking again
                 await Task.Delay(TimeSpan.FromMinutes(1), token);
             }
         }
 
-        // ----------------------------------------------------
-        // NEW: Detect if GroupMe sender is enabled
-        // ----------------------------------------------------
+        /// <summary>
+        /// Detects if a GroupMe alert sender is configured and enabled.
+        /// Used to determine if network connectivity checks are necessary.
+        /// </summary>
+        /// <returns>True if a GroupMe sender exists in the configured senders list.</returns>
         private bool GroupMeEnabled()
         {
             foreach (var sender in _senders)
@@ -152,25 +194,31 @@ namespace DiskSpaceService.Services.Scheduling
             return false;
         }
 
-        // ----------------------------------------------------
-        // Network readiness check (DNS)
-        // ----------------------------------------------------
+        /// <summary>
+        /// Checks network readiness by attempting to resolve the GroupMe API hostname.
+        /// This ensures that network connectivity is available before attempting to send alerts.
+        /// </summary>
+        /// <returns>True if the network is accessible (DNS resolution successful), false otherwise.</returns>
         private bool NetworkReady()
         {
             try
             {
+                // Attempt to resolve the GroupMe API server's hostname
+                // If successful, the network is available
                 Dns.GetHostEntry("api.groupme.com");
                 return true;
             }
             catch
             {
+                // DNS resolution failed - network is not available or GroupMe is unreachable
                 return false;
             }
         }
 
-        // ----------------------------------------------------
-        // State file load/save
-        // ----------------------------------------------------
+        /// <summary>
+        /// Loads the persisted alert state from the JSON state file.
+        /// This allows the service to maintain state across restarts.
+        /// </summary>
         private void LoadState()
         {
             try
@@ -182,6 +230,7 @@ namespace DiskSpaceService.Services.Scheduling
 
                     if (dict != null)
                     {
+                        // Populate the in-memory state dictionary from the persisted file
                         foreach (var kv in dict)
                             _lastAlertState[kv.Key] = kv.Value;
 
@@ -195,6 +244,10 @@ namespace DiskSpaceService.Services.Scheduling
             }
         }
 
+        /// <summary>
+        /// Persists the current alert state to the JSON state file.
+        /// This ensures that state is retained even if the service is stopped and restarted.
+        /// </summary>
         private void SaveState()
         {
             try

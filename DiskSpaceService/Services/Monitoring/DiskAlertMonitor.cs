@@ -1,3 +1,13 @@
+/// <summary>
+/// Disk Alert Monitor
+/// 
+/// Provides pure disk status information without any alerting logic or state tracking.
+/// This class is responsible for reading physical disk metrics (total space, free space)
+/// and converting them to a standardized DiskStatus model. All alerting decisions and
+/// logging are handled by the NotificationLoop, keeping this class focused on its
+/// single responsibility: gathering accurate disk metrics.
+/// </summary>
+
 using DiskSpaceService.Config;
 using DiskSpaceService.Models;
 using System;

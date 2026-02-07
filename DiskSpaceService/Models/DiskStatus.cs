@@ -1,3 +1,12 @@
+/// <summary>
+/// Disk Status Model
+/// 
+/// Represents the current usage status of a disk volume. This model is used throughout
+/// the application to report drive metrics including total capacity, available free space,
+/// and calculated percentage of free space. It provides a formatted string representation
+/// for logging and debugging purposes.
+/// </summary>
+
 using System;
 
 namespace DiskSpaceService.Models

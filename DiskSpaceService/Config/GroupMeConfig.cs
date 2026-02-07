@@ -1,3 +1,10 @@
+/// <summary>
+/// GroupMe Configuration Settings
+/// 
+/// Configuration class for GroupMe alert delivery. Stores the bot ID and enable flag
+/// used by the GroupMeAlertSender to send disk space alerts via the GroupMe Bot API.
+/// </summary>
+
 namespace DiskSpaceService.Config
 {
     /// <summary>

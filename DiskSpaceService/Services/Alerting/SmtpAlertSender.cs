@@ -1,3 +1,11 @@
+/// <summary>
+/// SMTP Email Alert Sender
+/// 
+/// Implements alert delivery via SMTP email. Sends disk space alerts as email messages
+/// to configured recipients using standard SMTP server settings. Supports SSL/TLS encryption
+/// and authentication with username and password.
+/// </summary>
+
 using System.Net;
 using System.Net.Mail;
 using DiskSpaceService.Config;

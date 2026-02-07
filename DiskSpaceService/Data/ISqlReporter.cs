@@ -1,3 +1,11 @@
+/// <summary>
+/// SQL Reporting Interface
+/// 
+/// Defines the contract for SQL reporting operations including writing daily reports
+/// and managing last-run timestamps. Implementations are responsible for recording
+/// disk space metrics to the database.
+/// </summary>
+
 using System;
 
 namespace DiskSpaceService.Data

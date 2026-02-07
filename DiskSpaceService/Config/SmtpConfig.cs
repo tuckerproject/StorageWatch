@@ -1,3 +1,11 @@
+/// <summary>
+/// SMTP Configuration Settings
+/// 
+/// Configuration class for SMTP email alert delivery. Stores server connection details,
+/// authentication credentials, and email addresses used by the SmtpAlertSender to send
+/// disk space alerts via email.
+/// </summary>
+
 namespace DiskSpaceService.Config
 {
     /// <summary>

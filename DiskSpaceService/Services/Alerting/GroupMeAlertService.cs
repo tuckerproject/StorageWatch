@@ -1,3 +1,11 @@
+/// <summary>
+/// GroupMe Alert Sender
+/// 
+/// Implements alert delivery via the GroupMe Bot API. Sends disk space alerts to a GroupMe group
+/// by posting messages through a configured bot. This allows team members to receive notifications
+/// of disk space issues in their GroupMe chat.
+/// </summary>
+
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
