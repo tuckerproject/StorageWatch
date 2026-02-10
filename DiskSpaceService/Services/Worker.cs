@@ -8,7 +8,6 @@
 /// </summary>
 
 using DiskSpaceService.Config;
-using DiskSpaceService.Data;
 using DiskSpaceService.Services.Alerting;
 using DiskSpaceService.Services.Logging;
 using DiskSpaceService.Services.Monitoring;
