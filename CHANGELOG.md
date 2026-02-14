@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## v2.0.0 — Major Architecture Update
 
-This release introduces a complete overhaul of the DiskSpaceService architecture, focusing on reliability, clarity, and real‑world operational behavior. It replaces the legacy v1.0 alerting logic with a clean, state‑driven system designed to eliminate noise, prevent missed alerts, and support multi‑machine monitoring.
+This release introduces a complete overhaul of the StorageWatch architecture, focusing on reliability, clarity, and real‑world operational behavior. It replaces the legacy v1.0 alerting logic with a clean, state‑driven system designed to eliminate noise, prevent missed alerts, and support multi‑machine monitoring.
 
 ### New Features
 - Added **NOT_READY** state detection for drives that are unavailable or unmounted.

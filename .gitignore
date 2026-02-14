@@ -362,3 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /DiskSpaceService/DiskSpaceConfig.xml
+# StorageWatch configuration file
+StorageWatchConfig.xml
