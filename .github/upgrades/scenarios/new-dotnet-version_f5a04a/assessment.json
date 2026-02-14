@@ -1,0 +1,237 @@
+{
+  "settings": {
+    "components": {
+      "code": true,
+      "binaries": false
+    },
+    "targetId": "net10.0",
+    "targetDisplayName": ".NETCoreApp,Version=v10.0"
+  },
+  "analysisStartTime": "2026-02-14T14:06:40.7118404Z",
+  "analysisEndTime": "2026-02-14T14:06:42.5381438Z",
+  "privacyModeHelpUrl": "https://go.microsoft.com/fwlink/?linkid=2270980",
+  "stats": {
+    "summary": {
+      "projects": 1,
+      "issues": 3,
+      "incidents": 5,
+      "effort": 5
+    },
+    "charts": {
+      "severity": {
+        "Mandatory": 1,
+        "Optional": 0,
+        "Potential": 4,
+        "Information": 0
+      },
+      "category": {
+        "NuGet": 2,
+        "Project": 1,
+        "Api": 2
+      }
+    }
+  },
+  "projects": [
+    {
+      "path": "DiskSpaceService\\DiskSpaceService.csproj",
+      "startingProject": true,
+      "issues": 3,
+      "storyPoints": 5,
+      "properties": {
+        "appName": "DiskSpaceService",
+        "projectKind": "DotNetCoreApp",
+        "frameworks": [
+          "net8.0"
+        ],
+        "languages": [
+          "C#"
+        ],
+        "tools": [
+          "MSBuild"
+        ],
+        "isSdkStyle": true,
+        "numberOfFiles": 18,
+        "numberOfCodeFiles": 16,
+        "linesTotal": 1465,
+        "linesOfCode": 1449,
+        "totalApiScanned": 760,
+        "minLinesOfCodeToChange": 2,
+        "maxLinesOfCodeToChange": 2
+      },
+      "ruleInstances": [
+        {
+          "incidentId": "3b895d2f-7085-49f4-b099-59cf743c0f78",
+          "ruleId": "NuGet.0002",
+          "projectPath": "DiskSpaceService\\DiskSpaceService.csproj",
+          "state": "Active",
+          "location": {
+            "snippetModel": {
+              "unrestricted": "Microsoft.Extensions.Hosting, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting, and replace with new package Microsoft.Extensions.Hosting 10.0.3",
+              "protected": "Microsoft.Extensions.Hosting, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting, and replace with new package Microsoft.Extensions.Hosting 10.0.3"
+            },
+            "kind": "File",
+            "path": "DiskSpaceService\\DiskSpaceService.csproj",
+            "snippet": "Microsoft.Extensions.Hosting, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting, and replace with new package Microsoft.Extensions.Hosting 10.0.3",
+            "protectedSnippet": "Microsoft.Extensions.Hosting, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting, and replace with new package Microsoft.Extensions.Hosting 10.0.3",
+            "label": "Microsoft.Extensions.Hosting 8.0.1",
+            "properties": {
+              "PackageId": "Microsoft.Extensions.Hosting",
+              "PackageVersion": "8.0.1",
+              "PackageNewVersion": "10.0.3",
+              "PackageReplacements": null
+            }
+          }
+        },
+        {
+          "incidentId": "3a3e0b45-bcc0-4958-aa44-cfd1755efa35",
+          "ruleId": "NuGet.0002",
+          "projectPath": "DiskSpaceService\\DiskSpaceService.csproj",
+          "state": "Active",
+          "location": {
+            "snippetModel": {
+              "unrestricted": "Microsoft.Extensions.Hosting.WindowsServices, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting.WindowsServices, and replace with new package Microsoft.Extensions.Hosting.WindowsServices 10.0.3",
+              "protected": "Microsoft.Extensions.Hosting.WindowsServices, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting.WindowsServices, and replace with new package Microsoft.Extensions.Hosting.WindowsServices 10.0.3"
+            },
+            "kind": "File",
+            "path": "DiskSpaceService\\DiskSpaceService.csproj",
+            "snippet": "Microsoft.Extensions.Hosting.WindowsServices, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting.WindowsServices, and replace with new package Microsoft.Extensions.Hosting.WindowsServices 10.0.3",
+            "protectedSnippet": "Microsoft.Extensions.Hosting.WindowsServices, 8.0.1\n\nRecommendation:\n\nRemove Microsoft.Extensions.Hosting.WindowsServices, and replace with new package Microsoft.Extensions.Hosting.WindowsServices 10.0.3",
+            "label": "Microsoft.Extensions.Hosting.WindowsServices 8.0.1",
+            "properties": {
+              "PackageId": "Microsoft.Extensions.Hosting.WindowsServices",
+              "PackageVersion": "8.0.1",
+              "PackageNewVersion": "10.0.3",
+              "PackageReplacements": null
+            }
+          }
+        },
+        {
+          "incidentId": "7678b413-a588-4ba7-aa8c-ca3a71c770ee",
+          "ruleId": "Project.0002",
+          "projectPath": "DiskSpaceService\\DiskSpaceService.csproj",
+          "state": "Active",
+          "location": {
+            "snippetModel": {
+              "unrestricted": "Current target framework: net8.0\nRecommended target framework: net10.0",
+              "protected": "Current target framework: net8.0\nRecommended target framework: net10.0"
+            },
+            "kind": "File",
+            "path": "DiskSpaceService\\DiskSpaceService.csproj",
+            "snippet": "Current target framework: net8.0\nRecommended target framework: net10.0",
+            "protectedSnippet": "Current target framework: net8.0\nRecommended target framework: net10.0",
+            "properties": {
+              "CurrentTargetFramework": "net8.0",
+              "RecommendedTargetFramework": "net10.0"
+            }
+          }
+        },
+        {
+          "incidentId": "639dab92-9f90-4367-8908-b79729cca77e",
+          "ruleId": "Api.0002",
+          "description": "Breaking change: New TimeSpan.From*() overloads that take integers ",
+          "projectPath": "DiskSpaceService\\DiskSpaceService.csproj",
+          "state": "Active",
+          "location": {
+            "snippetModel": {
+              "unrestricted": "await Task.Delay(TimeSpan.FromMinutes(1), token);",
+              "protected": "M:System.TimeSpan.FromMinutes(System.Double)"
+            },
+            "kind": "File",
+            "path": "DiskSpaceService\\Services\\Scheduling\\NotificationLoop.cs",
+            "snippet": "await Task.Delay(TimeSpan.FromMinutes(1), token);",
+            "protectedSnippet": "M:System.TimeSpan.FromMinutes(System.Double)",
+            "label": "M:System.TimeSpan.FromMinutes(System.Double)",
+            "links": [
+              {
+                "title": "API documentation",
+                "url": "https://github.com/dotnet/docs/blob/main/docs/core/compatibility/core-libraries/9.0/timespan-from-overloads.md",
+                "isCustom": false
+              }
+            ],
+            "line": 177,
+            "column": 16
+          }
+        },
+        {
+          "incidentId": "8eced5f0-0215-4349-a07f-af046f0edb31",
+          "ruleId": "Api.0002",
+          "description": "Breaking change: New TimeSpan.From*() overloads that take integers ",
+          "projectPath": "DiskSpaceService\\DiskSpaceService.csproj",
+          "state": "Active",
+          "location": {
+            "snippetModel": {
+              "unrestricted": "await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);",
+              "protected": "M:System.TimeSpan.FromSeconds(System.Double)"
+            },
+            "kind": "File",
+            "path": "DiskSpaceService\\Services\\Worker.cs",
+            "snippet": "await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);",
+            "protectedSnippet": "M:System.TimeSpan.FromSeconds(System.Double)",
+            "label": "M:System.TimeSpan.FromSeconds(System.Double)",
+            "links": [
+              {
+                "title": "API documentation",
+                "url": "https://github.com/dotnet/docs/blob/main/docs/core/compatibility/core-libraries/9.0/timespan-from-overloads.md",
+                "isCustom": false
+              }
+            ],
+            "line": 92,
+            "column": 16
+          }
+        }
+      ],
+      "features": []
+    }
+  ],
+  "rules": {
+    "NuGet.0002": {
+      "id": "NuGet.0002",
+      "isFeature": false,
+      "description": "NuGet package upgrade is recommended for selected target framework.\n\nStandard .NET packages are recommended to have versions matching version of .NET that project targets.\n\nSome other packages also are known to work better for selected target frameworks.",
+      "label": "NuGet package upgrade is recommended",
+      "severity": "Potential",
+      "effort": 1,
+      "links": [
+        {
+          "url": "https://go.microsoft.com/fwlink/?linkid=2262530",
+          "isCustom": false
+        }
+      ]
+    },
+    "Project.0002": {
+      "id": "Project.0002",
+      "isFeature": false,
+      "description": "Project\u0027s target framework(s) needs to be changed to the new target framework that you selected for this upgrade.\n\nDuring upgrade target framework will be adjusted to corresponding platform when applicable. In some cases project would result in multiple target frameworks after the upgrade if it was using features that now have their own platforms in modern .NET frameworks (windows, iOS, Android etc).",
+      "label": "Project\u0027s target framework(s) needs to be changed",
+      "severity": "Mandatory",
+      "effort": 1,
+      "links": [
+        {
+          "title": "Overview of porting from .NET Framework to .NET",
+          "url": "https://go.microsoft.com/fwlink/?linkid=2265227",
+          "isCustom": false
+        },
+        {
+          "title": ".NET project SDKs",
+          "url": "https://go.microsoft.com/fwlink/?linkid=2265226",
+          "isCustom": false
+        }
+      ]
+    },
+    "Api.0002": {
+      "id": "Api.0002",
+      "isFeature": false,
+      "description": "API is source incompatible for selected .NET version: requires code changes to compile successfully when targeting a new version, such as removing obsolete APIs or changing method signatures.",
+      "label": "Source incompatible for selected .NET version",
+      "severity": "Potential",
+      "effort": 1,
+      "links": [
+        {
+          "title": "Breaking changes in .NET",
+          "url": "https://go.microsoft.com/fwlink/?linkid=2262679",
+          "isCustom": false
+        }
+      ]
+    }
+  }
+}
