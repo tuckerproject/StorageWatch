@@ -1,7 +1,7 @@
 /// <summary>
-/// SQL Reporter for Disk Space Data
+/// SQLite Reporter for Disk Space Data
 /// 
-/// This class handles the periodic insertion of disk space metrics into the SQL database.
+/// This class handles the periodic insertion of disk space metrics into the SQLite database.
 /// It retrieves the current disk status for each monitored drive and writes the data
 /// to the DiskSpaceLog table with machine name, drive letter, and space metrics.
 /// </summary>
@@ -9,7 +9,7 @@
 using StorageWatch.Config;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
-using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace StorageWatch.Services.Scheduling
 {
     /// <summary>
-    /// Writes disk space data to a SQL database table.
+    /// Writes disk space data to a SQLite database table.
     /// Records include machine name, drive letter, total/used/free space, percent free, and timestamp.
     /// </summary>
     public class SqlReporter
@@ -38,15 +38,15 @@ namespace StorageWatch.Services.Scheduling
 
         /// <summary>
         /// Writes disk space data for all configured drives to the database.
-        /// This method connects to SQL Server, retrieves the current status of each drive,
+        /// This method connects to SQLite, retrieves the current status of each drive,
         /// and inserts a record into the DiskSpaceLog table. Drives that are not ready are skipped.
         /// </summary>
         public async Task WriteDailyReportAsync()
         {
             try
             {
-                // Establish a connection to the SQL database
-                using var connection = new SqlConnection(_config.Database.ConnectionString);
+                // Establish a connection to the SQLite database
+                using var connection = new SqliteConnection(_config.Database.ConnectionString);
                 await connection.OpenAsync();
 
                 // Get the name of this machine for the database records
@@ -73,7 +73,7 @@ namespace StorageWatch.Services.Scheduling
                         VALUES (@machine, @drive, @total, @used, @free, @percent, @utc)
                     ";
 
-                    using var command = new SqlCommand(sql, connection);
+                    using var command = new SqliteCommand(sql, connection);
                     // Add parameters to the command with values from the disk status
                     command.Parameters.AddWithValue("@machine", machineName);
                     command.Parameters.AddWithValue("@drive", status.DriveName);

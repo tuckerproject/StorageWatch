@@ -83,8 +83,8 @@ namespace StorageWatch.Config
     public class DatabaseConfig
     {
         /// <summary>
-        /// SQL Server connection string used for reporting and data storage.
-        /// Example: "Server=localhost;Database=DiskSpace;Integrated Security=true;"
+        /// SQLite connection string used for reporting and data storage.
+        /// Example: "Data Source=StorageWatch.db;Version=3;"
         /// </summary>
         public string ConnectionString { get; set; } = string.Empty;
     }

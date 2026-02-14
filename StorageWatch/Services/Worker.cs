@@ -8,6 +8,7 @@
 /// </summary>
 
 using StorageWatch.Config;
+using StorageWatch.Data;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
@@ -50,6 +51,20 @@ namespace StorageWatch.Services
             // Log startup information if enabled in configuration
             if (_config.EnableStartupLogging)
                 _logger.Log("[STARTUP] Config loaded");
+
+            // Initialize and verify SQLite database schema
+            var schemaInitializer = new SqliteSchema(_config.Database.ConnectionString, _logger);
+            try
+            {
+                schemaInitializer.InitializeDatabaseAsync().Wait();
+                if (_config.EnableStartupLogging)
+                    _logger.Log("[STARTUP] SQLite database initialized");
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[STARTUP ERROR] Failed to initialize SQLite database: {ex}");
+                throw;
+            }
 
             // Initialize the disk monitoring component
             var monitor = new DiskAlertMonitor(_config);
