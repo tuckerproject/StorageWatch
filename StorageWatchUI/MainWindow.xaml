@@ -1,0 +1,60 @@
+<Window x:Class="StorageWatchUI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:StorageWatchUI.ViewModels"
+        xmlns:views="clr-namespace:StorageWatchUI.Views"
+        mc:Ignorable="d"
+        Title="StorageWatch" Height="600" Width="1000"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+            <views:DashboardView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TrendsViewModel}">
+            <views:TrendsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CentralViewModel}">
+            <views:CentralView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ServiceStatusViewModel}">
+            <views:ServiceStatusView/>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Navigation Panel -->
+        <Border Grid.Column="0" Background="{DynamicResource NavigationBackground}" 
+                BorderThickness="0,0,1,0" BorderBrush="{DynamicResource BorderBrush}">
+            <StackPanel Margin="10">
+                <TextBlock Text="STORAGEWATCH" FontSize="18" FontWeight="Bold" 
+                           Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,20"/>
+
+                <Button Content="Dashboard" Command="{Binding NavigateToDashboardCommand}" 
+                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
+                <Button Content="Trends" Command="{Binding NavigateToTrendsCommand}" 
+                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
+                <Button Content="Central Server" Command="{Binding NavigateToCentralCommand}" 
+                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
+                <Button Content="Settings" Command="{Binding NavigateToSettingsCommand}" 
+                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
+                <Button Content="Service Status" Command="{Binding NavigateToServiceStatusCommand}" 
+                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Content Area -->
+        <ContentControl Grid.Column="1" Content="{Binding CurrentViewModel}" 
+                        Margin="10"/>
+    </Grid>
+</Window>
