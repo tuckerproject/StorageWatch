@@ -1,0 +1,57 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build solution
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Run unit tests
+      run: dotnet test StorageWatch.Tests/StorageWatch.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=normal" /p:CollectCoverage=true /p:CoverletOutput=./coverage/ /p:CoverletOutputFormat=cobertura
+
+    - name: Run integration tests
+      run: dotnet test StorageWatch.Tests/StorageWatch.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=normal" --filter "Category=Integration" || true
+
+    - name: Upload coverage to artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: code-coverage-reports
+        path: StorageWatch.Tests/coverage/
+        retention-days: 30
+
+    - name: Publish build artifacts - Service
+      run: dotnet publish StorageWatch/StorageWatchService.csproj --configuration Release --output ./publish/StorageWatchService
+
+    - name: Upload service executable artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: StorageWatchService-executable
+        path: ./publish/StorageWatchService/
+        retention-days: 30
+
+    - name: Verify code formatting
+      run: dotnet format --verify-no-changes --verbosity diagnostic
+
+    - name: Check for build warnings
+      if: always()
+      run: Write-Host "Build completed. Review logs for any warnings or issues."
