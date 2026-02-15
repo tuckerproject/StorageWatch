@@ -1,5 +1,6 @@
 using StorageWatchUI.Models;
 using StorageWatchUI.Services;
+using StorageWatchUI.Communication;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.ServiceProcess;
@@ -14,8 +15,12 @@ namespace StorageWatchUI.ViewModels;
 public class ServiceStatusViewModel : ViewModelBase
 {
     private readonly ServiceManager _serviceManager;
+    private readonly ServiceCommunicationClient _communicationClient;
     private bool _isServiceInstalled;
     private string _serviceStatus = "Unknown";
+    private string _serviceUptime = "N/A";
+    private string _lastExecutionTime = "N/A";
+    private string _lastError = string.Empty;
     private bool _isLoading;
     private bool _canStart;
     private bool _canStop;
@@ -24,12 +29,13 @@ public class ServiceStatusViewModel : ViewModelBase
     public ServiceStatusViewModel(ServiceManager serviceManager)
     {
         _serviceManager = serviceManager;
+        _communicationClient = new ServiceCommunicationClient();
 
         RefreshCommand = new RelayCommand(async () => await LoadStatusAsync());
         StartServiceCommand = new RelayCommand(async () => await StartServiceAsync(), () => CanStart);
         StopServiceCommand = new RelayCommand(async () => await StopServiceAsync(), () => CanStop);
         RestartServiceCommand = new RelayCommand(async () => await RestartServiceAsync(), () => CanStop);
-        RefreshLogsCommand = new RelayCommand(LoadLogs);
+        RefreshLogsCommand = new RelayCommand(async () => await LoadLogsAsync());
 
         // Start auto-refresh timer (every 10 seconds)
         _refreshTimer = new System.Timers.Timer(10000);
@@ -49,6 +55,24 @@ public class ServiceStatusViewModel : ViewModelBase
     {
         get => _serviceStatus;
         set => SetProperty(ref _serviceStatus, value);
+    }
+
+    public string ServiceUptime
+    {
+        get => _serviceUptime;
+        set => SetProperty(ref _serviceUptime, value);
+    }
+
+    public string LastExecutionTime
+    {
+        get => _lastExecutionTime;
+        set => SetProperty(ref _lastExecutionTime, value);
+    }
+
+    public string LastError
+    {
+        get => _lastError;
+        set => SetProperty(ref _lastError, value);
     }
 
     public bool IsLoading
@@ -89,13 +113,16 @@ public class ServiceStatusViewModel : ViewModelBase
 
     private async Task LoadStatusAsync()
     {
-        await Task.Run(() =>
+        await Task.Run(async () =>
         {
             IsServiceInstalled = _serviceManager.IsServiceInstalled();
 
             if (!IsServiceInstalled)
             {
                 ServiceStatus = "Not Installed";
+                ServiceUptime = "N/A";
+                LastExecutionTime = "N/A";
+                LastError = string.Empty;
                 CanStart = false;
                 CanStop = false;
                 return;
@@ -106,9 +133,34 @@ public class ServiceStatusViewModel : ViewModelBase
 
             CanStart = status == ServiceControllerStatus.Stopped;
             CanStop = status == ServiceControllerStatus.Running;
+
+            // Try to get detailed status from IPC if service is running
+            if (status == ServiceControllerStatus.Running)
+            {
+                try
+                {
+                    var detailedStatus = await _communicationClient.GetStatusAsync();
+                    if (detailedStatus != null)
+                    {
+                        ServiceUptime = FormatTimeSpan(detailedStatus.Uptime);
+                        LastExecutionTime = detailedStatus.LastExecutionTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+                        LastError = detailedStatus.LastError ?? string.Empty;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // IPC failed, service is running but not responding
+                    LastError = $"Service not responding: {ex.Message}";
+                }
+            }
+            else
+            {
+                ServiceUptime = "N/A";
+                LastExecutionTime = "N/A";
+            }
         });
 
-        LoadLogs();
+        await LoadLogsAsync();
     }
 
     private async Task StartServiceAsync()
@@ -201,7 +253,37 @@ public class ServiceStatusViewModel : ViewModelBase
         }
     }
 
-    private void LoadLogs()
+    private async Task LoadLogsAsync()
+    {
+        try
+        {
+            // Try to get logs via IPC first
+            var logs = await _communicationClient.GetLogsAsync(100);
+            
+            if (logs != null && logs.Any())
+            {
+                RecentLogs.Clear();
+                foreach (var line in logs)
+                {
+                    // Parse log line format: "2024-01-15 10:30:45  [INFO] Message"
+                    var entry = ParseLogLine(line);
+                    RecentLogs.Add(entry);
+                }
+            }
+            else
+            {
+                // Fallback: Try to read from file directly
+                LoadLogsFromFile();
+            }
+        }
+        catch
+        {
+            // Fallback: Try to read from file directly
+            LoadLogsFromFile();
+        }
+    }
+
+    private void LoadLogsFromFile()
     {
         try
         {
@@ -249,7 +331,7 @@ public class ServiceStatusViewModel : ViewModelBase
     {
         try
         {
-            // Expected format: "2024-01-15 10:30:45  Message text"
+            // Expected format: "2024-01-15 10:30:45  [INFO] Message"
             if (line.Length < 21)
                 return new LogEntry { Timestamp = DateTime.Now, Message = line, Level = LogLevel.Info };
 
@@ -268,5 +350,15 @@ public class ServiceStatusViewModel : ViewModelBase
         catch { }
 
         return new LogEntry { Timestamp = DateTime.Now, Message = line, Level = LogLevel.Info };
+    }
+
+    private string FormatTimeSpan(TimeSpan timeSpan)
+    {
+        if (timeSpan.TotalDays >= 1)
+            return $"{(int)timeSpan.TotalDays}d {timeSpan.Hours}h {timeSpan.Minutes}m";
+        else if (timeSpan.TotalHours >= 1)
+            return $"{(int)timeSpan.TotalHours}h {timeSpan.Minutes}m";
+        else
+            return $"{timeSpan.Minutes}m {timeSpan.Seconds}s";
     }
 }

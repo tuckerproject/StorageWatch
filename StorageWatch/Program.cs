@@ -15,6 +15,7 @@ using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Alerting.Plugins;
 using StorageWatch.Services.Logging;
 using StorageWatch.Models;
+using StorageWatch.Communication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -86,6 +87,17 @@ var host = Host.CreateDefaultBuilder(args)
 
         // ====================================================================
         // End Plugin Architecture Registration
+        // ====================================================================
+
+        // ====================================================================
+        // IPC Communication Server Registration
+        // ====================================================================
+        
+        // Register the IPC server as a hosted service for UI communication
+        services.AddHostedService<ServiceCommunicationServer>();
+        
+        // ====================================================================
+        // End IPC Communication Server Registration
         // ====================================================================
 
         // Register the Worker as a hosted background service that will run continuously

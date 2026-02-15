@@ -161,6 +161,13 @@ Installer must ask:
   - Create Start Menu shortcuts  
   - Start service  
 
+### 13.5. UI Test Cleanup & Refactor
+- Fix pre‑existing UI test failures
+- Introduce IServiceManager abstraction (or make ServiceManager methods virtual)
+- Update ViewModels to use the new abstraction
+- Ensure all UI tests pass
+- Add missing tests for IPC‑related ViewModels
+
 ---
 
 # PHASE 4 — ADVANCED FEATURES

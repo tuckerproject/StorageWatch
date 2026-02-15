@@ -11,10 +11,21 @@ using Microsoft.Extensions.Options;
 using StorageWatch.Config.Encryption;
 using StorageWatch.Config.Options;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace StorageWatch.Config
 {
+    /// <summary>
+    /// Result of configuration validation.
+    /// </summary>
+    public class ValidationResult
+    {
+        public bool IsValid { get; set; }
+        public List<string> Errors { get; set; } = new();
+        public List<string> Warnings { get; set; } = new();
+    }
+
     /// <summary>
     /// Utility class for loading JSON configuration files and binding them to strongly-typed options.
     /// </summary>
@@ -89,6 +100,116 @@ namespace StorageWatch.Config
 
             var provider = services.BuildServiceProvider();
             return provider.GetRequiredService<IOptionsMonitor<StorageWatchOptions>>();
+        }
+
+        /// <summary>
+        /// Validates a configuration file and returns the validation result.
+        /// Does not throw exceptions on validation failure.
+        /// </summary>
+        /// <param name="configPath">Path to the StorageWatchConfig.json file.</param>
+        /// <returns>A validation result object containing errors and warnings.</returns>
+        public static ValidationResult Validate(string configPath)
+        {
+            var result = new ValidationResult { IsValid = true };
+
+            try
+            {
+                if (!File.Exists(configPath))
+                {
+                    result.IsValid = false;
+                    result.Errors.Add($"Configuration file not found: {configPath}");
+                    return result;
+                }
+
+                // Try to parse JSON
+                var config = new ConfigurationBuilder()
+                    .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+                    .Build();
+
+                // Bind to options
+                var options = new StorageWatchOptions();
+                config.GetSection(StorageWatchOptions.SectionKey).Bind(options);
+
+                // Run validators
+                var validators = new IValidateOptions<StorageWatchOptions>[]
+                {
+                    new StorageWatchOptionsValidator(),
+                };
+
+                foreach (var validator in validators)
+                {
+                    var validationResult = validator.Validate(null, options);
+                    if (!validationResult.Succeeded)
+                    {
+                        result.IsValid = false;
+                        result.Errors.Add(validationResult.FailureMessage ?? "Unknown validation error");
+                    }
+                }
+
+                // Validate sub-options
+                ValidateSubOptionsWithResult(options, result);
+            }
+            catch (Exception ex)
+            {
+                result.IsValid = false;
+                result.Errors.Add($"Configuration validation failed: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Validates sub-options and adds errors/warnings to the result.
+        /// </summary>
+        private static void ValidateSubOptionsWithResult(StorageWatchOptions options, ValidationResult result)
+        {
+            var monitoringValidator = new MonitoringOptionsValidator();
+            var validationResult = monitoringValidator.Validate(null, options.Monitoring);
+            if (!validationResult.Succeeded)
+            {
+                result.IsValid = false;
+                result.Errors.Add($"Monitoring: {validationResult.FailureMessage}");
+            }
+
+            var smtpValidator = new SmtpOptionsValidator();
+            validationResult = smtpValidator.Validate(null, options.Alerting.Smtp);
+            if (!validationResult.Succeeded)
+            {
+                if (options.Alerting.Smtp.Enabled)
+                {
+                    result.IsValid = false;
+                    result.Errors.Add($"SMTP: {validationResult.FailureMessage}");
+                }
+                else
+                {
+                    result.Warnings.Add($"SMTP: {validationResult.FailureMessage} (disabled, ignoring)");
+                }
+            }
+
+            var groupMeValidator = new GroupMeOptionsValidator();
+            validationResult = groupMeValidator.Validate(null, options.Alerting.GroupMe);
+            if (!validationResult.Succeeded)
+            {
+                if (options.Alerting.GroupMe.Enabled)
+                {
+                    result.IsValid = false;
+                    result.Errors.Add($"GroupMe: {validationResult.FailureMessage}");
+                }
+                else
+                {
+                    result.Warnings.Add($"GroupMe: {validationResult.FailureMessage} (disabled, ignoring)");
+                }
+            }
+
+            var centralServerValidator = new CentralServerOptionsValidator();
+            validationResult = centralServerValidator.Validate(null, options.CentralServer);
+            if (!validationResult.Succeeded)
+            {
+                if (options.CentralServer.Enabled)
+                {
+                    result.Warnings.Add($"Central Server: {validationResult.FailureMessage}");
+                }
+            }
         }
 
         /// <summary>
