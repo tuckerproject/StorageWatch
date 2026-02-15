@@ -48,6 +48,12 @@ namespace StorageWatch.Config.Options
         /// </summary>
         [Required]
         public CentralServerOptions CentralServer { get; set; } = new();
+
+        /// <summary>
+        /// Data retention and cleanup configuration section.
+        /// </summary>
+        [Required]
+        public RetentionOptions Retention { get; set; } = new();
     }
 
     /// <summary>
@@ -320,5 +326,61 @@ namespace StorageWatch.Config.Options
         [Required]
         [RegularExpression(@"^\d{2}:\d{2}$", ErrorMessage = "CollectionTime must be in HH:mm format")]
         public string CollectionTime { get; set; } = "02:00";
+    }
+
+    /// <summary>
+    /// Data retention and cleanup options for SQLite logs.
+    /// </summary>
+    public class RetentionOptions
+    {
+        /// <summary>
+        /// Configuration section key within StorageWatch section
+        /// </summary>
+        public const string SectionKey = "Retention";
+
+        /// <summary>
+        /// Enables or disables automatic data retention and cleanup.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Maximum number of days to retain log data. Older entries are deleted.
+        /// Valid range: 1-36500 (up to ~100 years)
+        /// </summary>
+        [Range(1, 36500, ErrorMessage = "MaxDays must be between 1 and 36500")]
+        public int MaxDays { get; set; } = 365;
+
+        /// <summary>
+        /// Optional maximum number of rows to keep in the DiskSpaceLog table.
+        /// When the table exceeds this count, oldest rows are deleted until the target is reached.
+        /// If 0 or negative, this constraint is ignored. Default: 0 (no row limit)
+        /// </summary>
+        [Range(0, int.MaxValue, ErrorMessage = "MaxRows must be non-negative")]
+        public int MaxRows { get; set; } = 0;
+
+        /// <summary>
+        /// Interval in minutes between automatic cleanup operations.
+        /// Valid range: 1-10080 (1 minute to 7 days)
+        /// </summary>
+        [Range(1, 10080, ErrorMessage = "CleanupIntervalMinutes must be between 1 and 10080")]
+        public int CleanupIntervalMinutes { get; set; } = 60;
+
+        /// <summary>
+        /// Enables or disables archiving of deleted rows to CSV files before deletion.
+        /// </summary>
+        public bool ArchiveEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Directory path where archived CSV files are stored.
+        /// Only used if ArchiveEnabled is true.
+        /// Example: "C:\\ProgramData\\StorageWatch\\Archives"
+        /// </summary>
+        [StringLength(500, ErrorMessage = "ArchiveDirectory cannot exceed 500 characters")]
+        public string ArchiveDirectory { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Enables or disables exporting of archived data to CSV format.
+        /// </summary>
+        public bool ExportCsvEnabled { get; set; } = true;
     }
 }

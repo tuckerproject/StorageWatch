@@ -15,6 +15,7 @@ using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.Scheduling;
 using StorageWatch.Services.CentralServer;
+using StorageWatch.Services.DataRetention;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System;
@@ -36,6 +37,7 @@ namespace StorageWatch.Services
         private readonly SqlReporterScheduler _sqlScheduler;
         private readonly NotificationLoop _notificationLoop;
         private readonly CentralServerService? _centralServer;
+        private readonly RetentionManager? _retentionManager;
 
         /// <summary>
         /// Initializes a new instance of the Worker class using dependency injection.
@@ -114,6 +116,19 @@ namespace StorageWatch.Services
             _sqlScheduler = new SqlReporterScheduler(options, sqlReporter, _logger);
             _notificationLoop = new NotificationLoop(options, senders, monitor, _logger);
 
+            // Initialize the retention manager for automatic data cleanup
+            try
+            {
+                _retentionManager = new RetentionManager(options.Database.ConnectionString, options.Retention, _logger);
+                if (options.General.EnableStartupLogging)
+                    _logger.Log("[STARTUP] Retention manager initialized");
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[STARTUP ERROR] Failed to initialize retention manager: {ex}");
+                throw;
+            }
+
             // Initialize central server if enabled in server mode
             if (options.CentralServer.Enabled && 
                 options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
@@ -179,6 +194,19 @@ namespace StorageWatch.Services
             {
                 // Check if the current time matches the scheduled SQL collection time
                 await _sqlScheduler.CheckAndRunAsync(DateTime.Now);
+
+                // Check if retention cleanup should execute (non-blocking)
+                if (_retentionManager != null)
+                {
+                    try
+                    {
+                        await _retentionManager.CheckAndCleanupAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Log($"[WORKER ERROR] Retention cleanup failed: {ex}");
+                    }
+                }
                 
                 // Wait 30 seconds before checking again
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);

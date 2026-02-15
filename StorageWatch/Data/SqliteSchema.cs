@@ -71,6 +71,16 @@ namespace StorageWatch.Data
                 using var indexCommand = new SqliteCommand(createIndexSql, connection);
                 await indexCommand.ExecuteNonQueryAsync();
                 _logger.Log("[SQLite] Index created or already exists.");
+
+                // Create an index on CollectionTimeUtc for efficient retention/cleanup queries
+                string createRetentionIndexSql = @"
+                    CREATE INDEX IF NOT EXISTS idx_DiskSpaceLog_CollectionTime
+                    ON DiskSpaceLog(CollectionTimeUtc);
+                ";
+
+                using var retentionIndexCommand = new SqliteCommand(createRetentionIndexSql, connection);
+                await retentionIndexCommand.ExecuteNonQueryAsync();
+                _logger.Log("[SQLite] Retention index created or already exists.");
             }
             catch (Exception ex)
             {
