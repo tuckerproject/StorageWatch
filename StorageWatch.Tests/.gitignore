@@ -1,0 +1,23 @@
+# Test Results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Coverage Reports
+coverage.json
+coverage.opencover.xml
+coverage.cobertura.xml
+lcov.info
+
+# Test Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Test Logs
+test_log_*.log
+
+# Temporary Files
+*.tmp
+*.temp

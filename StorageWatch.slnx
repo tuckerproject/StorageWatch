@@ -1,3 +1,5 @@
 <Solution>
+  <Folder Name="/StorageWatch/" />
+  <Project Path="StorageWatch.Tests/StorageWatch.Tests.csproj" />
   <Project Path="StorageWatch/StorageWatchService.csproj" />
 </Solution>
