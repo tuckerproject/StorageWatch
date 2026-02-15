@@ -6,7 +6,7 @@
 /// the HTTP API endpoints for data submission.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Data;
 using StorageWatch.Services.Logging;
 using System;
@@ -26,7 +26,7 @@ namespace StorageWatch.Services.CentralServer
     /// </summary>
     public class CentralServerService
     {
-        private readonly CentralServerConfig _config;
+        private readonly CentralServerOptions _options;
         private readonly RollingFileLogger _logger;
         private readonly CentralServerRepository _repository;
         private HttpListener? _listener;
@@ -36,15 +36,15 @@ namespace StorageWatch.Services.CentralServer
         /// <summary>
         /// Initializes a new instance of the CentralServerService class.
         /// </summary>
-        /// <param name="config">The central server configuration.</param>
+        /// <param name="options">The central server options.</param>
         /// <param name="logger">The logger for recording server operations.</param>
         /// <param name="repository">The data repository for persisting agent data.</param>
         public CentralServerService(
-            CentralServerConfig config,
+            CentralServerOptions options,
             RollingFileLogger logger,
             CentralServerRepository repository)
         {
-            _config = config;
+            _options = options;
             _logger = logger;
             _repository = repository;
         }
@@ -59,16 +59,16 @@ namespace StorageWatch.Services.CentralServer
         {
             try
             {
-                _logger.Log($"[CentralServer] Starting central server on port {_config.Port}");
+                _logger.Log($"[CentralServer] Starting central server on port {_options.Port}");
 
                 _listener = new HttpListener();
-                _listener.Prefixes.Add($"http://localhost:{_config.Port}/");
+                _listener.Prefixes.Add($"http://localhost:{_options.Port}/");
                 _listener.Start();
 
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 _listenerTask = ListenAsync(_cts.Token);
 
-                _logger.Log($"[CentralServer] Central server started successfully on port {_config.Port}");
+                _logger.Log($"[CentralServer] Central server started successfully on port {_options.Port}");
             }
             catch (Exception ex)
             {
@@ -239,7 +239,7 @@ namespace StorageWatch.Services.CentralServer
             {
                 Success = true,
                 Message = "Central server is healthy",
-                Data = new { ServerId = _config.ServerId, Port = _config.Port }
+                Data = new { ServerId = _options.ServerId, Port = _options.Port }
             });
         }
 

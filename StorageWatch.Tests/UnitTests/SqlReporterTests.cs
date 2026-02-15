@@ -7,9 +7,10 @@
 
 using FluentAssertions;
 using Moq;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Scheduling;
+using StorageWatch.Tests.Utilities;
 
 namespace StorageWatch.Tests.UnitTests
 {
@@ -26,17 +27,10 @@ namespace StorageWatch.Tests.UnitTests
         public void Constructor_WithValidConfig_InitializesSuccessfully()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                Database = new DatabaseConfig
-                {
-                    ConnectionString = "Data Source=:memory:"
-                },
-                Drives = new List<string> { "C:" }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
 
             // Act
-            var reporter = new SqlReporter(config, _mockLogger.Object);
+            var reporter = new SqlReporter(options, _mockLogger.Object);
 
             // Assert
             reporter.Should().NotBeNull();

@@ -6,7 +6,7 @@
 /// This is designed for agent mode, where the local service reports to a central aggregation point.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
 using System;
@@ -23,18 +23,18 @@ namespace StorageWatch.Services.CentralServer
     /// </summary>
     public class CentralServerForwarder
     {
-        private readonly CentralServerConfig _config;
+        private readonly CentralServerOptions _options;
         private readonly RollingFileLogger _logger;
         private readonly HttpClient _httpClient;
 
         /// <summary>
         /// Initializes a new instance of the CentralServerForwarder class.
         /// </summary>
-        /// <param name="config">The central server configuration containing the server URL and API key.</param>
+        /// <param name="options">The central server options containing the server URL and API key.</param>
         /// <param name="logger">The logger for recording forwarding operations and errors.</param>
-        public CentralServerForwarder(CentralServerConfig config, RollingFileLogger logger)
+        public CentralServerForwarder(CentralServerOptions options, RollingFileLogger logger)
         {
-            _config = config;
+            _options = options;
             _logger = logger;
             _httpClient = new HttpClient
             {
@@ -62,14 +62,14 @@ namespace StorageWatch.Services.CentralServer
             try
             {
                 // Skip if server URL is not configured
-                if (string.IsNullOrWhiteSpace(_config.ServerUrl))
+                if (string.IsNullOrWhiteSpace(_options.ServerUrl))
                 {
                     _logger.Log("[CentralServerForwarder] WARNING: ServerUrl is not configured. Skipping forward.");
                     return;
                 }
 
                 // Build the endpoint URL
-                string endpoint = $"{_config.ServerUrl.TrimEnd('/')}/api/logs/disk-space";
+                string endpoint = $"{_options.ServerUrl.TrimEnd('/')}/api/logs/disk-space";
 
                 // Serialize the entry to JSON
                 var json = JsonSerializer.Serialize(entry);
@@ -81,9 +81,9 @@ namespace StorageWatch.Services.CentralServer
                     Content = content
                 };
 
-                if (!string.IsNullOrWhiteSpace(_config.ApiKey))
+                if (!string.IsNullOrWhiteSpace(_options.ApiKey))
                 {
-                    request.Headers.Add("X-API-Key", _config.ApiKey);
+                    request.Headers.Add("X-API-Key", _options.ApiKey);
                 }
 
                 // Send the request
@@ -111,7 +111,7 @@ namespace StorageWatch.Services.CentralServer
             catch (HttpRequestException ex)
             {
                 _logger.Log(
-                    $"[CentralServerForwarder UNREACHABLE] Could not reach central server at {_config.ServerUrl}: {ex.Message}"
+                    $"[CentralServerForwarder UNREACHABLE] Could not reach central server at {_options.ServerUrl}: {ex.Message}"
                 );
             }
             catch (TaskCanceledException ex)
@@ -134,9 +134,9 @@ namespace StorageWatch.Services.CentralServer
         /// <returns>True if the forwarder is enabled and has a valid server URL; otherwise false.</returns>
         public bool IsEnabled()
         {
-            return _config.Enabled && 
-                   _config.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase) &&
-                   !string.IsNullOrWhiteSpace(_config.ServerUrl);
+            return _options.Enabled && 
+                   _options.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase) &&
+                   !string.IsNullOrWhiteSpace(_options.ServerUrl);
         }
 
         /// <summary>

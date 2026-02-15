@@ -6,7 +6,7 @@
 /// and can be easily extended with new alert backends by adding new factory logic and sender implementations.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
 using System.Collections.Generic;
@@ -23,28 +23,28 @@ namespace StorageWatch.Services.Alerting
         /// Each enabled alert delivery method (GroupMe, SMTP, etc.) will be instantiated
         /// and added to the returned list.
         /// </summary>
-        /// <param name="config">The application configuration containing alert delivery settings.</param>
+        /// <param name="options">The strongly-typed options containing alert delivery settings.</param>
         /// <param name="logger">The logger for recording factory operations.</param>
         /// <returns>A list of IAlertSender implementations corresponding to enabled delivery methods.
         /// Returns an empty list if no alert delivery methods are enabled.</returns>
         public static List<IAlertSender> BuildSenders(
-            StorageWatchConfig config,
+            StorageWatchOptions options,
             RollingFileLogger logger)
         {
             var list = new List<IAlertSender>();
 
             // Check if GroupMe alerts are enabled and add a GroupMe sender if so
-            if (config.GroupMe?.EnableGroupMe == true)
+            if (options.Alerting?.GroupMe?.Enabled == true)
             {
                 logger.Log("[ALERT FACTORY] Adding GroupMeAlertSender.");
-                list.Add(new GroupMeAlertSender(config.GroupMe, logger));
+                list.Add(new GroupMeAlertSender(options.Alerting.GroupMe, logger));
             }
 
             // Check if SMTP alerts are enabled and add an SMTP sender if so
-            if (config.Smtp?.EnableSmtp == true)
+            if (options.Alerting?.Smtp?.Enabled == true)
             {
                 logger.Log("[ALERT FACTORY] Adding SmtpAlertSender.");
-                list.Add(new SmtpAlertSender(config.Smtp, logger));
+                list.Add(new SmtpAlertSender(options.Alerting.Smtp, logger));
             }
 
             // Log a warning if no alert senders are enabled (alerts will be silently dropped)

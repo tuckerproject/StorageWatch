@@ -8,7 +8,7 @@
 
 using System.Net;
 using System.Net.Mail;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
 
@@ -19,18 +19,18 @@ namespace StorageWatch.Services.Alerting
     /// </summary>
     public class SmtpAlertSender : IAlertSender
     {
-        private readonly SmtpConfig _config;
+        private readonly SmtpOptions _options;
         private readonly RollingFileLogger _logger;
 
-        public SmtpAlertSender(SmtpConfig config, RollingFileLogger logger)
+        public SmtpAlertSender(SmtpOptions options, RollingFileLogger logger)
         {
-            _config = config;
+            _options = options;
             _logger = logger;
         }
 
         public async Task SendAlertAsync(string message)
         {
-            if (!_config.EnableSmtp)
+            if (!_options.Enabled)
             {
                 _logger.Log("[SMTP] Skipping send: SMTP is disabled in config.");
                 return;
@@ -38,13 +38,13 @@ namespace StorageWatch.Services.Alerting
 
             try
             {
-                using var client = new SmtpClient(_config.Host, _config.Port)
+                using var client = new SmtpClient(_options.Host, _options.Port)
                 {
-                    EnableSsl = _config.UseSsl,
-                    Credentials = new NetworkCredential(_config.Username, _config.Password)
+                    EnableSsl = _options.UseSsl,
+                    Credentials = new NetworkCredential(_options.Username, _options.Password)
                 };
 
-                var mail = new MailMessage(_config.FromAddress, _config.ToAddress)
+                var mail = new MailMessage(_options.FromAddress, _options.ToAddress)
                 {
                     Subject = "Disk Space Alert",
                     Body = message

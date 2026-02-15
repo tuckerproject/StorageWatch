@@ -7,10 +7,11 @@
 
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Data;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Scheduling;
+using StorageWatch.Tests.Utilities;
 
 namespace StorageWatch.Tests.IntegrationTests
 {
@@ -19,7 +20,7 @@ namespace StorageWatch.Tests.IntegrationTests
         private readonly string _testDbPath;
         private readonly string _connectionString;
         private readonly RollingFileLogger _logger;
-        private readonly StorageWatchConfig _config;
+        private readonly StorageWatchOptions _config;
 
         public SqlReporterIntegrationTests()
         {
@@ -27,14 +28,8 @@ namespace StorageWatch.Tests.IntegrationTests
             _connectionString = $"Data Source={_testDbPath}";
             _logger = new RollingFileLogger(Path.Combine(Path.GetTempPath(), $"test_log_{Guid.NewGuid()}.log"));
 
-            _config = new StorageWatchConfig
-            {
-                Database = new DatabaseConfig
-                {
-                    ConnectionString = _connectionString
-                },
-                Drives = new List<string> { "C:" }
-            };
+            _config = TestHelpers.CreateDefaultTestConfig();
+            _config.Database.ConnectionString = _connectionString;
 
             // Initialize the database schema
             var schema = new SqliteSchema(_connectionString, _logger);
@@ -160,7 +155,7 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task WriteDailyReportAsync_WithMultipleDrives_InsertsMultipleRecords()
         {
             // Arrange
-            _config.Drives = new List<string> { "C:", "D:" };
+            _config.Monitoring.Drives = new List<string> { "C:", "D:" };
             var reporter = new SqlReporter(_config, _logger);
 
             // Act

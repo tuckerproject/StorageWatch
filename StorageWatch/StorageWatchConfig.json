@@ -1,0 +1,49 @@
+{
+  "StorageWatch": {
+    "General": {
+      "EnableStartupLogging": true
+    },
+    "Monitoring": {
+      "ThresholdPercent": 10,
+      "Drives": [
+        "C:",
+        "D:"
+      ]
+    },
+    "Database": {
+      "ConnectionString": "Data Source=StorageWatch.db;Version=3;"
+    },
+    "Alerting": {
+      "EnableNotifications": true,
+      "Smtp": {
+        "Enabled": false,
+        "Host": "smtp.gmail.com",
+        "Port": 587,
+        "UseSsl": true,
+        "Username": "your-email@gmail.com",
+        "Password": "your-app-password",
+        "FromAddress": "your-email@gmail.com",
+        "ToAddress": "alert-recipient@example.com"
+      },
+      "GroupMe": {
+        "Enabled": false,
+        "BotId": "your-groupme-bot-id"
+      }
+    },
+    "CentralServer": {
+      "Enabled": false,
+      "Mode": "Agent",
+      "ServerUrl": "http://central-server.example.com:5000",
+      "ApiKey": "your-optional-api-key",
+      "Port": 5000,
+      "CentralConnectionString": "Data Source=StorageWatch_Central.db;Version=3;",
+      "ServerId": "central-server"
+    },
+    "SqlReporting": {
+      "Enabled": true,
+      "RunMissedCollection": true,
+      "RunOnlyOncePerDay": true,
+      "CollectionTime": "02:00"
+    }
+  }
+}

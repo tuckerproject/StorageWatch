@@ -8,7 +8,7 @@
 /// single responsibility: gathering accurate disk metrics.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using System;
 using System.IO;
@@ -22,11 +22,11 @@ namespace StorageWatch.Services.Monitoring
     /// </summary>
     public class DiskAlertMonitor
     {
-        private readonly StorageWatchConfig _config;
+        private readonly MonitoringOptions _monitoringOptions;
 
-        public DiskAlertMonitor(StorageWatchConfig config)
+        public DiskAlertMonitor(StorageWatchOptions options)
         {
-            _config = config;
+            _monitoringOptions = options?.Monitoring ?? throw new ArgumentNullException(nameof(options));
         }
 
         public DiskStatus GetStatus(string driveLetter)

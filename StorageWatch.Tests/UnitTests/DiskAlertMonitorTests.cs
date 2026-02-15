@@ -6,8 +6,9 @@
 /// </summary>
 
 using FluentAssertions;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Services.Monitoring;
+using StorageWatch.Tests.Utilities;
 using System.IO;
 
 namespace StorageWatch.Tests.UnitTests
@@ -18,12 +19,8 @@ namespace StorageWatch.Tests.UnitTests
         public void GetStatus_WithReadyDrive_ReturnsValidStatus()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                ThresholdPercent = 20,
-                Drives = new List<string> { "C:" }
-            };
-            var monitor = new DiskAlertMonitor(config);
+            var options = TestHelpers.CreateDefaultTestConfig();
+            var monitor = new DiskAlertMonitor(options);
 
             // Act
             var status = monitor.GetStatus("C:");
@@ -40,12 +37,8 @@ namespace StorageWatch.Tests.UnitTests
         public void GetStatus_WithInvalidDrive_ReturnsZeroValues()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                ThresholdPercent = 20,
-                Drives = new List<string> { "Z:" }
-            };
-            var monitor = new DiskAlertMonitor(config);
+            var options = TestHelpers.CreateDefaultTestConfig();
+            var monitor = new DiskAlertMonitor(options);
 
             // Act
             var status = monitor.GetStatus("Z:");
@@ -62,8 +55,8 @@ namespace StorageWatch.Tests.UnitTests
         public void GetStatus_CalculatesPercentFreeCorrectly()
         {
             // Arrange
-            var config = new StorageWatchConfig { ThresholdPercent = 20 };
-            var monitor = new DiskAlertMonitor(config);
+            var options = TestHelpers.CreateDefaultTestConfig();
+            var monitor = new DiskAlertMonitor(options);
 
             // Act
             var status = monitor.GetStatus("C:");
@@ -81,8 +74,8 @@ namespace StorageWatch.Tests.UnitTests
         public void GetStatus_WithNullOrEmptyDriveLetter_HandlesGracefully()
         {
             // Arrange
-            var config = new StorageWatchConfig { ThresholdPercent = 20 };
-            var monitor = new DiskAlertMonitor(config);
+            var options = TestHelpers.CreateDefaultTestConfig();
+            var monitor = new DiskAlertMonitor(options);
 
             // Act
             var statusEmpty = monitor.GetStatus("");

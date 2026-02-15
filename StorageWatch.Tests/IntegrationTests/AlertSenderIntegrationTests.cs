@@ -9,10 +9,11 @@
 
 using FluentAssertions;
 using Moq;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
+using StorageWatch.Tests.Utilities;
 
 namespace StorageWatch.Tests.IntegrationTests
 {
@@ -29,12 +30,12 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task GroupMeAlertSender_WithDisabledConfig_DoesNotSendAlert()
         {
             // Arrange
-            var config = new GroupMeConfig
+            var options = new GroupMeOptions
             {
-                EnableGroupMe = false,
+                Enabled = false,
                 BotId = "test-bot-id"
             };
-            var sender = new GroupMeAlertSender(config, _logger);
+            var sender = new GroupMeAlertSender(options, _logger);
 
             // Act
             await sender.SendAlertAsync("Test alert message");
@@ -47,12 +48,12 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task GroupMeAlertSender_SendAlertAsync_DoesNotThrowException()
         {
             // Arrange
-            var config = new GroupMeConfig
+            var options = new GroupMeOptions
             {
-                EnableGroupMe = true,
+                Enabled = true,
                 BotId = "test-bot-id-that-will-fail"
             };
-            var sender = new GroupMeAlertSender(config, _logger);
+            var sender = new GroupMeAlertSender(options, _logger);
 
             // Act - Even with invalid bot ID, should not throw
             Func<Task> act = async () => await sender.SendAlertAsync("Test alert message");
@@ -65,9 +66,9 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task SmtpAlertSender_WithDisabledConfig_DoesNotSendAlert()
         {
             // Arrange
-            var config = new SmtpConfig
+            var options = new SmtpOptions
             {
-                EnableSmtp = false,
+                Enabled = false,
                 Host = "smtp.example.com",
                 Port = 587,
                 UseSsl = true,
@@ -76,7 +77,7 @@ namespace StorageWatch.Tests.IntegrationTests
                 FromAddress = "from@example.com",
                 ToAddress = "to@example.com"
             };
-            var sender = new SmtpAlertSender(config, _logger);
+            var sender = new SmtpAlertSender(options, _logger);
 
             // Act
             await sender.SendAlertAsync("Test alert message");
@@ -88,9 +89,9 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task SmtpAlertSender_SendAlertAsync_DoesNotThrowException()
         {
             // Arrange - Use invalid SMTP server to test error handling
-            var config = new SmtpConfig
+            var options = new SmtpOptions
             {
-                EnableSmtp = true,
+                Enabled = true,
                 Host = "invalid.smtp.server.example.com",
                 Port = 587,
                 UseSsl = true,
@@ -99,7 +100,7 @@ namespace StorageWatch.Tests.IntegrationTests
                 FromAddress = "from@example.com",
                 ToAddress = "to@example.com"
             };
-            var sender = new SmtpAlertSender(config, _logger);
+            var sender = new SmtpAlertSender(options, _logger);
 
             // Act - Even with invalid server, should not throw
             Func<Task> act = async () => await sender.SendAlertAsync("Test alert message");
@@ -112,10 +113,10 @@ namespace StorageWatch.Tests.IntegrationTests
         public async Task AlertSender_ImplementsIAlertSenderInterface()
         {
             // Arrange
-            var groupMeConfig = new GroupMeConfig { EnableGroupMe = true, BotId = "test" };
-            var smtpConfig = new SmtpConfig
+            var groupMeOptions = new GroupMeOptions { Enabled = true, BotId = "test" };
+            var smtpOptions = new SmtpOptions
             {
-                EnableSmtp = true,
+                Enabled = true,
                 Host = "smtp.example.com",
                 Port = 587,
                 UseSsl = true,
@@ -126,8 +127,8 @@ namespace StorageWatch.Tests.IntegrationTests
             };
 
             // Act & Assert
-            IAlertSender groupMeSender = new GroupMeAlertSender(groupMeConfig, _logger);
-            IAlertSender smtpSender = new SmtpAlertSender(smtpConfig, _logger);
+            IAlertSender groupMeSender = new GroupMeAlertSender(groupMeOptions, _logger);
+            IAlertSender smtpSender = new SmtpAlertSender(smtpOptions, _logger);
 
             groupMeSender.Should().NotBeNull();
             smtpSender.Should().NotBeNull();

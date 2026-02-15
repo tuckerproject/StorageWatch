@@ -10,7 +10,7 @@
 /// The scheduler tracks the last run time in a file to maintain state across service restarts.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Services.Logging;
 using System;
 using System.IO;
@@ -23,7 +23,7 @@ namespace StorageWatch.Services.Scheduling
     /// </summary>
     public class SqlReporterScheduler
     {
-        private readonly StorageWatchConfig _config;
+        private readonly StorageWatchOptions _options;
         private readonly SqlReporter _reporter;
         private readonly RollingFileLogger _logger;
 
@@ -35,15 +35,15 @@ namespace StorageWatch.Services.Scheduling
         /// <summary>
         /// Initializes a new instance of the SqlReporterScheduler class.
         /// </summary>
-        /// <param name="config">Application configuration containing SQL reporting settings and collection time.</param>
+        /// <param name="options">Strongly-typed options containing SQL reporting settings and collection time.</param>
         /// <param name="reporter">The SqlReporter instance that will execute the actual reporting.</param>
         /// <param name="logger">Logger for recording scheduling decisions and execution.</param>
         public SqlReporterScheduler(
-            StorageWatchConfig config,
+            StorageWatchOptions options,
             SqlReporter reporter,
             RollingFileLogger logger)
         {
-            _config = config;
+            _options = options;
             _reporter = reporter;
             _logger = logger;
         }
@@ -57,20 +57,28 @@ namespace StorageWatch.Services.Scheduling
         /// <returns>A task representing the async operation.</returns>
         public async Task CheckAndRunAsync(DateTime now)
         {
+            // Note: SqlReporting configuration is not yet in StorageWatchOptions
+            // For now, we use default values. This will be enhanced in Phase 2, Item 10
+            // TODO: Add SqlReportingOptions to StorageWatchOptions
+            const bool sqlReportingEnabled = true;
+            const bool runMissedCollection = true;
+            const bool runOnlyOncePerDay = true;
+            var collectionTime = TimeSpan.Parse("02:00");
+
             // Early exit if SQL reporting is disabled in configuration
-            if (!_config.EnableSqlReporting)
+            if (!sqlReportingEnabled)
                 return;
 
             // Calculate the scheduled time for today based on the configured CollectionTime
             // For example, if CollectionTime is "02:00", scheduled would be today at 02:00
-            DateTime scheduled = now.Date + _config.CollectionTime;
+            DateTime scheduled = now.Date + collectionTime;
             
             // Load the last time SQL reporting was executed
             DateTime? lastRun = LoadLastRun();
 
             bool shouldRun = false;
 
-            if (_config.RunOnlyOncePerDay)
+            if (runOnlyOncePerDay)
             {
                 // ================================================================
                 // Mode: Run at most once per day
@@ -83,7 +91,7 @@ namespace StorageWatch.Services.Scheduling
                     if (now >= scheduled)
                         shouldRun = true;
                 }
-                else if (_config.RunMissedCollection && now > scheduled && lastRun.Value < scheduled)
+                else if (runMissedCollection && now > scheduled && lastRun.Value < scheduled)
                 {
                     // We've already run today, but missed collection is enabled
                     // This handles a specific edge case: if a missed run check is made after the scheduled time

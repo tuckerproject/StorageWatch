@@ -5,6 +5,7 @@
 /// </summary>
 
 using StorageWatch.Config;
+using StorageWatch.Config.Options;
 
 namespace StorageWatch.Tests.Utilities
 {
@@ -13,38 +14,44 @@ namespace StorageWatch.Tests.Utilities
         /// <summary>
         /// Creates a valid test configuration with default values.
         /// </summary>
-        public static StorageWatchConfig CreateDefaultTestConfig()
+        public static StorageWatchOptions CreateDefaultTestConfig()
         {
-            return new StorageWatchConfig
+            return new StorageWatchOptions
             {
-                EnableSqlReporting = true,
-                RunMissedCollection = false,
-                RunOnlyOncePerDay = true,
-                CollectionTime = TimeSpan.FromHours(2),
-                EnableNotifications = true,
-                ThresholdPercent = 20,
-                Drives = new List<string> { "C:" },
-                Database = new DatabaseConfig
+                General = new GeneralOptions
+                {
+                    EnableStartupLogging = false
+                },
+                Monitoring = new MonitoringOptions
+                {
+                    ThresholdPercent = 20,
+                    Drives = new List<string> { "C:" }
+                },
+                Database = new DatabaseOptions
                 {
                     ConnectionString = "Data Source=:memory:"
                 },
-                GroupMe = new GroupMeConfig
+                Alerting = new AlertingOptions
                 {
-                    EnableGroupMe = false,
-                    BotId = "test-bot-id"
+                    EnableNotifications = true,
+                    Smtp = new SmtpOptions
+                    {
+                        Enabled = false,
+                        Host = "smtp.example.com",
+                        Port = 587,
+                        UseSsl = true,
+                        Username = "user@example.com",
+                        Password = "password",
+                        FromAddress = "from@example.com",
+                        ToAddress = "to@example.com"
+                    },
+                    GroupMe = new GroupMeOptions
+                    {
+                        Enabled = false,
+                        BotId = "test-bot-id"
+                    }
                 },
-                Smtp = new SmtpConfig
-                {
-                    EnableSmtp = false,
-                    Host = "smtp.example.com",
-                    Port = 587,
-                    UseSsl = true,
-                    Username = "user@example.com",
-                    Password = "password",
-                    FromAddress = "from@example.com",
-                    ToAddress = "to@example.com"
-                },
-                CentralServer = new CentralServerConfig
+                CentralServer = new CentralServerOptions
                 {
                     Enabled = false,
                     Mode = "Agent",

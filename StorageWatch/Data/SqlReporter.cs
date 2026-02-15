@@ -6,7 +6,7 @@
 /// to the DiskSpaceLog table with machine name, drive letter, and space metrics.
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.CentralServer;
@@ -24,19 +24,19 @@ namespace StorageWatch.Services.Scheduling
     /// </summary>
     public class SqlReporter
     {
-        private readonly StorageWatchConfig _config;
+        private readonly StorageWatchOptions _options;
         private readonly RollingFileLogger _logger;
         private readonly CentralServerForwarder? _forwarder;
 
         /// <summary>
         /// Initializes a new instance of the SqlReporter class.
         /// </summary>
-        /// <param name="config">The application configuration containing database connection string and drive list.</param>
+        /// <param name="options">The strongly-typed options containing database connection string and drive list.</param>
         /// <param name="logger">The logger for recording SQL operations and errors.</param>
         /// <param name="forwarder">Optional forwarder for sending logs to a central server. If null, forwarding is disabled.</param>
-        public SqlReporter(StorageWatchConfig config, RollingFileLogger logger, CentralServerForwarder? forwarder = null)
+        public SqlReporter(StorageWatchOptions options, RollingFileLogger logger, CentralServerForwarder? forwarder = null)
         {
-            _config = config;
+            _options = options;
             _logger = logger;
             _forwarder = forwarder;
         }
@@ -52,14 +52,14 @@ namespace StorageWatch.Services.Scheduling
             try
             {
                 // Establish a connection to the SQLite database
-                using var connection = new SqliteConnection(_config.Database.ConnectionString);
+                using var connection = new SqliteConnection(_options.Database.ConnectionString);
                 await connection.OpenAsync();
 
                 // Get the name of this machine for the database records
                 string machineName = Environment.MachineName;
 
                 // Process each monitored drive
-                foreach (var driveLetter in _config.Drives)
+                foreach (var driveLetter in _options.Monitoring.Drives)
                 {
                     // Retrieve current disk status for this drive
                     var status = GetDiskStatus(driveLetter);

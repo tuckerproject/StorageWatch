@@ -8,6 +8,7 @@
 /// </summary>
 
 using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Data;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
@@ -15,6 +16,7 @@ using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.Scheduling;
 using StorageWatch.Services.CentralServer;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using System;
 using System.IO;
 using System.Threading;
@@ -28,38 +30,38 @@ namespace StorageWatch.Services
     /// </summary>
     public class Worker : BackgroundService
     {
-        private readonly StorageWatchConfig _config;
+        private readonly IOptionsMonitor<StorageWatchOptions> _optionsMonitor;
         private readonly RollingFileLogger _logger;
         private readonly SqlReporterScheduler _sqlScheduler;
         private readonly NotificationLoop _notificationLoop;
         private readonly CentralServerService? _centralServer;
 
         /// <summary>
-        /// Initializes a new instance of the Worker class.
-        /// Performs initialization of logger, configuration loading, and component setup.
+        /// Initializes a new instance of the Worker class using dependency injection.
         /// </summary>
-        public Worker()
+        /// <param name="optionsMonitor">Monitor for accessing and observing configuration changes.</param>
+        public Worker(IOptionsMonitor<StorageWatchOptions> optionsMonitor)
         {
+            _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+
             // Create and initialize the logging system at the common application data directory
             string logDir = @"C:\ProgramData\StorageWatch\Logs";
             Directory.CreateDirectory(logDir);
             _logger = new RollingFileLogger(Path.Combine(logDir, "service.log"));
 
-            // Load configuration from the XML config file located next to the executable
-            var baseDir = AppContext.BaseDirectory;
-            var configPath = Path.Combine(baseDir, "StorageWatchConfig.xml");
-            _config = ConfigLoader.Load(configPath);
+            // Get current options snapshot
+            var options = _optionsMonitor.CurrentValue;
 
             // Log startup information if enabled in configuration
-            if (_config.EnableStartupLogging)
-                _logger.Log("[STARTUP] Config loaded");
+            if (options.General.EnableStartupLogging)
+                _logger.Log("[STARTUP] Config loaded from JSON");
 
             // Initialize and verify SQLite database schema
-            var schemaInitializer = new SqliteSchema(_config.Database.ConnectionString, _logger);
+            var schemaInitializer = new SqliteSchema(options.Database.ConnectionString, _logger);
             try
             {
                 schemaInitializer.InitializeDatabaseAsync().Wait();
-                if (_config.EnableStartupLogging)
+                if (options.General.EnableStartupLogging)
                     _logger.Log("[STARTUP] SQLite database initialized");
             }
             catch (Exception ex)
@@ -69,21 +71,21 @@ namespace StorageWatch.Services
             }
 
             // Initialize the disk monitoring component
-            var monitor = new DiskAlertMonitor(_config);
+            var monitor = new DiskAlertMonitor(options);
             
             // Build the list of alert senders (e.g., GroupMe, SMTP) based on configuration
-            var senders = AlertSenderFactory.BuildSenders(_config, _logger);
+            var senders = AlertSenderFactory.BuildSenders(options, _logger);
             
             // Initialize the central server forwarder if in agent mode
             CentralServerForwarder? forwarder = null;
-            if (_config.CentralServer.Enabled && 
-                _config.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
+            if (options.CentralServer.Enabled && 
+                options.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    forwarder = new CentralServerForwarder(_config.CentralServer, _logger);
-                    if (_config.EnableStartupLogging)
-                        _logger.Log($"[STARTUP] Central server forwarder initialized for {_config.CentralServer.ServerUrl}");
+                    forwarder = new CentralServerForwarder(options.CentralServer, _logger);
+                    if (options.General.EnableStartupLogging)
+                        _logger.Log($"[STARTUP] Central server forwarder initialized for {options.CentralServer.ServerUrl}");
                 }
                 catch (Exception ex)
                 {
@@ -93,27 +95,27 @@ namespace StorageWatch.Services
             }
             
             // Initialize the SQL reporter component with optional forwarder
-            var sqlReporter = new SqlReporter(_config, _logger, forwarder);
+            var sqlReporter = new SqlReporter(options, _logger, forwarder);
 
             // Initialize schedulers for SQL reporting and disk notifications
-            _sqlScheduler = new SqlReporterScheduler(_config, sqlReporter, _logger);
-            _notificationLoop = new NotificationLoop(_config, senders, monitor, _logger);
+            _sqlScheduler = new SqlReporterScheduler(options, sqlReporter, _logger);
+            _notificationLoop = new NotificationLoop(options, senders, monitor, _logger);
 
             // Initialize central server if enabled in server mode
-            if (_config.CentralServer.Enabled && 
-                _config.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
+            if (options.CentralServer.Enabled && 
+                options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    var centralSchema = new CentralServerSchema(_config.CentralServer.CentralConnectionString, _logger);
+                    var centralSchema = new CentralServerSchema(options.CentralServer.CentralConnectionString, _logger);
                     centralSchema.InitializeDatabaseAsync().Wait();
-                    if (_config.EnableStartupLogging)
+                    if (options.General.EnableStartupLogging)
                         _logger.Log("[STARTUP] Central server database initialized");
 
-                    var centralRepository = new CentralServerRepository(_config.CentralServer.CentralConnectionString, _logger);
-                    _centralServer = new CentralServerService(_config.CentralServer, _logger, centralRepository);
+                    var centralRepository = new CentralServerRepository(options.CentralServer.CentralConnectionString, _logger);
+                    _centralServer = new CentralServerService(options.CentralServer, _logger, centralRepository);
 
-                    if (_config.EnableStartupLogging)
+                    if (options.General.EnableStartupLogging)
                         _logger.Log("[STARTUP] Central server initialized");
                 }
                 catch (Exception ex)
@@ -128,7 +130,7 @@ namespace StorageWatch.Services
             }
 
             // Log when components have been initialized
-            if (_config.EnableStartupLogging)
+            if (options.General.EnableStartupLogging)
                 _logger.Log("[STARTUP] Components initialized");
         }
 

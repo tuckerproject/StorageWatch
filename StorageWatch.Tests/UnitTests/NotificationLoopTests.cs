@@ -8,29 +8,25 @@
 
 using FluentAssertions;
 using Moq;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.Scheduling;
+using StorageWatch.Tests.Utilities;
 
 namespace StorageWatch.Tests.UnitTests
 {
     public class NotificationLoopTests
     {
         private readonly Mock<RollingFileLogger> _mockLogger;
-        private readonly StorageWatchConfig _config;
+        private readonly StorageWatchOptions _config;
 
         public NotificationLoopTests()
         {
             _mockLogger = new Mock<RollingFileLogger>(Path.GetTempFileName());
-            _config = new StorageWatchConfig
-            {
-                ThresholdPercent = 20,
-                Drives = new List<string> { "C:" },
-                EnableNotifications = true
-            };
+            _config = TestHelpers.CreateDefaultTestConfig();
         }
 
         [Fact]

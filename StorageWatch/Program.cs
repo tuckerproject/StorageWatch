@@ -6,18 +6,47 @@
 /// disk space and sends alerts.
 /// </summary>
 
+using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using System.IO;
 
 // Configure and build the host using the generic host builder with Windows Service integration
-Host.CreateDefaultBuilder(args)
+var host = Host.CreateDefaultBuilder(args)
     // UseWindowsService() enables this application to run as a Windows Service
     .UseWindowsService()
-    .ConfigureServices(services =>
+    .ConfigureServices((context, services) =>
     {
+        // Load and validate JSON configuration
+        var baseDir = AppContext.BaseDirectory;
+        var configPath = Path.Combine(baseDir, "StorageWatchConfig.json");
+
+        // Load configuration with validation
+        var options = JsonConfigLoader.LoadAndValidate(configPath);
+
+        // Register options in the service container for dependency injection
+        services.Configure<StorageWatchOptions>(cfg =>
+        {
+            cfg.General = options.General;
+            cfg.Monitoring = options.Monitoring;
+            cfg.Database = options.Database;
+            cfg.Alerting = options.Alerting;
+            cfg.CentralServer = options.CentralServer;
+        });
+
+        // Register option validators
+        services.AddSingleton<IValidateOptions<StorageWatchOptions>, StorageWatchOptionsValidator>();
+        services.AddSingleton<IValidateOptions<MonitoringOptions>, MonitoringOptionsValidator>();
+        services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+        services.AddSingleton<IValidateOptions<GroupMeOptions>, GroupMeOptionsValidator>();
+        services.AddSingleton<IValidateOptions<CentralServerOptions>, CentralServerOptionsValidator>();
+
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();
     })
-    .Build()
-    .Run();
+    .Build();
+
+await host.RunAsync();

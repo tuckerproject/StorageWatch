@@ -9,7 +9,7 @@
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
 
@@ -20,19 +20,19 @@ namespace StorageWatch.Services.Alerting
     /// </summary>
     public class GroupMeAlertSender : IAlertSender
     {
-        private readonly GroupMeConfig _config;
+        private readonly GroupMeOptions _options;
         private readonly HttpClient _httpClient = new();
         private readonly RollingFileLogger _logger;
 
-        public GroupMeAlertSender(GroupMeConfig config, RollingFileLogger logger)
+        public GroupMeAlertSender(GroupMeOptions options, RollingFileLogger logger)
         {
-            _config = config;
+            _options = options;
             _logger = logger;
         }
 
         public async Task SendAlertAsync(string message)
         {
-            if (!_config.EnableGroupMe)
+            if (!_options.Enabled)
             {
                 _logger.Log("[GROUPME] Skipping send: GroupMe is disabled in config.");
                 return;
@@ -40,7 +40,7 @@ namespace StorageWatch.Services.Alerting
 
             var payload = new
             {
-                bot_id = _config.BotId,
+                bot_id = _options.BotId,
                 text = message
             };
 

@@ -12,7 +12,7 @@
 /// - Supports multiple alert delivery methods (GroupMe, SMTP, etc.)
 /// </summary>
 
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
@@ -32,7 +32,7 @@ namespace StorageWatch.Services.Scheduling
     /// </summary>
     public class NotificationLoop
     {
-        private readonly StorageWatchConfig _config;
+        private readonly StorageWatchOptions _options;
         private readonly List<IAlertSender> _senders;
         private readonly DiskAlertMonitor _monitor;
         private readonly RollingFileLogger _logger;
@@ -54,17 +54,17 @@ namespace StorageWatch.Services.Scheduling
         /// Initializes a new instance of the NotificationLoop class.
         /// Loads the last known alert state from disk if it exists.
         /// </summary>
-        /// <param name="config">Application configuration.</param>
+        /// <param name="options">Strongly-typed application options.</param>
         /// <param name="senders">List of alert senders for various delivery methods.</param>
         /// <param name="monitor">The disk monitor for checking drive status.</param>
         /// <param name="logger">Logger for recording operations.</param>
         public NotificationLoop(
-            StorageWatchConfig config,
+            StorageWatchOptions options,
             List<IAlertSender> senders,
             DiskAlertMonitor monitor,
             RollingFileLogger logger)
         {
-            _config = config;
+            _options = options;
             _senders = senders;
             _monitor = monitor;
             _logger = logger;
@@ -86,7 +86,7 @@ namespace StorageWatch.Services.Scheduling
                 try
                 {
                     // Check each configured drive
-                    foreach (var driveLetter in _config.Drives)
+                    foreach (var driveLetter in _options.Monitoring.Drives)
                     {
                         // Get the current disk status for this drive
                         var status = _monitor.GetStatus(driveLetter);
@@ -108,7 +108,7 @@ namespace StorageWatch.Services.Scheduling
                         else
                         {
                             // Case 2: Drive is READY - check if free space is below the threshold
-                            bool belowThreshold = status.PercentFree < _config.ThresholdPercent;
+                            bool belowThreshold = status.PercentFree < _options.Monitoring.ThresholdPercent;
 
                             if (belowThreshold)
                             {

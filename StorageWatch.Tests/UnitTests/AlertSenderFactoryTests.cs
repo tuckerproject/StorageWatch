@@ -7,9 +7,10 @@
 
 using FluentAssertions;
 using Moq;
-using StorageWatch.Config;
+using StorageWatch.Config.Options;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
+using StorageWatch.Tests.Utilities;
 
 namespace StorageWatch.Tests.UnitTests
 {
@@ -26,14 +27,12 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithNoSendersEnabled_ReturnsEmptyList()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = new GroupMeConfig { EnableGroupMe = false },
-                Smtp = new SmtpConfig { EnableSmtp = false }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = false;
+            options.Alerting.Smtp.Enabled = false;
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().NotBeNull();
@@ -44,18 +43,13 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithGroupMeEnabled_ReturnsGroupMeSender()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = new GroupMeConfig
-                {
-                    EnableGroupMe = true,
-                    BotId = "test-bot-id"
-                },
-                Smtp = new SmtpConfig { EnableSmtp = false }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = true;
+            options.Alerting.GroupMe.BotId = "test-bot-id";
+            options.Alerting.Smtp.Enabled = false;
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().NotBeNull();
@@ -67,24 +61,19 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithSmtpEnabled_ReturnsSmtpSender()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = new GroupMeConfig { EnableGroupMe = false },
-                Smtp = new SmtpConfig
-                {
-                    EnableSmtp = true,
-                    Host = "smtp.example.com",
-                    Port = 587,
-                    UseSsl = true,
-                    Username = "user@example.com",
-                    Password = "password",
-                    FromAddress = "from@example.com",
-                    ToAddress = "to@example.com"
-                }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = false;
+            options.Alerting.Smtp.Enabled = true;
+            options.Alerting.Smtp.Host = "smtp.example.com";
+            options.Alerting.Smtp.Port = 587;
+            options.Alerting.Smtp.UseSsl = true;
+            options.Alerting.Smtp.Username = "user@example.com";
+            options.Alerting.Smtp.Password = "password";
+            options.Alerting.Smtp.FromAddress = "from@example.com";
+            options.Alerting.Smtp.ToAddress = "to@example.com";
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().NotBeNull();
@@ -96,28 +85,20 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithBothEnabled_ReturnsBothSenders()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = new GroupMeConfig
-                {
-                    EnableGroupMe = true,
-                    BotId = "test-bot-id"
-                },
-                Smtp = new SmtpConfig
-                {
-                    EnableSmtp = true,
-                    Host = "smtp.example.com",
-                    Port = 587,
-                    UseSsl = true,
-                    Username = "user@example.com",
-                    Password = "password",
-                    FromAddress = "from@example.com",
-                    ToAddress = "to@example.com"
-                }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = true;
+            options.Alerting.GroupMe.BotId = "test-bot-id";
+            options.Alerting.Smtp.Enabled = true;
+            options.Alerting.Smtp.Host = "smtp.example.com";
+            options.Alerting.Smtp.Port = 587;
+            options.Alerting.Smtp.UseSsl = true;
+            options.Alerting.Smtp.Username = "user@example.com";
+            options.Alerting.Smtp.Password = "password";
+            options.Alerting.Smtp.FromAddress = "from@example.com";
+            options.Alerting.Smtp.ToAddress = "to@example.com";
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().NotBeNull();
@@ -130,14 +111,13 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithNullGroupMeConfig_DoesNotAddGroupMeSender()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = null!,
-                Smtp = new SmtpConfig { EnableSmtp = false }
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = false;
+            options.Alerting.Smtp.Enabled = false;
+            options.Alerting.GroupMe = null!;
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().BeEmpty();
@@ -147,14 +127,13 @@ namespace StorageWatch.Tests.UnitTests
         public void BuildSenders_WithNullSmtpConfig_DoesNotAddSmtpSender()
         {
             // Arrange
-            var config = new StorageWatchConfig
-            {
-                GroupMe = new GroupMeConfig { EnableGroupMe = false },
-                Smtp = null!
-            };
+            var options = TestHelpers.CreateDefaultTestConfig();
+            options.Alerting.GroupMe.Enabled = false;
+            options.Alerting.Smtp.Enabled = false;
+            options.Alerting.Smtp = null!;
 
             // Act
-            var senders = AlertSenderFactory.BuildSenders(config, _mockLogger.Object);
+            var senders = AlertSenderFactory.BuildSenders(options, _mockLogger.Object);
 
             // Assert
             senders.Should().BeEmpty();
