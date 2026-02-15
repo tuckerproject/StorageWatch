@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <?include Variables.wxi ?>
+
+  <Fragment>
+    <UI Id="StorageWatchUI">
+      <!-- Use WixUI_InstallDir as base -->
+      <UIRef Id="WixUI_InstallDir" />
+      <UIRef Id="WixUI_ErrorProgressText" />
+
+      <!-- Override license dialog to show CC0 notice -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">LicenseAccepted = "1"</Publish>
+
+      <!-- Custom Configuration Dialog -->
+      <Dialog Id="CustomizeDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\WixUI_Font_Title}Customize Installation</Text>
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>Choose installation options</Text>
+        </Control>
+
+        <!-- Install Location -->
+        <Control Id="FolderLabel" Type="Text" X="20" Y="60" Width="290" Height="10" NoPrefix="yes" Text="Installation &amp;folder:" />
+        <Control Id="Folder" Type="PathEdit" X="20" Y="72" Width="240" Height="18" Property="INSTALLFOLDER" />
+        <Control Id="ChangeFolder" Type="PushButton" X="265" Y="72" Width="80" Height="17" Text="&amp;Browse...">
+          <Publish Event="SelectionBrowse" Value="InstallDirDlg">1</Publish>
+        </Control>
+
+        <!-- Desktop Shortcut -->
+        <Control Id="DesktopShortcutCheck" Type="CheckBox" X="20" Y="100" Width="290" Height="17" 
+                 Property="INSTALLDESKTOPSHORTCUT" CheckBoxValue="1" Text="Create &amp;desktop shortcut" />
+
+        <!-- Launch UI after install -->
+        <Control Id="LaunchUICheck" Type="CheckBox" X="20" Y="120" Width="290" Height="17"
+                 Property="LAUNCHUI" CheckBoxValue="1" Text="&amp;Launch StorageWatch Dashboard after installation" />
+
+        <!-- Service Account Configuration -->
+        <Control Id="ServiceAccountLabel" Type="Text" X="20" Y="150" Width="290" Height="10" NoPrefix="yes" Text="Windows Service Account:" />
+        <Control Id="ServiceAccountCombo" Type="ComboBox" X="20" Y="162" Width="240" Height="50" Property="SERVICEACCOUNT" ComboList="yes">
+          <ComboBox Property="SERVICEACCOUNT">
+            <ListItem Text="LocalSystem" Value="LocalSystem" />
+            <ListItem Text="LocalService" Value="NT AUTHORITY\LocalService" />
+            <ListItem Text="NetworkService" Value="NT AUTHORITY\NetworkService" />
+          </ComboBox>
+        </Control>
+
+        <!-- Navigation -->
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Install">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+      </Dialog>
+
+      <!-- Customize the welcome text -->
+      <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    </UI>
+
+    <!-- Set default values -->
+    <Property Id="LAUNCHUI" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing StorageWatch. The service has been started and is monitoring your storage." />
+  </Fragment>
+</Wix>

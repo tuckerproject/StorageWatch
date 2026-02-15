@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <?define ProductName = "StorageWatch" ?>
+  <?define ProductVersion = "1.0.0.0" ?>
+  <?define Manufacturer = "StorageWatch Project" ?>
+  <?define UpgradeCode = "12345678-1234-1234-1234-123456789012" ?>
+  
+  <?define ProductDescription = "StorageWatch - Professional Storage Monitoring Solution" ?>
+  <?define ProductComments = "Monitors disk space and provides alerts when thresholds are exceeded" ?>
+  
+  <!-- Install Directories -->
+  <?define ServiceExeName = "StorageWatch.exe" ?>
+  <?define UIExeName = "StorageWatchUI.exe" ?>
+  
+  <!-- Service Configuration -->
+  <?define ServiceName = "StorageWatchService" ?>
+  <?define ServiceDisplayName = "StorageWatch Service" ?>
+  <?define ServiceDescription = "Monitors disk space and provides alerts when thresholds are exceeded" ?>
+  
+  <!-- Start Menu -->
+  <?define StartMenuFolder = "StorageWatch" ?>
+</Include>

@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <?include Variables.wxi ?>
+
+  <Fragment>
+    <!-- Directory Structure -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="StorageWatch">
+        <Directory Id="UIFOLDER" Name="UI" />
+        <Directory Id="PLUGINFOLDER" Name="Plugins" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="CONFIGFOLDER" Name="StorageWatch">
+        <Directory Id="LOGSFOLDER" Name="Logs" />
+        <Directory Id="DATAFOLDER" Name="Data" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="StartMenuFolder" Name="$(var.StartMenuFolder)" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+  </Fragment>
+
+  <Fragment>
+    <!-- Service Components -->
+    <ComponentGroup Id="ServiceComponents" Directory="INSTALLFOLDER">
+      <Component Id="ServiceExecutable" Guid="11111111-1111-1111-1111-111111111111">
+        <File Id="ServiceExe"
+              Source="$(var.StorageWatchService.TargetPath)"
+              KeyPath="yes" />
+
+        <!-- Install and register the Windows Service -->
+        <ServiceInstall Id="ServiceInstaller"
+                       Name="$(var.ServiceName)"
+                       DisplayName="$(var.ServiceDisplayName)"
+                       Description="$(var.ServiceDescription)"
+                       Type="ownProcess"
+                       Start="auto"
+                       Account="[SERVICEACCOUNT]"
+                       Password="[SERVICEPASSWORD]"
+                       ErrorControl="normal"
+                       Arguments="" />
+
+        <ServiceControl Id="ServiceControl"
+                       Name="$(var.ServiceName)"
+                       Start="install"
+                       Stop="both"
+                       Remove="uninstall"
+                       Wait="yes" />
+
+        <util:RemoveFolderEx On="uninstall" Property="INSTALLFOLDER" />
+      </Component>
+
+      <!-- Service Dependencies -->
+      <Component Id="ServiceDependencies" Guid="11111111-2222-1111-1111-111111111111">
+        <File Id="ServiceDll1" Source="$(var.StorageWatchService.TargetDir)Microsoft.Data.Sqlite.dll" />
+        <File Id="ServiceDll2" Source="$(var.StorageWatchService.TargetDir)SQLitePCLRaw.core.dll" />
+        <File Id="ServiceDll3" Source="$(var.StorageWatchService.TargetDir)SQLitePCLRaw.provider.e_sqlite3.dll" />
+        <File Id="ServiceDll4" Source="$(var.StorageWatchService.TargetDir)SQLitePCLRaw.batteries_v2.dll" />
+        <File Id="ServiceDll5" Source="$(var.StorageWatchService.TargetDir)Microsoft.Extensions.Hosting.dll" />
+        <File Id="ServiceDll6" Source="$(var.StorageWatchService.TargetDir)Microsoft.Extensions.Hosting.WindowsServices.dll" />
+        <File Id="ServiceRuntimeConfig" Source="$(var.StorageWatchService.TargetDir)$(var.ServiceExeName).runtimeconfig.json" />
+      </Component>
+
+      <!-- Native SQLite Library -->
+      <Component Id="SQLiteNative" Guid="11111111-3333-1111-1111-111111111111" Directory="INSTALLFOLDER">
+        <File Id="SQLiteNativeDll"
+              Source="$(var.StorageWatchService.TargetDir)runtimes\win-x64\native\e_sqlite3.dll"
+              Name="e_sqlite3.dll" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- UI Components -->
+    <ComponentGroup Id="UIComponents" Directory="UIFOLDER">
+      <Component Id="UIExecutable" Guid="22222222-1111-1111-1111-111111111111">
+        <File Id="UIExe"
+              Source="$(var.StorageWatchUI.TargetPath)"
+              KeyPath="yes" />
+        <File Id="UIRuntimeConfig" Source="$(var.StorageWatchUI.TargetDir)$(var.UIExeName).runtimeconfig.json" />
+      </Component>
+
+      <Component Id="UIDependencies" Guid="22222222-2222-1111-1111-111111111111">
+        <File Id="UIDll1" Source="$(var.StorageWatchUI.TargetDir)Microsoft.Data.Sqlite.dll" />
+        <File Id="UIDll2" Source="$(var.StorageWatchUI.TargetDir)LiveChartsCore.dll" />
+        <File Id="UIDll3" Source="$(var.StorageWatchUI.TargetDir)LiveChartsCore.SkiaSharpView.dll" />
+        <File Id="UIDll4" Source="$(var.StorageWatchUI.TargetDir)LiveChartsCore.SkiaSharpView.WPF.dll" />
+        <File Id="UIDll5" Source="$(var.StorageWatchUI.TargetDir)SkiaSharp.dll" />
+        <File Id="UIAppSettings" Source="$(var.StorageWatchUI.TargetDir)appsettings.json" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Configuration Components -->
+    <ComponentGroup Id="ConfigComponents" Directory="CONFIGFOLDER">
+      <Component Id="ConfigFile" Guid="33333333-1111-1111-1111-111111111111" NeverOverwrite="yes" Permanent="yes">
+        <File Id="ConfigJson"
+              Source="..\StorageWatch\StorageWatchConfig.json"
+              Name="StorageWatchConfig.json"
+              KeyPath="yes" />
+        
+        <!-- Don't remove config on uninstall by default -->
+        <RemoveFile Id="RemoveConfigOnUninstall"
+                   Name="StorageWatchConfig.json"
+                   On="uninstall"
+                   Property="REMOVECONFIG" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Plugin Components -->
+    <ComponentGroup Id="PluginComponents" Directory="PLUGINFOLDER">
+      <Component Id="PluginFolder" Guid="44444444-1111-1111-1111-111111111111">
+        <CreateFolder />
+        <RemoveFolder Id="RemovePluginFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\StorageWatch\Plugins" Type="string" Value="" KeyPath="yes" />
+      </Component>
+      
+      <!-- Built-in plugins are actually part of the main service assembly -->
+      <!-- This is a placeholder for future external plugins -->
+    </ComponentGroup>
+
+    <!-- Start Menu Components -->
+    <ComponentGroup Id="StartMenuComponents" Directory="StartMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="55555555-1111-1111-1111-111111111111">
+        <Shortcut Id="UIStartMenuShortcut"
+                  Name="StorageWatch Dashboard"
+                  Description="Launch StorageWatch Dashboard"
+                  Target="[UIFOLDER]$(var.UIExeName)"
+                  WorkingDirectory="UIFOLDER"
+                  Icon="ProductIcon" />
+        
+        <Shortcut Id="UninstallShortcut"
+                  Name="Uninstall StorageWatch"
+                  Description="Uninstall StorageWatch"
+                  Target="[System64Folder]msiexec.exe"
+                  Arguments="/x [ProductCode]" />
+        
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\StorageWatch\StartMenu" Type="string" Value="" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Desktop Shortcut (optional) -->
+    <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="66666666-1111-1111-1111-111111111111">
+      <Condition>INSTALLDESKTOPSHORTCUT = "1"</Condition>
+      <Shortcut Id="UIDesktopShortcut"
+                Name="StorageWatch Dashboard"
+                Description="Launch StorageWatch Dashboard"
+                Target="[UIFOLDER]$(var.UIExeName)"
+                WorkingDirectory="UIFOLDER"
+                Icon="ProductIcon" />
+      <RemoveFolder Id="RemoveDesktopFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\StorageWatch\Desktop" Type="string" Value="" KeyPath="yes" />
+    </Component>
+
+    <!-- Registry Entries -->
+    <Component Id="RegistryEntries" Directory="INSTALLFOLDER" Guid="77777777-1111-1111-1111-111111111111">
+      <RegistryKey Root="HKLM" Key="Software\[Manufacturer]\[ProductName]">
+        <RegistryValue Name="InstallLocation" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RegistryValue Name="Version" Type="string" Value="[ProductVersion]" />
+        <RegistryValue Name="ConfigLocation" Type="string" Value="[CONFIGFOLDER]" />
+      </RegistryKey>
+    </Component>
+
+  </Fragment>
+</Wix>
