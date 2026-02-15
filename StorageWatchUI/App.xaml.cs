@@ -43,7 +43,7 @@ public partial class App : Application
         // Services
         services.AddSingleton<IDataProvider, LocalDataProvider>();
         services.AddSingleton<CentralDataProvider>();
-        services.AddSingleton<ServiceManager>();
+        services.AddSingleton<IServiceManager, ServiceManager>();
         services.AddSingleton<ConfigurationService>();
 
         // ViewModels

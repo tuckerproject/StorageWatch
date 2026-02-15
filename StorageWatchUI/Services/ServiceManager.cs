@@ -8,7 +8,7 @@ namespace StorageWatchUI.Services;
 /// Manages the StorageWatch Windows Service (start, stop, restart, status).
 /// Includes elevation support for operations requiring administrator privileges.
 /// </summary>
-public class ServiceManager
+public class ServiceManager : IServiceManager
 {
     private const string ServiceName = "StorageWatchService";
 

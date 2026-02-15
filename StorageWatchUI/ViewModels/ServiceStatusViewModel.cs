@@ -14,7 +14,7 @@ namespace StorageWatchUI.ViewModels;
 /// </summary>
 public class ServiceStatusViewModel : ViewModelBase
 {
-    private readonly ServiceManager _serviceManager;
+    private readonly IServiceManager _serviceManager;
     private readonly ServiceCommunicationClient _communicationClient;
     private bool _isServiceInstalled;
     private string _serviceStatus = "Unknown";
@@ -26,7 +26,7 @@ public class ServiceStatusViewModel : ViewModelBase
     private bool _canStop;
     private System.Timers.Timer? _refreshTimer;
 
-    public ServiceStatusViewModel(ServiceManager serviceManager)
+    public ServiceStatusViewModel(IServiceManager serviceManager)
     {
         _serviceManager = serviceManager;
         _communicationClient = new ServiceCommunicationClient();

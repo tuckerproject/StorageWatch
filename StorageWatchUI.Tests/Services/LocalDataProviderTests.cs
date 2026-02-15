@@ -81,6 +81,27 @@ public class LocalDataProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task GetCurrentDiskStatusAsync_WithNonExistentDatabase_ReturnsEmptyList()
+    {
+        // Arrange
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
+            })
+            .Build();
+
+        var provider = new LocalDataProvider(config);
+
+        // Act
+        var disks = await provider.GetCurrentDiskStatusAsync();
+
+        // Assert
+        disks.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetMonitoredDrivesAsync_ReturnsDistinctDrives()
     {
         // Arrange
@@ -98,6 +119,27 @@ public class LocalDataProviderTests : IDisposable
 
         // Assert
         drives.Should().Contain("C:");
+    }
+
+    [Fact]
+    public async Task GetMonitoredDrivesAsync_WithNonExistentDatabase_ReturnsEmptyList()
+    {
+        // Arrange
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
+            })
+            .Build();
+
+        var provider = new LocalDataProvider(config);
+
+        // Act
+        var drives = await provider.GetMonitoredDrivesAsync();
+
+        // Assert
+        drives.Should().BeEmpty();
     }
 
     [Fact]
@@ -121,11 +163,59 @@ public class LocalDataProviderTests : IDisposable
         trends.First().DriveName.Should().Be("C:");
     }
 
+    [Fact]
+    public async Task GetTrendDataAsync_WithInvalidDrive_ReturnsEmptyList()
+    {
+        // Arrange
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "StorageWatchUI:LocalDatabasePath", _testDbPath }
+            })
+            .Build();
+
+        var provider = new LocalDataProvider(config);
+
+        // Act
+        var trends = await provider.GetTrendDataAsync("Z:", 7);
+
+        // Assert
+        trends.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetTrendDataAsync_WithNonExistentDatabase_ReturnsEmptyList()
+    {
+        // Arrange
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
+            })
+            .Build();
+
+        var provider = new LocalDataProvider(config);
+
+        // Act
+        var trends = await provider.GetTrendDataAsync("C:", 7);
+
+        // Assert
+        trends.Should().BeEmpty();
+    }
+
     public void Dispose()
     {
         if (File.Exists(_testDbPath))
         {
-            File.Delete(_testDbPath);
+            try
+            {
+                File.Delete(_testDbPath);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
         }
     }
 }

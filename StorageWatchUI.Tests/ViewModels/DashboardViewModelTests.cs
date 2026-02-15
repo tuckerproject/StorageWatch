@@ -81,4 +81,48 @@ public class DashboardViewModelTests
         // Assert
         viewModel.StatusMessage.Should().Contain("Error loading data");
     }
+
+    [Fact]
+    public async Task RefreshCommand_WithCriticalStatus_ShowsCriticalDisks()
+    {
+        // Arrange
+        var mockDataProvider = new Mock<IDataProvider>();
+        var mockConfigService = new Mock<ConfigurationService>(Mock.Of<IConfiguration>());
+
+        var expectedDisks = new List<DiskInfo>
+        {
+            new() { DriveName = "C:", TotalSpaceGb = 500, FreeSpaceGb = 10, Status = DiskStatusLevel.Critical },
+            new() { DriveName = "D:", TotalSpaceGb = 1000, FreeSpaceGb = 500, Status = DiskStatusLevel.OK }
+        };
+
+        mockDataProvider
+            .Setup(p => p.GetCurrentDiskStatusAsync())
+            .ReturnsAsync(expectedDisks);
+
+        var viewModel = new DashboardViewModel(mockDataProvider.Object, mockConfigService.Object);
+
+        // Act
+        viewModel.RefreshCommand.Execute(null);
+        await Task.Delay(500);
+
+        // Assert
+        viewModel.Disks.Should().HaveCount(2);
+        viewModel.Disks.Should().Contain(d => d.Status == DiskStatusLevel.Critical);
+    }
+
+    [Fact]
+    public void Constructor_InitializesWithEmptyDisks()
+    {
+        // Arrange
+        var mockDataProvider = new Mock<IDataProvider>();
+        var mockConfigService = new Mock<ConfigurationService>(Mock.Of<IConfiguration>());
+
+        // Act
+        var viewModel = new DashboardViewModel(mockDataProvider.Object, mockConfigService.Object);
+
+        // Assert
+        viewModel.Disks.Should().NotBeNull();
+        viewModel.Disks.Should().BeEmpty();
+        viewModel.RefreshCommand.Should().NotBeNull();
+    }
 }
