@@ -9,11 +9,10 @@
 using StorageWatch.Config;
 using StorageWatch.Models;
 using StorageWatch.Services.Logging;
+using StorageWatch.Services.CentralServer;
 using Microsoft.Data.Sqlite;
 using System;
 using System.IO;
-using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace StorageWatch.Services.Scheduling
@@ -21,27 +20,32 @@ namespace StorageWatch.Services.Scheduling
     /// <summary>
     /// Writes disk space data to a SQLite database table.
     /// Records include machine name, drive letter, total/used/free space, percent free, and timestamp.
+    /// When central server forwarding is enabled, also forwards each entry asynchronously.
     /// </summary>
     public class SqlReporter
     {
         private readonly StorageWatchConfig _config;
         private readonly RollingFileLogger _logger;
+        private readonly CentralServerForwarder? _forwarder;
 
         /// <summary>
         /// Initializes a new instance of the SqlReporter class.
         /// </summary>
         /// <param name="config">The application configuration containing database connection string and drive list.</param>
         /// <param name="logger">The logger for recording SQL operations and errors.</param>
-        public SqlReporter(StorageWatchConfig config, RollingFileLogger logger)
+        /// <param name="forwarder">Optional forwarder for sending logs to a central server. If null, forwarding is disabled.</param>
+        public SqlReporter(StorageWatchConfig config, RollingFileLogger logger, CentralServerForwarder? forwarder = null)
         {
             _config = config;
             _logger = logger;
+            _forwarder = forwarder;
         }
 
         /// <summary>
         /// Writes disk space data for all configured drives to the database.
         /// This method connects to SQLite, retrieves the current status of each drive,
         /// and inserts a record into the DiskSpaceLog table. Drives that are not ready are skipped.
+        /// If a forwarder is available and enabled, each entry is also forwarded asynchronously.
         /// </summary>
         public async Task WriteDailyReportAsync()
         {
@@ -94,6 +98,23 @@ namespace StorageWatch.Services.Scheduling
                         _logger.Log(
                             $"[SQL] Inserted row for drive {status.DriveName}: Free {status.FreeSpaceGb:F2} GB ({status.PercentFree:F2}%)."
                         );
+
+                        // Forward the entry to the central server if a forwarder is available and enabled
+                        if (_forwarder != null && _forwarder.IsEnabled())
+                        {
+                            var entry = new DiskSpaceLogEntry
+                            {
+                                AgentMachineName = machineName,
+                                DriveLetter = status.DriveName,
+                                TotalSpaceGb = status.TotalSpaceGb,
+                                UsedSpaceGb = status.TotalSpaceGb - status.FreeSpaceGb,
+                                FreeSpaceGb = status.FreeSpaceGb,
+                                PercentFree = status.PercentFree,
+                                CollectionTimeUtc = DateTime.UtcNow
+                            };
+
+                            _forwarder.ForwardLogEntryAsync(entry);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -106,68 +127,6 @@ namespace StorageWatch.Services.Scheduling
             catch (Exception ex)
             {
                 _logger.Log($"[SQL ERROR] Connection or execution failure: {ex}");
-            }
-
-            // Report to central server if enabled and on a central server machine
-            if (_config.CentralServer.Enabled)
-            {
-                await ReportToCentralServerAsync();
-            }
-        }
-
-        /// <summary>
-        /// Reports the latest disk space data to the central server via HTTP API.
-        /// Called when central server mode is enabled on this machine.
-        /// </summary>
-        private async Task ReportToCentralServerAsync()
-        {
-            try
-            {
-                string machineName = Environment.MachineName;
-                using var client = new HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(10);
-
-                foreach (var driveLetter in _config.Drives)
-                {
-                    var status = GetDiskStatus(driveLetter);
-
-                    // Skip reporting if the drive is not ready
-                    if (status.TotalSpaceGb == 0)
-                    {
-                        _logger.Log($"[CentralServerReport] Skipping report for drive {status.DriveName}: drive not ready.");
-                        continue;
-                    }
-
-                    var entry = new DiskSpaceLogEntry
-                    {
-                        AgentMachineName = machineName,
-                        DriveLetter = status.DriveName,
-                        TotalSpaceGb = status.TotalSpaceGb,
-                        UsedSpaceGb = status.TotalSpaceGb - status.FreeSpaceGb,
-                        FreeSpaceGb = status.FreeSpaceGb,
-                        PercentFree = status.PercentFree,
-                        CollectionTimeUtc = DateTime.UtcNow
-                    };
-
-                    var json = JsonSerializer.Serialize(entry);
-                    var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
-                    var url = $"http://localhost:{_config.CentralServer.Port}/api/logs/disk-space";
-                    var response = await client.PostAsync(url, content);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        _logger.Log($"[CentralServerReport] Successfully reported {machineName}/{status.DriveName} to central server.");
-                    }
-                    else
-                    {
-                        _logger.Log($"[CentralServerReport WARNING] Failed to report {machineName}/{status.DriveName} to central server: {response.StatusCode}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Log($"[CentralServerReport ERROR] Failed to report to central server: {ex}");
             }
         }
 

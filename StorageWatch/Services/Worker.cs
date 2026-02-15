@@ -74,15 +74,34 @@ namespace StorageWatch.Services
             // Build the list of alert senders (e.g., GroupMe, SMTP) based on configuration
             var senders = AlertSenderFactory.BuildSenders(_config, _logger);
             
-            // Initialize the SQL reporter component
-            var sqlReporter = new SqlReporter(_config, _logger);
+            // Initialize the central server forwarder if in agent mode
+            CentralServerForwarder? forwarder = null;
+            if (_config.CentralServer.Enabled && 
+                _config.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    forwarder = new CentralServerForwarder(_config.CentralServer, _logger);
+                    if (_config.EnableStartupLogging)
+                        _logger.Log($"[STARTUP] Central server forwarder initialized for {_config.CentralServer.ServerUrl}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"[STARTUP ERROR] Failed to initialize central server forwarder: {ex}");
+                    throw;
+                }
+            }
+            
+            // Initialize the SQL reporter component with optional forwarder
+            var sqlReporter = new SqlReporter(_config, _logger, forwarder);
 
             // Initialize schedulers for SQL reporting and disk notifications
             _sqlScheduler = new SqlReporterScheduler(_config, sqlReporter, _logger);
             _notificationLoop = new NotificationLoop(_config, senders, monitor, _logger);
 
-            // Initialize central server if enabled
-            if (_config.CentralServer.Enabled)
+            // Initialize central server if enabled in server mode
+            if (_config.CentralServer.Enabled && 
+                _config.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {

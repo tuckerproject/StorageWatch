@@ -82,6 +82,9 @@ namespace StorageWatch.Config
                 CentralServer = new CentralServerConfig
                 {
                     Enabled = ReadBool(root.Element("CentralServer"), "Enabled"),
+                    Mode = ReadString(root.Element("CentralServer"), "Mode") ?? "Agent",
+                    ServerUrl = ReadString(root.Element("CentralServer"), "ServerUrl"),
+                    ApiKey = ReadString(root.Element("CentralServer"), "ApiKey"),
                     Port = ReadInt(root.Element("CentralServer"), "Port"),
                     CentralConnectionString = ReadString(root.Element("CentralServer"), "CentralConnectionString"),
                     ServerId = ReadString(root.Element("CentralServer"), "ServerId")
