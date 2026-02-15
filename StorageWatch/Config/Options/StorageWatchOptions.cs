@@ -126,13 +126,26 @@ namespace StorageWatch.Config.Options
         public bool EnableNotifications { get; set; } = true;
 
         /// <summary>
-        /// SMTP email alert delivery settings.
+        /// Plugin-specific configuration. Each plugin is identified by its PluginId.
+        /// Example structure:
+        /// "Plugins": {
+        ///   "SMTP": { "Enabled": true, "Host": "smtp.example.com", ... },
+        ///   "GroupMe": { "Enabled": true, "BotId": "..." },
+        ///   "Slack": { "Enabled": false, "WebhookUrl": "..." }
+        /// }
+        /// </summary>
+        public Dictionary<string, Dictionary<string, object>> Plugins { get; set; } = new();
+
+        /// <summary>
+        /// SMTP email alert delivery settings (legacy - maintained for backward compatibility).
+        /// Prefer using Plugins["SMTP"] for new configurations.
         /// </summary>
         [Required]
         public SmtpOptions Smtp { get; set; } = new();
 
         /// <summary>
-        /// GroupMe bot alert delivery settings.
+        /// GroupMe bot alert delivery settings (legacy - maintained for backward compatibility).
+        /// Prefer using Plugins["GroupMe"] for new configurations.
         /// </summary>
         [Required]
         public GroupMeOptions GroupMe { get; set; } = new();

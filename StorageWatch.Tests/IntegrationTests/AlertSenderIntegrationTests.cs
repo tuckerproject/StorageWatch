@@ -2,9 +2,8 @@
 /// Integration Tests for Alert Senders
 /// 
 /// Tests alert sender implementations with mock HTTP clients and SMTP servers.
-/// Verifies that alerts can be sent correctly through various delivery methods.
-/// Note: These are semi-integration tests that verify the alert sender logic
-/// without actually sending real alerts to external services.
+/// Verifies that alerts can be sent correctly through various delivery methods
+/// using the new plugin architecture with DiskStatus and CancellationToken.
 /// </summary>
 
 using FluentAssertions;
@@ -26,6 +25,16 @@ namespace StorageWatch.Tests.IntegrationTests
             _logger = new RollingFileLogger(Path.Combine(Path.GetTempPath(), $"test_log_{Guid.NewGuid()}.log"));
         }
 
+        private DiskStatus CreateTestDiskStatus(bool isLowSpace = true)
+        {
+            return new DiskStatus
+            {
+                DriveName = "C:",
+                TotalSpaceGb = 100,
+                FreeSpaceGb = isLowSpace ? 5 : 50 // 5% or 50% free
+            };
+        }
+
         [Fact]
         public async Task GroupMeAlertSender_WithDisabledConfig_DoesNotSendAlert()
         {
@@ -36,12 +45,13 @@ namespace StorageWatch.Tests.IntegrationTests
                 BotId = "test-bot-id"
             };
             var sender = new GroupMeAlertSender(options, _logger);
+            var status = CreateTestDiskStatus();
 
             // Act
-            await sender.SendAlertAsync("Test alert message");
+            await sender.SendAlertAsync(status, CancellationToken.None);
 
             // Assert - Should complete without error (no exception thrown)
-            // The logger would contain a "Skipping send" message
+            sender.Name.Should().Be("GroupMe");
         }
 
         [Fact]
@@ -54,9 +64,10 @@ namespace StorageWatch.Tests.IntegrationTests
                 BotId = "test-bot-id-that-will-fail"
             };
             var sender = new GroupMeAlertSender(options, _logger);
+            var status = CreateTestDiskStatus();
 
             // Act - Even with invalid bot ID, should not throw
-            Func<Task> act = async () => await sender.SendAlertAsync("Test alert message");
+            Func<Task> act = async () => await sender.SendAlertAsync(status, CancellationToken.None);
 
             // Assert
             await act.Should().NotThrowAsync("Alert senders should handle errors gracefully");
@@ -78,11 +89,13 @@ namespace StorageWatch.Tests.IntegrationTests
                 ToAddress = "to@example.com"
             };
             var sender = new SmtpAlertSender(options, _logger);
+            var status = CreateTestDiskStatus();
 
             // Act
-            await sender.SendAlertAsync("Test alert message");
+            await sender.SendAlertAsync(status, CancellationToken.None);
 
             // Assert - Should complete without error
+            sender.Name.Should().Be("SMTP");
         }
 
         [Fact]
@@ -101,44 +114,98 @@ namespace StorageWatch.Tests.IntegrationTests
                 ToAddress = "to@example.com"
             };
             var sender = new SmtpAlertSender(options, _logger);
+            var status = CreateTestDiskStatus();
 
-            // Act - Even with invalid server, should not throw
-            Func<Task> act = async () => await sender.SendAlertAsync("Test alert message");
+            // Act - Should handle connection errors gracefully
+            Func<Task> act = async () => await sender.SendAlertAsync(status, CancellationToken.None);
 
             // Assert
             await act.Should().NotThrowAsync("Alert senders should handle errors gracefully");
         }
 
         [Fact]
-        public async Task AlertSender_ImplementsIAlertSenderInterface()
+        public async Task AlertSender_HealthCheck_ReturnsTrue_WhenConfigured()
         {
             // Arrange
-            var groupMeOptions = new GroupMeOptions { Enabled = true, BotId = "test" };
-            var smtpOptions = new SmtpOptions
+            var options = new SmtpOptions
             {
                 Enabled = true,
                 Host = "smtp.example.com",
                 Port = 587,
-                UseSsl = true,
-                Username = "user@example.com",
-                Password = "password",
                 FromAddress = "from@example.com",
                 ToAddress = "to@example.com"
             };
+            var sender = new SmtpAlertSender(options, _logger);
+
+            // Act
+            var isHealthy = await sender.HealthCheckAsync();
+
+            // Assert
+            isHealthy.Should().BeTrue("Sender is properly configured");
+        }
+
+        [Fact]
+        public async Task AlertSender_HealthCheck_ReturnsFalse_WhenDisabled()
+        {
+            // Arrange
+            var options = new SmtpOptions
+            {
+                Enabled = false,
+                Host = "smtp.example.com",
+                Port = 587,
+                FromAddress = "from@example.com",
+                ToAddress = "to@example.com"
+            };
+            var sender = new SmtpAlertSender(options, _logger);
+
+            // Act
+            var isHealthy = await sender.HealthCheckAsync();
+
+            // Assert
+            isHealthy.Should().BeFalse("Sender is disabled");
+        }
+
+        [Fact]
+        public async Task AlertSender_HealthCheck_ReturnsFalse_WhenMisconfigured()
+        {
+            // Arrange
+            var options = new SmtpOptions
+            {
+                Enabled = true,
+                Host = "", // Missing required configuration
+                Port = 587,
+                FromAddress = "",
+                ToAddress = ""
+            };
+            var sender = new SmtpAlertSender(options, _logger);
+
+            // Act
+            var isHealthy = await sender.HealthCheckAsync();
+
+            // Assert
+            isHealthy.Should().BeFalse("Sender is missing required configuration");
+        }
+
+        [Fact]
+        public void AlertSender_HasCorrectName_SMTP()
+        {
+            // Arrange
+            var options = new SmtpOptions { Enabled = true, Host = "test.com", FromAddress = "a@b.com", ToAddress = "c@d.com" };
+            var sender = new SmtpAlertSender(options, _logger);
 
             // Act & Assert
-            IAlertSender groupMeSender = new GroupMeAlertSender(groupMeOptions, _logger);
-            IAlertSender smtpSender = new SmtpAlertSender(smtpOptions, _logger);
+            sender.Name.Should().Be("SMTP");
+        }
 
-            groupMeSender.Should().NotBeNull();
-            smtpSender.Should().NotBeNull();
+        [Fact]
+        public void AlertSender_HasCorrectName_GroupMe()
+        {
+            // Arrange
+            var options = new GroupMeOptions { Enabled = true, BotId = "test-id" };
+            var sender = new GroupMeAlertSender(options, _logger);
 
-            // Verify interface method exists and can be called
-            Func<Task> groupMeAct = async () => await groupMeSender.SendAlertAsync("test");
-            Func<Task> smtpAct = async () => await smtpSender.SendAlertAsync("test");
-
-            await groupMeAct.Should().NotThrowAsync();
-            await smtpAct.Should().NotThrowAsync();
+            // Act & Assert
+            sender.Name.Should().Be("GroupMe");
         }
     }
 }

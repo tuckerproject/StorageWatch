@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Mail;
 using StorageWatch.Config.Options;
 using StorageWatch.Models;
+using StorageWatch.Models.Plugins;
 using StorageWatch.Services.Logging;
 
 namespace StorageWatch.Services.Alerting
@@ -17,46 +18,57 @@ namespace StorageWatch.Services.Alerting
     /// <summary>
     /// Sends alert messages using SMTP email.
     /// </summary>
-    public class SmtpAlertSender : IAlertSender
+    [AlertSenderPlugin("SMTP", Description = "Sends alerts via SMTP email", Version = "2.0.0")]
+    public class SmtpAlertSender : AlertSenderBase
     {
         private readonly SmtpOptions _options;
-        private readonly RollingFileLogger _logger;
 
         public SmtpAlertSender(SmtpOptions options, RollingFileLogger logger)
+            : base(logger)
         {
-            _options = options;
-            _logger = logger;
+            _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public async Task SendAlertAsync(string message)
+        /// <inheritdoc/>
+        public override string Name => "SMTP";
+
+        /// <inheritdoc/>
+        protected override bool IsEnabled() => _options.Enabled;
+
+        /// <inheritdoc/>
+        protected override async Task SendMessageAsync(string message, CancellationToken cancellationToken)
         {
-            if (!_options.Enabled)
+            using var client = new SmtpClient(_options.Host, _options.Port)
             {
-                _logger.Log("[SMTP] Skipping send: SMTP is disabled in config.");
-                return;
+                EnableSsl = _options.UseSsl,
+                Credentials = new NetworkCredential(_options.Username, _options.Password)
+            };
+
+            var mail = new MailMessage(_options.FromAddress, _options.ToAddress)
+            {
+                Subject = "StorageWatch Disk Space Alert",
+                Body = message
+            };
+
+            await client.SendMailAsync(mail, cancellationToken);
+        }
+
+        /// <inheritdoc/>
+        public override async Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default)
+        {
+            if (!IsEnabled())
+                return false;
+
+            // Basic configuration validation
+            if (string.IsNullOrWhiteSpace(_options.Host) ||
+                string.IsNullOrWhiteSpace(_options.FromAddress) ||
+                string.IsNullOrWhiteSpace(_options.ToAddress))
+            {
+                Logger.Log("[SMTP] Health check failed: Missing required configuration.");
+                return false;
             }
 
-            try
-            {
-                using var client = new SmtpClient(_options.Host, _options.Port)
-                {
-                    EnableSsl = _options.UseSsl,
-                    Credentials = new NetworkCredential(_options.Username, _options.Password)
-                };
-
-                var mail = new MailMessage(_options.FromAddress, _options.ToAddress)
-                {
-                    Subject = "Disk Space Alert",
-                    Body = message
-                };
-
-                _logger.Log("[SMTP] Sending alert email.");
-                await client.SendMailAsync(mail);
-            }
-            catch (Exception ex)
-            {
-                _logger.Log($"[SMTP ERROR] Exception while sending alert: {ex}");
-            }
+            return true;
         }
     }
 }

@@ -53,17 +53,36 @@ namespace StorageWatch.Config.Options
                 }
             }
 
-            // Validate alerting consistency
+            // Validate alerting consistency: If notifications enabled, at least one plugin must be enabled
             if (options.Alerting.EnableNotifications)
             {
-                bool hasValidSender = (options.Alerting.Smtp.Enabled && 
+                // Check legacy configuration (backward compatibility)
+                bool hasLegacySender = (options.Alerting.Smtp?.Enabled == true && 
                                       !string.IsNullOrWhiteSpace(options.Alerting.Smtp.Host)) ||
-                                     (options.Alerting.GroupMe.Enabled && 
+                                     (options.Alerting.GroupMe?.Enabled == true && 
                                       !string.IsNullOrWhiteSpace(options.Alerting.GroupMe.BotId));
 
-                if (!hasValidSender)
+                // Check new plugin configuration
+                bool hasPluginSender = false;
+                if (options.Alerting.Plugins != null && options.Alerting.Plugins.Count > 0)
+                {
+                    foreach (var plugin in options.Alerting.Plugins.Values)
+                    {
+                        if (plugin.TryGetValue("Enabled", out var enabledValue))
+                        {
+                            if (Convert.ToBoolean(enabledValue))
+                            {
+                                hasPluginSender = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!hasLegacySender && !hasPluginSender)
                     return ValidateOptionsResult.Fail(
-                        "EnableNotifications is true but no valid alert sender is configured (SMTP or GroupMe)");
+                        "EnableNotifications is true but no valid alert sender plugin is configured and enabled. " +
+                        "At least one alert sender (SMTP, GroupMe, etc.) must be enabled.");
             }
 
             return ValidateOptionsResult.Success;

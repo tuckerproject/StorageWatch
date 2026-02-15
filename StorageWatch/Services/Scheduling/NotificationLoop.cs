@@ -159,7 +159,7 @@ namespace StorageWatch.Services.Scheduling
                             // Send the alert through all configured senders
                             // ================================================================
                             foreach (var sender in _senders)
-                                await sender.SendAlertAsync(message);
+                                await sender.SendAlertAsync(status, token);
 
                             _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
 

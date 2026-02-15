@@ -31,6 +31,7 @@ namespace StorageWatch.Services
     public class Worker : BackgroundService
     {
         private readonly IOptionsMonitor<StorageWatchOptions> _optionsMonitor;
+        private readonly IServiceProvider _serviceProvider;
         private readonly RollingFileLogger _logger;
         private readonly SqlReporterScheduler _sqlScheduler;
         private readonly NotificationLoop _notificationLoop;
@@ -40,9 +41,11 @@ namespace StorageWatch.Services
         /// Initializes a new instance of the Worker class using dependency injection.
         /// </summary>
         /// <param name="optionsMonitor">Monitor for accessing and observing configuration changes.</param>
-        public Worker(IOptionsMonitor<StorageWatchOptions> optionsMonitor)
+        /// <param name="serviceProvider">Service provider for resolving dependencies.</param>
+        public Worker(IOptionsMonitor<StorageWatchOptions> optionsMonitor, IServiceProvider serviceProvider)
         {
             _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             // Create and initialize the logging system at the common application data directory
             string logDir = @"C:\ProgramData\StorageWatch\Logs";
@@ -73,8 +76,18 @@ namespace StorageWatch.Services
             // Initialize the disk monitoring component
             var monitor = new DiskAlertMonitor(options);
             
-            // Build the list of alert senders (e.g., GroupMe, SMTP) based on configuration
-            var senders = AlertSenderFactory.BuildSenders(options, _logger);
+            // Build the list of alert senders using the new plugin architecture
+            var pluginManager = AlertSenderFactory.CreatePluginManager(_serviceProvider, options, _logger);
+            var senders = pluginManager.GetEnabledSenders();
+            
+            if (options.General.EnableStartupLogging)
+            {
+                _logger.Log($"[STARTUP] Loaded {senders.Count} alert sender plugin(s)");
+                foreach (var sender in senders)
+                {
+                    _logger.Log($"[STARTUP]   - {sender.Name}");
+                }
+            }
             
             // Initialize the central server forwarder if in agent mode
             CentralServerForwarder? forwarder = null;
