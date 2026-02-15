@@ -75,6 +75,11 @@ namespace StorageWatch.Config
         /// Enables or disables startup logging messages for diagnostic purposes.
         /// </summary>
         public bool EnableStartupLogging { get; set; }
+
+        /// <summary>
+        /// Central server configuration for aggregating data from multiple agents.
+        /// </summary>
+        public CentralServerConfig CentralServer { get; set; } = new();
     }
 
     /// <summary>

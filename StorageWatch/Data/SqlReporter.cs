@@ -12,6 +12,8 @@ using StorageWatch.Services.Logging;
 using Microsoft.Data.Sqlite;
 using System;
 using System.IO;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace StorageWatch.Services.Scheduling
@@ -104,6 +106,68 @@ namespace StorageWatch.Services.Scheduling
             catch (Exception ex)
             {
                 _logger.Log($"[SQL ERROR] Connection or execution failure: {ex}");
+            }
+
+            // Report to central server if enabled and on a central server machine
+            if (_config.CentralServer.Enabled)
+            {
+                await ReportToCentralServerAsync();
+            }
+        }
+
+        /// <summary>
+        /// Reports the latest disk space data to the central server via HTTP API.
+        /// Called when central server mode is enabled on this machine.
+        /// </summary>
+        private async Task ReportToCentralServerAsync()
+        {
+            try
+            {
+                string machineName = Environment.MachineName;
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(10);
+
+                foreach (var driveLetter in _config.Drives)
+                {
+                    var status = GetDiskStatus(driveLetter);
+
+                    // Skip reporting if the drive is not ready
+                    if (status.TotalSpaceGb == 0)
+                    {
+                        _logger.Log($"[CentralServerReport] Skipping report for drive {status.DriveName}: drive not ready.");
+                        continue;
+                    }
+
+                    var entry = new DiskSpaceLogEntry
+                    {
+                        AgentMachineName = machineName,
+                        DriveLetter = status.DriveName,
+                        TotalSpaceGb = status.TotalSpaceGb,
+                        UsedSpaceGb = status.TotalSpaceGb - status.FreeSpaceGb,
+                        FreeSpaceGb = status.FreeSpaceGb,
+                        PercentFree = status.PercentFree,
+                        CollectionTimeUtc = DateTime.UtcNow
+                    };
+
+                    var json = JsonSerializer.Serialize(entry);
+                    var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                    var url = $"http://localhost:{_config.CentralServer.Port}/api/logs/disk-space";
+                    var response = await client.PostAsync(url, content);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        _logger.Log($"[CentralServerReport] Successfully reported {machineName}/{status.DriveName} to central server.");
+                    }
+                    else
+                    {
+                        _logger.Log($"[CentralServerReport WARNING] Failed to report {machineName}/{status.DriveName} to central server: {response.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[CentralServerReport ERROR] Failed to report to central server: {ex}");
             }
         }
 

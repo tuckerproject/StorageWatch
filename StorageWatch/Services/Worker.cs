@@ -13,6 +13,7 @@ using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.Scheduling;
+using StorageWatch.Services.CentralServer;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.IO;
@@ -31,6 +32,7 @@ namespace StorageWatch.Services
         private readonly RollingFileLogger _logger;
         private readonly SqlReporterScheduler _sqlScheduler;
         private readonly NotificationLoop _notificationLoop;
+        private readonly CentralServerService? _centralServer;
 
         /// <summary>
         /// Initializes a new instance of the Worker class.
@@ -79,6 +81,33 @@ namespace StorageWatch.Services
             _sqlScheduler = new SqlReporterScheduler(_config, sqlReporter, _logger);
             _notificationLoop = new NotificationLoop(_config, senders, monitor, _logger);
 
+            // Initialize central server if enabled
+            if (_config.CentralServer.Enabled)
+            {
+                try
+                {
+                    var centralSchema = new CentralServerSchema(_config.CentralServer.CentralConnectionString, _logger);
+                    centralSchema.InitializeDatabaseAsync().Wait();
+                    if (_config.EnableStartupLogging)
+                        _logger.Log("[STARTUP] Central server database initialized");
+
+                    var centralRepository = new CentralServerRepository(_config.CentralServer.CentralConnectionString, _logger);
+                    _centralServer = new CentralServerService(_config.CentralServer, _logger, centralRepository);
+
+                    if (_config.EnableStartupLogging)
+                        _logger.Log("[STARTUP] Central server initialized");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"[STARTUP ERROR] Failed to initialize central server: {ex}");
+                    throw;
+                }
+            }
+            else
+            {
+                _centralServer = null;
+            }
+
             // Log when components have been initialized
             if (_config.EnableStartupLogging)
                 _logger.Log("[STARTUP] Components initialized");
@@ -94,6 +123,19 @@ namespace StorageWatch.Services
         {
             _logger.Log("[WORKER] ExecuteAsync started");
 
+            // Start the central server if enabled
+            if (_centralServer != null)
+            {
+                try
+                {
+                    await _centralServer.StartAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"[WORKER ERROR] Central server failed to start: {ex}");
+                }
+            }
+
             // Start the notification loop as a background task (disk monitoring and alerts)
             // This runs continuously while respecting the associated stoppingToken
             _ = _notificationLoop.RunAsync(stoppingToken);
@@ -106,6 +148,19 @@ namespace StorageWatch.Services
                 
                 // Wait 30 seconds before checking again
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+
+            // Stop the central server if it was running
+            if (_centralServer != null)
+            {
+                try
+                {
+                    await _centralServer.StopAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"[WORKER ERROR] Failed to stop central server: {ex}");
+                }
             }
 
             _logger.Log("[WORKER] ExecuteAsync exiting");

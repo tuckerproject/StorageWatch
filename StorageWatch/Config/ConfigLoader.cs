@@ -76,6 +76,15 @@ namespace StorageWatch.Config
                     Password = ReadString(root.Element("Smtp"), "Password"),
                     FromAddress = ReadString(root.Element("Smtp"), "FromAddress"),
                     ToAddress = ReadString(root.Element("Smtp"), "ToAddress")
+                },
+
+                // Central Server configuration
+                CentralServer = new CentralServerConfig
+                {
+                    Enabled = ReadBool(root.Element("CentralServer"), "Enabled"),
+                    Port = ReadInt(root.Element("CentralServer"), "Port"),
+                    CentralConnectionString = ReadString(root.Element("CentralServer"), "CentralConnectionString"),
+                    ServerId = ReadString(root.Element("CentralServer"), "ServerId")
                 }
             };
 
