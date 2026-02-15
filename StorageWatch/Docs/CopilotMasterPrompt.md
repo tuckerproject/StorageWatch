@@ -149,12 +149,12 @@ Installer must ask:
 - Optional named pipes for advanced local interactions  
 
 ### 13. Installer Package
-- Single installer containing:
-  - StorageWatchService.exe  
-  - StorageWatchServer.exe  
-  - StorageWatchUI.exe  
-  - SQLite runtime  
-  - Config templates  
+Create a complete NSIS installer for StorageWatch that packages and installs:
+- `StorageWatchService.exe`  
+- `StorageWatchUI.exe`  
+- SQLite runtime files  
+- Default config templates  
+- Plugin folder structure  
 - Installer responsibilities:
   - Install service  
   - Register service  
