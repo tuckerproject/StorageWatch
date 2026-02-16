@@ -15,7 +15,7 @@ public class LocalDataProviderTests : IDisposable
     public LocalDataProviderTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid()}.db");
-        _connectionString = $"Data Source={_testDbPath};Version=3;";
+        _connectionString = $"Data Source={_testDbPath}";
         InitializeTestDatabase();
     }
 
@@ -41,6 +41,18 @@ public class LocalDataProviderTests : IDisposable
         using var command = new SqliteCommand(createTableSql, connection);
         command.ExecuteNonQuery();
 
+        var createHistorySql = @"
+            CREATE TABLE IF NOT EXISTS DiskHistory (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                DriveLetter TEXT NOT NULL,
+                PercentFree REAL NOT NULL,
+                RecordedAtUtc DATETIME NOT NULL
+            );
+        ";
+
+        using var historyCommand = new SqliteCommand(createHistorySql, connection);
+        historyCommand.ExecuteNonQuery();
+
         // Insert test data
         var insertSql = @"
             INSERT INTO DiskSpaceLog (MachineName, DriveLetter, TotalSpaceGB, UsedSpaceGB, FreeSpaceGB, PercentFree, CollectionTimeUtc)
@@ -54,8 +66,23 @@ public class LocalDataProviderTests : IDisposable
         insertCmd.Parameters.AddWithValue("@used", 400.0);
         insertCmd.Parameters.AddWithValue("@free", 100.0);
         insertCmd.Parameters.AddWithValue("@percent", 20.0);
-        insertCmd.Parameters.AddWithValue("@time", DateTime.UtcNow);
+
+        insertCmd.Parameters.AddWithValue("@time", DateTime.UtcNow.AddHours(-1));
         insertCmd.ExecuteNonQuery();
+
+        insertCmd.Parameters["@time"].Value = DateTime.UtcNow;
+        insertCmd.ExecuteNonQuery();
+
+        var insertHistorySql = @"
+            INSERT INTO DiskHistory (DriveLetter, PercentFree, RecordedAtUtc)
+            VALUES (@drive, @percent, @time)
+        ";
+
+        using var historyInsertCmd = new SqliteCommand(insertHistorySql, connection);
+        historyInsertCmd.Parameters.AddWithValue("@drive", "C:");
+        historyInsertCmd.Parameters.AddWithValue("@percent", 20.0);
+        historyInsertCmd.Parameters.AddWithValue("@time", DateTime.UtcNow);
+        historyInsertCmd.ExecuteNonQuery();
     }
 
     [Fact]

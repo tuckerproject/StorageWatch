@@ -19,7 +19,7 @@ public class LocalDataProvider : IDataProvider
         
         // Try to find the database in the expected locations
         var dbPath = GetDatabasePath();
-        _connectionString = $"Data Source={dbPath};Version=3;";
+        _connectionString = $"Data Source={dbPath}";
     }
 
     private string GetDatabasePath()

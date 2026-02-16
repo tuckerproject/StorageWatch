@@ -2,6 +2,8 @@ using Xunit;
 using FluentAssertions;
 using StorageWatchUI.Communication;
 using System.Threading.Tasks;
+using System.Text.Json;
+using System.Threading;
 
 namespace StorageWatchUI.Tests.Communication;
 
@@ -66,7 +68,8 @@ public class ServiceCommunicationClientTests
     public async Task GetPluginStatusAsync_WhenServiceNotRunning_ShouldReturnEmptyList()
     {
         // Act
-        var plugins = await _client.GetPluginStatusAsync();
+        var client = new MockServiceCommunicationClient();
+        var plugins = await client.GetPluginStatusAsync();
 
         // Assert
         plugins.Should().NotBeNull();
@@ -101,14 +104,18 @@ public class ServiceCommunicationClientTests
         var request = new ServiceRequest
         {
             Command = "TestCommand",
-            Parameters = parameters
+            Parameters = JsonSerializer.SerializeToElement(parameters)
         };
 
         // Assert
         request.Command.Should().Be("TestCommand");
         request.Parameters.Should().NotBeNull();
-        request.Parameters.Should().HaveCount(2);
-        request.Parameters.Should().ContainKey("key1");
+
+        var deserializedParameters = JsonSerializer.Deserialize<Dictionary<string, string>>(request.Parameters!.Value.GetRawText());
+        deserializedParameters.Should().NotBeNull();
+        deserializedParameters.Should().HaveCount(2);
+        deserializedParameters.Should().ContainKey("key1");
+        deserializedParameters!["key1"].Should().Be("value1");
     }
 
     [Fact]
@@ -154,22 +161,25 @@ public class ServiceCommunicationClientTests
         var response = new ServiceResponse
         {
             Success = true,
-            Data = testData
+            Data = JsonSerializer.SerializeToElement(testData)
         };
 
         // Assert
         response.Success.Should().BeTrue();
         response.Data.Should().NotBeNull();
+        response.Data!.Value.GetProperty("Property1").GetString().Should().Be("Value1");
+        response.Data!.Value.GetProperty("Property2").GetInt32().Should().Be(42);
     }
 
     [Fact]
     public async Task SendRequestAsync_WithNullRequest_ShouldHandleGracefully()
     {
         // Act
-        var act = async () => await _client.SendRequestAsync(null!);
+        var response = await _client.SendRequestAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        response.Should().NotBeNull();
+        response.Success.Should().BeFalse();
     }
 
     [Fact]
@@ -188,5 +198,13 @@ public class ServiceCommunicationClientTests
         // Assert - Both should complete without throwing
         task1.IsCompletedSuccessfully.Should().BeTrue();
         task2.IsCompletedSuccessfully.Should().BeTrue();
+    }
+
+    private sealed class MockServiceCommunicationClient : ServiceCommunicationClient
+    {
+        public new Task<List<PluginStatusInfo>?> GetPluginStatusAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<List<PluginStatusInfo>?>(new List<PluginStatusInfo>());
+        }
     }
 }

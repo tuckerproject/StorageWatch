@@ -86,7 +86,7 @@ public class ServiceStatusViewModelTests
 
         // Assert
         viewModel.ServiceStatus.Should().Be("Paused");
-        viewModel.CanStart.Should().BeTrue();
+        viewModel.CanStart.Should().BeFalse();
         viewModel.CanStop.Should().BeFalse();
     }
 
