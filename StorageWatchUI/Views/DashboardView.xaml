@@ -60,7 +60,7 @@
                                         <Run Text=" of "/>
                                         <Run Text="{Binding TotalSpaceGb, StringFormat='{}{0:N2} GB'}" FontWeight="Bold"/>
                                         <Run Text=" ("/>
-                                        <Run Text="{Binding PercentFree, StringFormat='{}{0:N2}%'}" FontWeight="Bold"/>
+                                        <Run Text="{Binding PercentFree, Mode=OneWay, StringFormat='{}{0:N2}%'}" FontWeight="Bold"/>
                                         <Run Text=" free)"/>
                                     </TextBlock>
                                 </StackPanel>
@@ -69,7 +69,7 @@
                                 <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" 
                                              Height="20" 
                                              Margin="0,10,0,0"
-                                             Value="{Binding PercentUsed}" 
+                                             Value="{Binding PercentUsed, Mode=OneWay}" 
                                              Maximum="100"
                                              Foreground="{Binding Status, Converter={StaticResource StatusToColorConverter}}"/>
 
