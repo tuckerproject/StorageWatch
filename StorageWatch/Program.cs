@@ -51,6 +51,11 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IValidateOptions<GroupMeOptions>, GroupMeOptionsValidator>();
         services.AddSingleton<IValidateOptions<CentralServerOptions>, CentralServerOptionsValidator>();
 
+        // Register the logger
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        var logFilePath = Path.Combine(programData, "StorageWatch", "Logs", "service.log");
+        services.AddSingleton(new RollingFileLogger(logFilePath));
+
         // ====================================================================
         // Plugin Architecture Registration
         // ====================================================================

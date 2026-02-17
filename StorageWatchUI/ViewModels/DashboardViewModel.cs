@@ -1,6 +1,7 @@
 using StorageWatchUI.Models;
 using StorageWatchUI.Services;
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Input;
 
 namespace StorageWatchUI.ViewModels;
@@ -54,11 +55,15 @@ public class DashboardViewModel : ViewModelBase
         {
             var disks = await _dataProvider.GetCurrentDiskStatusAsync();
             
-            Disks.Clear();
-            foreach (var disk in disks)
+            // Dispatch collection modifications to the UI thread
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                Disks.Add(disk);
-            }
+                Disks.Clear();
+                foreach (var disk in disks)
+                {
+                    Disks.Add(disk);
+                }
+            });
 
             StatusMessage = disks.Any() 
                 ? $"Last updated: {DateTime.Now:HH:mm:ss}" 

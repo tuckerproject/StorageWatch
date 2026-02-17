@@ -43,44 +43,60 @@ namespace StorageWatch.Data
                 await connection.OpenAsync();
                 _logger.Log("[SQLite] Database connection opened successfully.");
 
-                // Create the DiskSpaceLog table if it doesn't exist
-                string createTableSql = @"
-                    CREATE TABLE IF NOT EXISTS DiskSpaceLog (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        MachineName TEXT NOT NULL,
-                        DriveLetter TEXT NOT NULL,
-                        TotalSpaceGB REAL NOT NULL,
-                        UsedSpaceGB REAL NOT NULL,
-                        FreeSpaceGB REAL NOT NULL,
-                        PercentFree REAL NOT NULL,
-                        CollectionTimeUtc DATETIME NOT NULL,
-                        CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-                    );
-                ";
+                // Begin transaction for schema initialization
+                using var transaction = connection.BeginTransaction();
 
-                using var command = new SqliteCommand(createTableSql, connection);
-                await command.ExecuteNonQueryAsync();
-                _logger.Log("[SQLite] DiskSpaceLog table created or already exists.");
+                try
+                {
+                    // Create the DiskSpaceLog table if it doesn't exist
+                    string createTableSql = @"
+                        CREATE TABLE IF NOT EXISTS DiskSpaceLog (
+                            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            MachineName TEXT NOT NULL,
+                            DriveLetter TEXT NOT NULL,
+                            TotalSpaceGB REAL NOT NULL,
+                            UsedSpaceGB REAL NOT NULL,
+                            FreeSpaceGB REAL NOT NULL,
+                            PercentFree REAL NOT NULL,
+                            CollectionTimeUtc DATETIME NOT NULL,
+                            CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+                        );
+                    ";
 
-                // Create an index on (MachineName, DriveLetter, CollectionTimeUtc) for efficient queries
-                string createIndexSql = @"
-                    CREATE INDEX IF NOT EXISTS idx_DiskSpaceLog_Machine_Drive_Time
-                    ON DiskSpaceLog(MachineName, DriveLetter, CollectionTimeUtc);
-                ";
+                    using var command = new SqliteCommand(createTableSql, connection, transaction);
+                    await command.ExecuteNonQueryAsync();
+                    _logger.Log("[SQLite] DiskSpaceLog table created or already exists.");
 
-                using var indexCommand = new SqliteCommand(createIndexSql, connection);
-                await indexCommand.ExecuteNonQueryAsync();
-                _logger.Log("[SQLite] Index created or already exists.");
+                    // Create an index on (MachineName, DriveLetter, CollectionTimeUtc) for efficient queries
+                    string createIndexSql = @"
+                        CREATE INDEX IF NOT EXISTS idx_DiskSpaceLog_Machine_Drive_Time
+                        ON DiskSpaceLog(MachineName, DriveLetter, CollectionTimeUtc);
+                    ";
 
-                // Create an index on CollectionTimeUtc for efficient retention/cleanup queries
-                string createRetentionIndexSql = @"
-                    CREATE INDEX IF NOT EXISTS idx_DiskSpaceLog_CollectionTime
-                    ON DiskSpaceLog(CollectionTimeUtc);
-                ";
+                    using var indexCommand = new SqliteCommand(createIndexSql, connection, transaction);
+                    await indexCommand.ExecuteNonQueryAsync();
+                    _logger.Log("[SQLite] Index created or already exists.");
 
-                using var retentionIndexCommand = new SqliteCommand(createRetentionIndexSql, connection);
-                await retentionIndexCommand.ExecuteNonQueryAsync();
-                _logger.Log("[SQLite] Retention index created or already exists.");
+                    // Create an index on CollectionTimeUtc for efficient retention/cleanup queries
+                    string createRetentionIndexSql = @"
+                        CREATE INDEX IF NOT EXISTS idx_DiskSpaceLog_CollectionTime
+                        ON DiskSpaceLog(CollectionTimeUtc);
+                    ";
+
+                    using var retentionIndexCommand = new SqliteCommand(createRetentionIndexSql, connection, transaction);
+                    await retentionIndexCommand.ExecuteNonQueryAsync();
+                    _logger.Log("[SQLite] Retention index created or already exists.");
+
+                    // Commit the transaction to ensure schema changes are persisted
+                    transaction.Commit();
+                    _logger.Log("[SQLite] Schema initialization transaction committed successfully.");
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    _logger.Log($"[SQLite ERROR] Schema initialization transaction rolled back: {ex}");
+                    throw;
+                }
             }
             catch (Exception ex)
             {

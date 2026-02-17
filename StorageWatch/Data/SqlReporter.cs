@@ -58,70 +58,89 @@ namespace StorageWatch.Services.Scheduling
                 // Get the name of this machine for the database records
                 string machineName = Environment.MachineName;
 
-                // Process each monitored drive
-                foreach (var driveLetter in _options.Monitoring.Drives)
+                // Begin an explicit transaction to ensure all inserts are committed atomically
+                using var transaction = connection.BeginTransaction();
+
+                try
                 {
-                    // Retrieve current disk status for this drive
-                    var status = GetDiskStatus(driveLetter);
-
-                    // Skip insertion if the drive is not ready (e.g., disconnected USB, CD-ROM without disc)
-                    // A ready drive will have TotalSpaceGb > 0
-                    if (status.TotalSpaceGb == 0)
+                    // Process each monitored drive
+                    foreach (var driveLetter in _options.Monitoring.Drives)
                     {
-                        _logger.Log($"[SQL] Skipping insert for drive {status.DriveName}: drive not ready.");
-                        continue;
-                    }
+                        // Retrieve current disk status for this drive
+                        var status = GetDiskStatus(driveLetter);
 
-                    // Prepare the SQL INSERT statement with parameters to prevent SQL injection
-                    string sql = @"
-                        INSERT INTO DiskSpaceLog
-                        (MachineName, DriveLetter, TotalSpaceGB, UsedSpaceGB, FreeSpaceGB, PercentFree, CollectionTimeUtc)
-                        VALUES (@machine, @drive, @total, @used, @free, @percent, @utc)
-                    ";
-
-                    using var command = new SqliteCommand(sql, connection);
-                    // Add parameters to the command with values from the disk status
-                    command.Parameters.AddWithValue("@machine", machineName);
-                    command.Parameters.AddWithValue("@drive", status.DriveName);
-                    command.Parameters.AddWithValue("@total", status.TotalSpaceGb);
-                    // Calculate used space as total minus free
-                    command.Parameters.AddWithValue("@used", status.TotalSpaceGb - status.FreeSpaceGb);
-                    command.Parameters.AddWithValue("@free", status.FreeSpaceGb);
-                    command.Parameters.AddWithValue("@percent", status.PercentFree);
-                    // Use UTC time for all database timestamps for consistency across time zones
-                    command.Parameters.AddWithValue("@utc", DateTime.UtcNow);
-
-                    try
-                    {
-                        // Execute the INSERT command
-                        await command.ExecuteNonQueryAsync();
-                        _logger.Log(
-                            $"[SQL] Inserted row for drive {status.DriveName}: Free {status.FreeSpaceGb:F2} GB ({status.PercentFree:F2}%)."
-                        );
-
-                        // Forward the entry to the central server if a forwarder is available and enabled
-                        if (_forwarder != null && _forwarder.IsEnabled())
+                        // Skip insertion if the drive is not ready (e.g., disconnected USB, CD-ROM without disc)
+                        // A ready drive will have TotalSpaceGb > 0
+                        if (status.TotalSpaceGb == 0)
                         {
-                            var entry = new DiskSpaceLogEntry
-                            {
-                                AgentMachineName = machineName,
-                                DriveLetter = status.DriveName,
-                                TotalSpaceGb = status.TotalSpaceGb,
-                                UsedSpaceGb = status.TotalSpaceGb - status.FreeSpaceGb,
-                                FreeSpaceGb = status.FreeSpaceGb,
-                                PercentFree = status.PercentFree,
-                                CollectionTimeUtc = DateTime.UtcNow
-                            };
+                            _logger.Log($"[SQL] Skipping insert for drive {status.DriveName}: drive not ready.");
+                            continue;
+                        }
 
-                            _forwarder.ForwardLogEntryAsync(entry);
+                        // Prepare the SQL INSERT statement with parameters to prevent SQL injection
+                        string sql = @"
+                            INSERT INTO DiskSpaceLog
+                            (MachineName, DriveLetter, TotalSpaceGB, UsedSpaceGB, FreeSpaceGB, PercentFree, CollectionTimeUtc)
+                            VALUES (@machine, @drive, @total, @used, @free, @percent, @utc)
+                        ";
+
+                        using var command = new SqliteCommand(sql, connection, transaction);
+                        // Add parameters to the command with values from the disk status
+                        command.Parameters.AddWithValue("@machine", machineName);
+                        command.Parameters.AddWithValue("@drive", status.DriveName);
+                        command.Parameters.AddWithValue("@total", status.TotalSpaceGb);
+                        // Calculate used space as total minus free
+                        command.Parameters.AddWithValue("@used", status.TotalSpaceGb - status.FreeSpaceGb);
+                        command.Parameters.AddWithValue("@free", status.FreeSpaceGb);
+                        command.Parameters.AddWithValue("@percent", status.PercentFree);
+                        // Use UTC time for all database timestamps for consistency across time zones
+                        command.Parameters.AddWithValue("@utc", DateTime.UtcNow);
+
+                        try
+                        {
+                            // Execute the INSERT command
+                            await command.ExecuteNonQueryAsync();
+                            _logger.Log(
+                                $"[SQL] Inserted row for drive {status.DriveName}: Free {status.FreeSpaceGb:F2} GB ({status.PercentFree:F2}%)."
+                            );
+
+                            // Forward the entry to the central server if a forwarder is available and enabled
+                            if (_forwarder != null && _forwarder.IsEnabled())
+                            {
+                                var entry = new DiskSpaceLogEntry
+                                {
+                                    AgentMachineName = machineName,
+                                    DriveLetter = status.DriveName,
+                                    TotalSpaceGb = status.TotalSpaceGb,
+                                    UsedSpaceGb = status.TotalSpaceGb - status.FreeSpaceGb,
+                                    FreeSpaceGb = status.FreeSpaceGb,
+                                    PercentFree = status.PercentFree,
+                                    CollectionTimeUtc = DateTime.UtcNow
+                                };
+
+                                _forwarder.ForwardLogEntryAsync(entry);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Log(
+                                $"[SQL ERROR] Failed to insert row for drive {status.DriveName}: {ex}"
+                            );
+                            // Re-throw to trigger transaction rollback
+                            throw;
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.Log(
-                            $"[SQL ERROR] Failed to insert row for drive {status.DriveName}: {ex}"
-                        );
-                    }
+
+                    // Commit the transaction to ensure all inserts are persisted to disk
+                    transaction.Commit();
+                    _logger.Log("[SQL] Transaction committed successfully. All disk space records persisted to database.");
+                }
+                catch (Exception ex)
+                {
+                    // Rollback the transaction if any error occurred during the inserts
+                    transaction.Rollback();
+                    _logger.Log($"[SQL ERROR] Transaction rolled back due to error: {ex}");
+                    throw;
                 }
             }
             catch (Exception ex)

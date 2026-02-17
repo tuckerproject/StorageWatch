@@ -6,6 +6,7 @@
 /// </summary>
 
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 
 namespace StorageWatch.Config.Options
 {
@@ -94,7 +95,7 @@ namespace StorageWatch.Config.Options
         /// </summary>
         [Required]
         [MinLength(1, ErrorMessage = "At least one drive must be specified")]
-        public List<string> Drives { get; set; } = new() { "C:" };
+        public List<string> Drives { get; set; } = new();
     }
 
     /// <summary>
@@ -109,11 +110,12 @@ namespace StorageWatch.Config.Options
 
         /// <summary>
         /// SQLite connection string for local data storage.
-        /// Example: "Data Source=StorageWatch.db;Version=3;"
+        /// Default: C:\ProgramData\StorageWatch\StorageWatch.db
+        /// Example: "Data Source=C:\ProgramData\StorageWatch\StorageWatch.db;Version=3;"
         /// </summary>
         [Required]
         [StringLength(500, ErrorMessage = "ConnectionString cannot exceed 500 characters")]
-        public string ConnectionString { get; set; } = "Data Source=StorageWatch.db;Version=3;";
+        public string ConnectionString { get; set; } = "Data Source=C:\\ProgramData\\StorageWatch\\StorageWatch.db;Version=3;";
     }
 
     /// <summary>

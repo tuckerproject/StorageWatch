@@ -11,7 +11,7 @@
       ]
     },
     "Database": {
-      "ConnectionString": "Data Source=StorageWatch.db;Version=3;"
+      "ConnectionString": "Data Source=StorageWatch.db;"
     },
     "Alerting": {
       "EnableNotifications": true,
@@ -36,7 +36,7 @@
       "ServerUrl": "http://central-server.example.com:5000",
       "ApiKey": "your-optional-api-key",
       "Port": 5000,
-      "CentralConnectionString": "Data Source=StorageWatch_Central.db;Version=3;",
+      "CentralConnectionString": "Data Source=StorageWatch_Central.db;",
       "ServerId": "central-server"
     },
     "SqlReporting": {

@@ -61,6 +61,11 @@ namespace StorageWatch.Services
             if (options.General.EnableStartupLogging)
                 _logger.Log("[STARTUP] Config loaded from JSON");
 
+            // Ensure database directory exists before initializing schema
+            string dbDir = @"C:\ProgramData\StorageWatch";
+            Directory.CreateDirectory(dbDir);
+            _logger.Log("[STARTUP] Database directory ensured at C:\\ProgramData\\StorageWatch");
+
             // Initialize and verify SQLite database schema
             var schemaInitializer = new SqliteSchema(options.Database.ConnectionString, _logger);
             try

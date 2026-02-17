@@ -6,6 +6,7 @@ using System.IO;
 using System.ServiceProcess;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace StorageWatchUI.ViewModels;
 
@@ -24,7 +25,7 @@ public class ServiceStatusViewModel : ViewModelBase
     private bool _isLoading;
     private bool _canStart;
     private bool _canStop;
-    private System.Timers.Timer? _refreshTimer;
+    private DispatcherTimer? _refreshTimer;
 
     public ServiceStatusViewModel(IServiceManager serviceManager)
     {
@@ -38,8 +39,11 @@ public class ServiceStatusViewModel : ViewModelBase
         RefreshLogsCommand = new RelayCommand(async () => await LoadLogsAsync());
 
         // Start auto-refresh timer (every 10 seconds)
-        _refreshTimer = new System.Timers.Timer(10000);
-        _refreshTimer.Elapsed += async (s, e) => await LoadStatusAsync();
+        _refreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(10)
+        };
+        _refreshTimer.Tick += async (s, e) => await LoadStatusAsync();
         _refreshTimer.Start();
     }
 
@@ -113,52 +117,49 @@ public class ServiceStatusViewModel : ViewModelBase
 
     private async Task LoadStatusAsync()
     {
-        await Task.Run(async () =>
+        IsServiceInstalled = _serviceManager.IsServiceInstalled();
+
+        if (!IsServiceInstalled)
         {
-            IsServiceInstalled = _serviceManager.IsServiceInstalled();
+            ServiceStatus = "Not Installed";
+            ServiceUptime = "N/A";
+            LastExecutionTime = "N/A";
+            LastError = string.Empty;
+            CanStart = false;
+            CanStop = false;
+            return;
+        }
 
-            if (!IsServiceInstalled)
+        var status = _serviceManager.GetServiceStatus();
+        ServiceStatus = status.ToString();
+
+        CanStart = status == ServiceControllerStatus.Stopped;
+        CanStop = status == ServiceControllerStatus.Running;
+
+        // Try to get detailed status from IPC if service is running
+        if (status == ServiceControllerStatus.Running)
+        {
+            try
             {
-                ServiceStatus = "Not Installed";
-                ServiceUptime = "N/A";
-                LastExecutionTime = "N/A";
-                LastError = string.Empty;
-                CanStart = false;
-                CanStop = false;
-                return;
-            }
-
-            var status = _serviceManager.GetServiceStatus();
-            ServiceStatus = status.ToString();
-
-            CanStart = status == ServiceControllerStatus.Stopped;
-            CanStop = status == ServiceControllerStatus.Running;
-
-            // Try to get detailed status from IPC if service is running
-            if (status == ServiceControllerStatus.Running)
-            {
-                try
+                var detailedStatus = await _communicationClient.GetStatusAsync();
+                if (detailedStatus != null)
                 {
-                    var detailedStatus = await _communicationClient.GetStatusAsync();
-                    if (detailedStatus != null)
-                    {
-                        ServiceUptime = FormatTimeSpan(detailedStatus.Uptime);
-                        LastExecutionTime = detailedStatus.LastExecutionTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
-                        LastError = detailedStatus.LastError ?? string.Empty;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // IPC failed, service is running but not responding
-                    LastError = $"Service not responding: {ex.Message}";
+                    ServiceUptime = FormatTimeSpan(detailedStatus.Uptime);
+                    LastExecutionTime = detailedStatus.LastExecutionTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+                    LastError = detailedStatus.LastError ?? string.Empty;
                 }
             }
-            else
+            catch (Exception ex)
             {
-                ServiceUptime = "N/A";
-                LastExecutionTime = "N/A";
+                // IPC failed, service is running but not responding
+                LastError = $"Service not responding: {ex.Message}";
             }
-        });
+        }
+        else
+        {
+            ServiceUptime = "N/A";
+            LastExecutionTime = "N/A";
+        }
 
         await LoadLogsAsync();
     }
