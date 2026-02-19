@@ -71,6 +71,26 @@ namespace StorageWatch.Services.Alerting
         /// <returns>A formatted alert message.</returns>
         protected virtual string FormatMessage(DiskStatus status)
         {
+            // Use the CurrentState set by NotificationLoop instead of re-evaluating
+            if (!string.IsNullOrEmpty(status.CurrentState))
+            {
+                if (status.CurrentState == "NOT_READY")
+                {
+                    return $"ALERT — {_machineName}: Drive {status.DriveName} is NOT READY or unavailable.";
+                }
+                else if (status.CurrentState == "ALERT")
+                {
+                    return $"ALERT — {_machineName}: Drive {status.DriveName} is below threshold. " +
+                           $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                }
+                else if (status.CurrentState == "NORMAL")
+                {
+                    return $"RECOVERY — {_machineName}: Drive {status.DriveName} has recovered. " +
+                           $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                }
+            }
+
+            // Fallback to threshold-based logic if CurrentState is not set (for backwards compatibility)
             if (status.TotalSpaceGb == 0)
             {
                 return $"ALERT — {_machineName}: Drive {status.DriveName} is NOT READY or unavailable.";

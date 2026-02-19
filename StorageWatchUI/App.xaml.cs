@@ -40,6 +40,9 @@ public partial class App : Application
         // Configuration
         services.AddSingleton(Configuration);
 
+        // Path provider (runtime path resolution)
+        services.AddSingleton<IPathProvider, PathProvider>();
+
         // Services
         services.AddSingleton<IDataProvider, LocalDataProvider>();
         services.AddSingleton<CentralDataProvider>();

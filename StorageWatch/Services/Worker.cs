@@ -49,8 +49,11 @@ namespace StorageWatch.Services
             _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
+            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var storageWatchDir = Path.Combine(programData, "StorageWatch");
+            var logDir = Path.Combine(storageWatchDir, "Logs");
+
             // Create and initialize the logging system at the common application data directory
-            string logDir = @"C:\ProgramData\StorageWatch\Logs";
             Directory.CreateDirectory(logDir);
             _logger = new RollingFileLogger(Path.Combine(logDir, "service.log"));
 
@@ -62,9 +65,8 @@ namespace StorageWatch.Services
                 _logger.Log("[STARTUP] Config loaded from JSON");
 
             // Ensure database directory exists before initializing schema
-            string dbDir = @"C:\ProgramData\StorageWatch";
-            Directory.CreateDirectory(dbDir);
-            _logger.Log("[STARTUP] Database directory ensured at C:\\ProgramData\\StorageWatch");
+            Directory.CreateDirectory(storageWatchDir);
+            _logger.Log($"[STARTUP] Database directory ensured at {storageWatchDir}");
 
             // Initialize and verify SQLite database schema
             var schemaInitializer = new SqliteSchema(options.Database.ConnectionString, _logger);

@@ -56,14 +56,26 @@ public class DashboardViewModel : ViewModelBase
             var disks = await _dataProvider.GetCurrentDiskStatusAsync();
             
             // Dispatch collection modifications to the UI thread
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            if (Application.Current?.Dispatcher != null)
             {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    Disks.Clear();
+                    foreach (var disk in disks)
+                    {
+                        Disks.Add(disk);
+                    }
+                });
+            }
+            else
+            {
+                // In unit tests or headless scenarios, update directly
                 Disks.Clear();
                 foreach (var disk in disks)
                 {
                     Disks.Add(disk);
                 }
-            });
+            }
 
             StatusMessage = disks.Any() 
                 ? $"Last updated: {DateTime.Now:HH:mm:ss}" 

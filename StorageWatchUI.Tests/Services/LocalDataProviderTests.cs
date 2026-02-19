@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Configuration;
 using StorageWatchUI.Services;
 using System.IO;
 using Xunit;
@@ -11,11 +10,24 @@ public class LocalDataProviderTests : IDisposable
 {
     private readonly string _testDbPath;
     private readonly string _connectionString;
+    private readonly MockPathProvider _mockPathProvider;
 
     public LocalDataProviderTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid()}.db");
+        // Create TestData directory if it doesn't exist
+        var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        if (!Directory.Exists(testDataDir))
+        {
+            Directory.CreateDirectory(testDataDir);
+        }
+
+        // Use isolated test database in TestData folder
+        _testDbPath = Path.Combine(testDataDir, $"test_{Guid.NewGuid()}.db");
         _connectionString = $"Data Source={_testDbPath}";
+        
+        // Create mock path provider for testing
+        _mockPathProvider = new MockPathProvider(_testDbPath);
+
         InitializeTestDatabase();
     }
 
@@ -89,14 +101,7 @@ public class LocalDataProviderTests : IDisposable
     public async Task GetCurrentDiskStatusAsync_WithData_ReturnsDisks()
     {
         // Arrange
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", _testDbPath }
-            })
-            .Build();
-
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(_mockPathProvider);
 
         // Act
         var disks = await provider.GetCurrentDiskStatusAsync();
@@ -112,14 +117,9 @@ public class LocalDataProviderTests : IDisposable
     {
         // Arrange
         var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
-            })
-            .Build();
+        var mockProvider = new MockPathProvider(nonExistentPath);
 
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(mockProvider);
 
         // Act
         var disks = await provider.GetCurrentDiskStatusAsync();
@@ -132,14 +132,7 @@ public class LocalDataProviderTests : IDisposable
     public async Task GetMonitoredDrivesAsync_ReturnsDistinctDrives()
     {
         // Arrange
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", _testDbPath }
-            })
-            .Build();
-
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(_mockPathProvider);
 
         // Act
         var drives = await provider.GetMonitoredDrivesAsync();
@@ -153,14 +146,9 @@ public class LocalDataProviderTests : IDisposable
     {
         // Arrange
         var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
-            })
-            .Build();
+        var mockProvider = new MockPathProvider(nonExistentPath);
 
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(mockProvider);
 
         // Act
         var drives = await provider.GetMonitoredDrivesAsync();
@@ -173,14 +161,7 @@ public class LocalDataProviderTests : IDisposable
     public async Task GetTrendDataAsync_ReturnsHistoricalData()
     {
         // Arrange
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", _testDbPath }
-            })
-            .Build();
-
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(_mockPathProvider);
 
         // Act
         var trends = await provider.GetTrendDataAsync("C:", 7);
@@ -194,14 +175,7 @@ public class LocalDataProviderTests : IDisposable
     public async Task GetTrendDataAsync_WithInvalidDrive_ReturnsEmptyList()
     {
         // Arrange
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", _testDbPath }
-            })
-            .Build();
-
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(_mockPathProvider);
 
         // Act
         var trends = await provider.GetTrendDataAsync("Z:", 7);
@@ -215,14 +189,9 @@ public class LocalDataProviderTests : IDisposable
     {
         // Arrange
         var nonExistentPath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.db");
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StorageWatchUI:LocalDatabasePath", nonExistentPath }
-            })
-            .Build();
+        var mockProvider = new MockPathProvider(nonExistentPath);
 
-        var provider = new LocalDataProvider(config);
+        var provider = new LocalDataProvider(mockProvider);
 
         // Act
         var trends = await provider.GetTrendDataAsync("C:", 7);

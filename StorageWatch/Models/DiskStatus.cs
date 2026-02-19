@@ -34,6 +34,13 @@ namespace StorageWatch.Models
         public double FreeSpaceGb { get; set; }
 
         /// <summary>
+        /// The current state of the disk (ALERT, NORMAL, NOT_READY).
+        /// This is set by NotificationLoop after threshold evaluation and should
+        /// be used by alert senders instead of re-evaluating the threshold.
+        /// </summary>
+        public string? CurrentState { get; set; }
+
+        /// <summary>
         /// Percentage of free space (0–100).
         /// </summary>
         public double PercentFree =>

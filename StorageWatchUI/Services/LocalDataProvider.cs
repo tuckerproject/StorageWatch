@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Configuration;
 using StorageWatchUI.Models;
 using System.IO;
 
@@ -11,38 +10,11 @@ namespace StorageWatchUI.Services;
 public class LocalDataProvider : IDataProvider
 {
     private readonly string _connectionString;
-    private readonly IConfiguration _configuration;
 
-    public LocalDataProvider(IConfiguration configuration)
+    public LocalDataProvider(IPathProvider pathProvider)
     {
-        _configuration = configuration;
-        
-        // Try to find the database in the expected locations
-        var dbPath = GetDatabasePath();
+        var dbPath = pathProvider.DatabasePath;
         _connectionString = $"Data Source={dbPath}";
-    }
-
-    private string GetDatabasePath()
-    {
-        // Try ProgramData first
-        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var dbPath = Path.Combine(programData, "StorageWatch", "StorageWatch.db");
-        
-        if (File.Exists(dbPath))
-            return dbPath;
-
-        // Try current directory
-        dbPath = Path.Combine(Directory.GetCurrentDirectory(), "StorageWatch.db");
-        if (File.Exists(dbPath))
-            return dbPath;
-
-        // Try configured path
-        var configPath = _configuration["StorageWatchUI:LocalDatabasePath"];
-        if (!string.IsNullOrEmpty(configPath) && File.Exists(configPath))
-            return configPath;
-
-        // Default to ProgramData location even if it doesn't exist yet
-        return Path.Combine(programData, "StorageWatch", "StorageWatch.db");
     }
 
     public async Task<List<DiskInfo>> GetCurrentDiskStatusAsync()

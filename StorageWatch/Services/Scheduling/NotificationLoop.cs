@@ -128,6 +128,9 @@ namespace StorageWatch.Services.Scheduling
                             }
                         }
 
+                        // Set the current state on the status object for alert senders to use
+                        status.CurrentState = state;
+
                         // ====================================================================
                         // Compare current state with the last known state
                         // ====================================================================

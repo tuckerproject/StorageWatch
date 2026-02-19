@@ -38,6 +38,54 @@ namespace StorageWatch.Services.Alerting
         /// <inheritdoc/>
         protected override bool IsEnabled() => _options.Enabled;
 
+        /// <summary>
+        /// Formats a DiskStatus into an alert message with a timestamp to ensure uniqueness in GroupMe.
+        /// Overrides the base implementation to add a timestamp that prevents message suppression.
+        /// </summary>
+        /// <param name="status">The disk status to format.</param>
+        /// <returns>A formatted alert message with timestamp.</returns>
+        protected override string FormatMessage(DiskStatus status)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var timeZone = TimeZoneInfo.Local.StandardName;
+
+            // Use the CurrentState set by NotificationLoop instead of re-evaluating
+            if (!string.IsNullOrEmpty(status.CurrentState))
+            {
+                if (status.CurrentState == "NOT_READY")
+                {
+                    return $"ALERT — {Environment.MachineName}: Drive {status.DriveName} is NOT READY or unavailable. Time: {timestamp} {timeZone}";
+                }
+                else if (status.CurrentState == "ALERT")
+                {
+                    return $"ALERT — {Environment.MachineName}: Drive {status.DriveName} is below threshold. " +
+                           $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%). Time: {timestamp} {timeZone}";
+                }
+                else if (status.CurrentState == "NORMAL")
+                {
+                    return $"RECOVERY — {Environment.MachineName}: Drive {status.DriveName} has recovered. " +
+                           $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%). Time: {timestamp} {timeZone}";
+                }
+            }
+
+            // Fallback if CurrentState is not set (for backwards compatibility)
+            if (status.TotalSpaceGb == 0)
+            {
+                return $"ALERT — {Environment.MachineName}: Drive {status.DriveName} is NOT READY or unavailable. Time: {timestamp} {timeZone}";
+            }
+
+            if (status.PercentFree < 10)
+            {
+                return $"ALERT — {Environment.MachineName}: Drive {status.DriveName} is below threshold. " +
+                       $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%). Time: {timestamp} {timeZone}";
+            }
+            else
+            {
+                return $"RECOVERY — {Environment.MachineName}: Drive {status.DriveName} has recovered. " +
+                       $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%). Time: {timestamp} {timeZone}";
+            }
+        }
+
         /// <inheritdoc/>
         protected override async Task SendMessageAsync(string message, CancellationToken cancellationToken)
         {

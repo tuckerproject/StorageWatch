@@ -20,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.IO;
+using System.Collections.Generic;
 
 // Configure and build the host using the generic host builder with Windows Service integration
 var host = Host.CreateDefaultBuilder(args)
@@ -28,11 +29,29 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
         // Load and validate JSON configuration
-        var baseDir = AppContext.BaseDirectory;
-        var configPath = Path.Combine(baseDir, "StorageWatchConfig.json");
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        var storageWatchDirectory = Path.Combine(programData, "StorageWatch");
+        Directory.CreateDirectory(storageWatchDirectory);
+        var configPath = Path.Combine(storageWatchDirectory, "StorageWatchConfig.json");
 
-        // Load configuration with validation
-        var options = JsonConfigLoader.LoadAndValidate(configPath);
+        StorageWatchOptions options;
+        if (File.Exists(configPath))
+        {
+            options = JsonConfigLoader.LoadAndValidate(configPath);
+        }
+        else
+        {
+            options = CreateDefaultOptions();
+        }
+
+        var databasePath = Path.Combine(storageWatchDirectory, "StorageWatch.db");
+        options.Database.ConnectionString = $"Data Source={databasePath}";
+
+        if (options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
+        {
+            var centralDatabasePath = Path.Combine(storageWatchDirectory, "StorageWatch_Central.db");
+            options.CentralServer.CentralConnectionString = $"Data Source={centralDatabasePath}";
+        }
 
         // Register options in the service container for dependency injection
         services.Configure<StorageWatchOptions>(cfg =>
@@ -52,7 +71,6 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IValidateOptions<CentralServerOptions>, CentralServerOptionsValidator>();
 
         // Register the logger
-        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         var logFilePath = Path.Combine(programData, "StorageWatch", "Logs", "service.log");
         services.AddSingleton(new RollingFileLogger(logFilePath));
 
@@ -107,6 +125,20 @@ var host = Host.CreateDefaultBuilder(args)
 
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();
+
+        StorageWatchOptions CreateDefaultOptions()
+        {
+            var defaultOptions = new StorageWatchOptions();
+            defaultOptions.Alerting.EnableNotifications = false;
+
+            var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
+            var driveLetter = string.IsNullOrWhiteSpace(systemDrive)
+                ? "C:"
+                : systemDrive.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            defaultOptions.Monitoring.Drives = new List<string> { driveLetter };
+            return defaultOptions;
+        }
     })
     .Build();
 
