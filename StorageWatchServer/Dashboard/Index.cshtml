@@ -1,0 +1,38 @@
+@page
+@model StorageWatchServer.Dashboard.IndexModel
+
+<h1>Central Dashboard</h1>
+
+<div class="card">
+    <h2>Machines</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Machine</th>
+                <th>Status</th>
+                <th>Last Seen (UTC)</th>
+                <th>Drives</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var machine in Model.Machines)
+        {
+            <tr>
+                <td>@machine.MachineName</td>
+                <td><span class="status @(machine.IsOnline ? "online" : "offline")">@(machine.IsOnline ? "Online" : "Offline")</span></td>
+                <td>@machine.LastSeenUtc.ToString("u")</td>
+                <td>
+                    @foreach (var drive in machine.Drives)
+                    {
+                        <div>@drive.DriveLetter: @drive.PercentFree.ToString("F1")%</div>
+                    }
+                </td>
+                <td>
+                    <a asp-page="/Machines/Details" asp-route-id="@machine.Id">Details</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

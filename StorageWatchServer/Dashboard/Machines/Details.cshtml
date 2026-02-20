@@ -1,0 +1,87 @@
+@page "/machines/{id:int}"
+@model StorageWatchServer.Dashboard.Machines.DetailsModel
+
+<h1>@Model.Machine?.MachineName</h1>
+
+@if (Model.Machine == null)
+{
+    <div class="card">Machine not found.</div>
+}
+else
+{
+    <div class="card">
+        <div><strong>Status:</strong> <span class="status @(Model.IsOnline ? "online" : "offline")">@(Model.IsOnline ? "Online" : "Offline")</span></div>
+        <div><strong>Last Seen:</strong> @Model.Machine.LastSeenUtc.ToString("u")</div>
+        <div><strong>Created:</strong> @Model.Machine.CreatedUtc.ToString("u")</div>
+    </div>
+
+    <div class="card">
+        <h2>Drives</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Drive</th>
+                    <th>Total (GB)</th>
+                    <th>Used (GB)</th>
+                    <th>Free (GB)</th>
+                    <th>Percent Free</th>
+                    <th>Last Seen (UTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var drive in Model.Machine.Drives)
+            {
+                <tr>
+                    <td>@drive.DriveLetter</td>
+                    <td>@drive.TotalSpaceGb.ToString("F1")</td>
+                    <td>@drive.UsedSpaceGb.ToString("F1")</td>
+                    <td>@drive.FreeSpaceGb.ToString("F1")</td>
+                    <td>@drive.PercentFree.ToString("F1")%</td>
+                    <td>@drive.LastSeenUtc.ToString("u")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Disk History (Last 7 Days)</h2>
+        <div class="chart-grid">
+            @foreach (var chart in Model.DriveCharts)
+            {
+                <div class="chart-card">
+                    <h3>Drive @chart.DriveLetter</h3>
+                    <canvas id="chart-@chart.ChartId"></canvas>
+                </div>
+            }
+        </div>
+    </div>
+
+    <script>
+        const chartData = @Html.Raw(Model.ChartDataJson);
+        chartData.forEach(item => {
+            const ctx = document.getElementById(`chart-${item.drive}`).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: item.labels,
+                    datasets: [{
+                        label: 'Percent Free',
+                        data: item.values,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            suggestedMin: 0,
+                            suggestedMax: 100
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+}

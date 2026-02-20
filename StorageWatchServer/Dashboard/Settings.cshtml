@@ -1,0 +1,26 @@
+@page "/settings"
+@model StorageWatchServer.Dashboard.SettingsModel
+
+<h1>Settings</h1>
+
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Value</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var setting in Model.Settings)
+        {
+            <tr>
+                <td>@setting.Key</td>
+                <td>@setting.Value</td>
+                <td>@setting.Description</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

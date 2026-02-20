@@ -69,10 +69,28 @@ namespace StorageWatch.Services.CentralServer
                 }
 
                 // Build the endpoint URL
-                string endpoint = $"{_options.ServerUrl.TrimEnd('/')}/api/logs/disk-space";
+                string endpoint = $"{_options.ServerUrl.TrimEnd('/')}/api/agent/report";
+
+                var report = new AgentReportRequest
+                {
+                    MachineName = entry.AgentMachineName,
+                    CollectionTimeUtc = entry.CollectionTimeUtc,
+                    Drives = new List<AgentDriveReport>
+                    {
+                        new AgentDriveReport
+                        {
+                            DriveLetter = entry.DriveLetter,
+                            TotalSpaceGb = entry.TotalSpaceGb,
+                            UsedSpaceGb = entry.UsedSpaceGb,
+                            FreeSpaceGb = entry.FreeSpaceGb,
+                            PercentFree = entry.PercentFree,
+                            CollectionTimeUtc = entry.CollectionTimeUtc
+                        }
+                    }
+                };
 
                 // Serialize the entry to JSON
-                var json = JsonSerializer.Serialize(entry);
+                var json = JsonSerializer.Serialize(report);
                 var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
                 // Prepare the request with optional API key header

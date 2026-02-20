@@ -1,0 +1,39 @@
+@page "/alerts"
+@model StorageWatchServer.Dashboard.AlertsModel
+
+<h1>Alerts</h1>
+
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Machine</th>
+                <th>Severity</th>
+                <th>Message</th>
+                <th>Created (UTC)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Alerts.Count == 0)
+        {
+            <tr>
+                <td colspan="5">No alerts have been recorded yet.</td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var alert in Model.Alerts)
+            {
+                <tr>
+                    <td>@alert.MachineName</td>
+                    <td>@alert.Severity</td>
+                    <td>@alert.Message</td>
+                    <td>@alert.CreatedUtc.ToString("u")</td>
+                    <td>@(alert.IsActive ? "Active" : "Resolved")</td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>
