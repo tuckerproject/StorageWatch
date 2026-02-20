@@ -46,7 +46,7 @@ namespace StorageWatch.Services.Alerting.Plugins
                 foreach (var type in pluginTypes)
                 {
                     var attribute = type.GetCustomAttribute<AlertSenderPluginAttribute>();
-                    
+
                     var metadata = new AlertSenderPluginMetadata
                     {
                         PluginId = attribute?.PluginId ?? type.Name,

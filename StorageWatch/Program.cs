@@ -77,21 +77,21 @@ var host = Host.CreateDefaultBuilder(args)
         // ====================================================================
         // Plugin Architecture Registration
         // ====================================================================
-        
+
         // Create and configure the plugin registry
         var registry = new AlertSenderPluginRegistry();
         registry.DiscoverPlugins(); // Discover all alert sender plugins in current assembly
         services.AddSingleton(registry);
 
         // Register individual alert sender plugins with their options
-        services.AddTransient<SmtpAlertSender>(sp => 
+        services.AddTransient<SmtpAlertSender>(sp =>
             new SmtpAlertSender(
-                options.Alerting.Smtp, 
+                options.Alerting.Smtp,
                 sp.GetRequiredService<RollingFileLogger>()));
-        
-        services.AddTransient<GroupMeAlertSender>(sp => 
+
+        services.AddTransient<GroupMeAlertSender>(sp =>
             new GroupMeAlertSender(
-                options.Alerting.GroupMe, 
+                options.Alerting.GroupMe,
                 sp.GetRequiredService<RollingFileLogger>()));
 
         // Register plugins as IAlertSender for plugin manager resolution
@@ -115,10 +115,10 @@ var host = Host.CreateDefaultBuilder(args)
         // ====================================================================
         // IPC Communication Server Registration
         // ====================================================================
-        
+
         // Register the IPC server as a hosted service for UI communication
         services.AddHostedService<ServiceCommunicationServer>();
-        
+
         // ====================================================================
         // End IPC Communication Server Registration
         // ====================================================================

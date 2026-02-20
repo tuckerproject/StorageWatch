@@ -17,7 +17,7 @@ public class ServiceCommunicationServerTests : IDisposable
     public ServiceCommunicationServerTests()
     {
         _testLogPath = Path.Combine(Path.GetTempPath(), "test-service.log");
-        
+
         var services = new ServiceCollection();
         services.AddSingleton(new RollingFileLogger(_testLogPath));
         _serviceProvider = services.BuildServiceProvider();
@@ -31,15 +31,15 @@ public class ServiceCommunicationServerTests : IDisposable
     public async Task Server_ShouldStart_WithoutErrors()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        
+
         var task = _server.StartAsync(cts.Token);
-        
+
         // Wait a bit to ensure server started
         await Task.Delay(500);
-        
+
         // Should not throw
         Assert.True(task.IsCompleted || !cts.IsCancellationRequested);
-        
+
         await _server.StopAsync(CancellationToken.None);
     }
 
@@ -52,7 +52,7 @@ public class ServiceCommunicationServerTests : IDisposable
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(request);
-        
+
         Assert.Contains("GetStatus", json);
         Assert.Contains("Command", json);
     }
@@ -67,7 +67,7 @@ public class ServiceCommunicationServerTests : IDisposable
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(response);
-        
+
         Assert.Contains("Success", json);
         Assert.Contains("true", json, StringComparison.OrdinalIgnoreCase);
     }
@@ -75,7 +75,7 @@ public class ServiceCommunicationServerTests : IDisposable
     public void Dispose()
     {
         _serviceProvider?.Dispose();
-        
+
         if (File.Exists(_testLogPath))
             File.Delete(_testLogPath);
     }

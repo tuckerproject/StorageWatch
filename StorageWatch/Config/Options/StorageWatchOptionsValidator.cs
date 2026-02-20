@@ -57,9 +57,9 @@ namespace StorageWatch.Config.Options
             if (options.Alerting.EnableNotifications)
             {
                 // Check legacy configuration (backward compatibility)
-                bool hasLegacySender = (options.Alerting.Smtp?.Enabled == true && 
+                bool hasLegacySender = (options.Alerting.Smtp?.Enabled == true &&
                                       !string.IsNullOrWhiteSpace(options.Alerting.Smtp.Host)) ||
-                                     (options.Alerting.GroupMe?.Enabled == true && 
+                                     (options.Alerting.GroupMe?.Enabled == true &&
                                       !string.IsNullOrWhiteSpace(options.Alerting.GroupMe.BotId));
 
                 // Check new plugin configuration

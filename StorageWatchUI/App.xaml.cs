@@ -65,7 +65,7 @@ public partial class App : Application
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         var configPath = Path.Combine(programData, "StorageWatch", "StorageWatchConfig.json");
-        
+
         // Fallback to current directory if not found
         if (!File.Exists(configPath))
         {

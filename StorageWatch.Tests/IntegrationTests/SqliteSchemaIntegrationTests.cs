@@ -154,7 +154,7 @@ namespace StorageWatch.Tests.IntegrationTests
 
             // Act & Assert - Should complete without throwing
             Func<Task> act = async () => await schema.InitializeDatabaseAsync();
-            
+
             await act.Should().NotThrowAsync("Schema initialization should work with in-memory databases");
         }
 

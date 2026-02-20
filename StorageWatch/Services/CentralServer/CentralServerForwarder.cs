@@ -134,7 +134,7 @@ namespace StorageWatch.Services.CentralServer
         /// <returns>True if the forwarder is enabled and has a valid server URL; otherwise false.</returns>
         public bool IsEnabled()
         {
-            return _options.Enabled && 
+            return _options.Enabled &&
                    _options.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase) &&
                    !string.IsNullOrWhiteSpace(_options.ServerUrl);
         }

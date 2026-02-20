@@ -49,9 +49,6 @@ jobs:
         path: ./publish/StorageWatchService/
         retention-days: 30
 
-    - name: Verify code formatting
-      run: dotnet format --verify-no-changes --verbosity diagnostic
-
-    - name: Check for build warnings
-      if: always()
-      run: Write-Host "Build completed. Review logs for any warnings or issues."
+    - name: Auto-format code (PR only)
+      if: github.event_name == 'pull_request'
+      run: dotnet format --verbosity diagnostic

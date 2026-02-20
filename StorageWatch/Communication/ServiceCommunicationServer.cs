@@ -286,7 +286,7 @@ public class ServiceCommunicationServer : BackgroundService
             return new List<string>();
 
         var lines = new List<string>();
-        
+
         // Read the file in a way that doesn't lock it
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(fileStream);

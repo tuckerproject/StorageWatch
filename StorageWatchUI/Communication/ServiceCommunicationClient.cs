@@ -112,12 +112,12 @@ public class ServiceCommunicationClient
     public async Task<List<string>?> GetLogsAsync(int count = 100, CancellationToken cancellationToken = default)
     {
         var parameters = JsonSerializer.SerializeToElement(new { count });
-        var request = new ServiceRequest 
-        { 
+        var request = new ServiceRequest
+        {
             Command = "GetLogs",
             Parameters = parameters
         };
-        
+
         var response = await SendRequestAsync(request, cancellationToken);
 
         if (!response.Success || response.Data == null)
@@ -189,8 +189,8 @@ public class ServiceCommunicationClient
     public async Task<JsonElement?> GetLocalDataAsync(LocalDataQuery query, CancellationToken cancellationToken = default)
     {
         var parameters = JsonSerializer.SerializeToElement(query);
-        var request = new ServiceRequest 
-        { 
+        var request = new ServiceRequest
+        {
             Command = "GetLocalData",
             Parameters = parameters
         };

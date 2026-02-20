@@ -23,7 +23,7 @@ public class DashboardViewModel : ViewModelBase
         _configService = configService;
 
         RefreshCommand = new RelayCommand(async () => await LoadDataAsync());
-        
+
         // Start auto-refresh timer (every 30 seconds)
         _refreshTimer = new System.Timers.Timer(30000);
         _refreshTimer.Elapsed += async (s, e) => await LoadDataAsync();
@@ -54,7 +54,7 @@ public class DashboardViewModel : ViewModelBase
         try
         {
             var disks = await _dataProvider.GetCurrentDiskStatusAsync();
-            
+
             // Dispatch collection modifications to the UI thread
             if (Application.Current?.Dispatcher != null)
             {
@@ -77,8 +77,8 @@ public class DashboardViewModel : ViewModelBase
                 }
             }
 
-            StatusMessage = disks.Any() 
-                ? $"Last updated: {DateTime.Now:HH:mm:ss}" 
+            StatusMessage = disks.Any()
+                ? $"Last updated: {DateTime.Now:HH:mm:ss}"
                 : "No disk data available. Ensure StorageWatch service is running.";
         }
         catch (Exception ex)

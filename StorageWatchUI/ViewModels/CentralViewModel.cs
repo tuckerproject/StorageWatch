@@ -23,7 +23,7 @@ public class CentralViewModel : ViewModelBase
         _configService = configService;
 
         RefreshCommand = new RelayCommand(async () => await LoadDataAsync());
-        
+
         _isCentralEnabled = _centralDataProvider.IsEnabled;
 
         if (_isCentralEnabled)
@@ -78,15 +78,15 @@ public class CentralViewModel : ViewModelBase
             }
 
             var machines = await _centralDataProvider.GetAllMachineStatusAsync();
-            
+
             Machines.Clear();
             foreach (var machine in machines)
             {
                 Machines.Add(machine);
             }
 
-            StatusMessage = machines.Any() 
-                ? $"Showing {machines.Count} machine(s). Last updated: {DateTime.Now:HH:mm:ss}" 
+            StatusMessage = machines.Any()
+                ? $"Showing {machines.Count} machine(s). Last updated: {DateTime.Now:HH:mm:ss}"
                 : "No machines are reporting to the central server.";
         }
         catch (Exception ex)

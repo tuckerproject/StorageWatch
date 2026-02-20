@@ -230,7 +230,7 @@ public class EnhancedLocalDataProvider : IDataProvider
     {
         // Parse JSON response from IPC into DiskInfo objects
         var disks = new List<DiskInfo>();
-        
+
         try
         {
             if (data.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -264,7 +264,7 @@ public class EnhancedLocalDataProvider : IDataProvider
     private List<TrendDataPoint> ParseTrendDataFromJson(System.Text.Json.JsonElement data)
     {
         var trends = new List<TrendDataPoint>();
-        
+
         try
         {
             if (data.ValueKind == System.Text.Json.JsonValueKind.Array)

@@ -101,14 +101,14 @@ public class SettingsViewModel : ViewModelBase
         try
         {
             var validation = await _communicationClient.ValidateConfigAsync();
-            
+
             ValidationErrors.Clear();
             ValidationWarnings.Clear();
 
             if (validation != null)
             {
                 IsConfigValid = validation.IsValid;
-                
+
                 foreach (var error in validation.Errors)
                 {
                     ValidationErrors.Add(error);
@@ -148,7 +148,7 @@ public class SettingsViewModel : ViewModelBase
         try
         {
             var plugins = await _communicationClient.GetPluginStatusAsync();
-            
+
             PluginStatuses.Clear();
             if (plugins != null)
             {
@@ -172,7 +172,7 @@ public class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Cannot open configuration file: {ex.Message}", 
+            MessageBox.Show($"Cannot open configuration file: {ex.Message}",
                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -184,22 +184,22 @@ public class SettingsViewModel : ViewModelBase
         try
         {
             var response = await _communicationClient.TestAlertSendersAsync();
-            
+
             if (response.Success)
             {
                 MessageBox.Show(
                     "Test alerts sent successfully!\n\n" +
                     "Check your configured alert destinations (email, GroupMe, etc.) to verify receipt.",
-                    "Test Alerts", 
-                    MessageBoxButton.OK, 
+                    "Test Alerts",
+                    MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             else
             {
                 MessageBox.Show(
                     $"Failed to send test alerts:\n{response.ErrorMessage}",
-                    "Test Alerts", 
-                    MessageBoxButton.OK, 
+                    "Test Alerts",
+                    MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
         }
@@ -208,8 +208,8 @@ public class SettingsViewModel : ViewModelBase
             MessageBox.Show(
                 $"Error sending test alerts: {ex.Message}\n\n" +
                 "Ensure the StorageWatch service is running.",
-                "Test Alerts", 
-                MessageBoxButton.OK, 
+                "Test Alerts",
+                MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
         finally

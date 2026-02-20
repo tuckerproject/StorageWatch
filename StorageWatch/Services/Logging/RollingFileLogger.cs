@@ -29,7 +29,7 @@ namespace StorageWatch.Services.Logging
 
         // Maximum size for a single log file before rotation (1 MB = 1,000,000 bytes)
         private const long MaxSizeBytes = 1_000_000;
-        
+
         // Maximum number of archived log files to keep (older files are deleted)
         private const int MaxFiles = 3;
 
@@ -81,7 +81,7 @@ namespace StorageWatch.Services.Logging
         private void RollIfNeeded()
         {
             FileInfo fi = new FileInfo(_logFilePath);
-            
+
             // If file doesn't exist or hasn't reached max size, no rotation needed
             if (!fi.Exists || fi.Length < MaxSizeBytes)
                 return;

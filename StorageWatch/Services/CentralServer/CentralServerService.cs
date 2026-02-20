@@ -91,7 +91,7 @@ namespace StorageWatch.Services.CentralServer
                     {
                         var getContextTask = _listener.GetContextAsync();
                         var completedTask = await Task.WhenAny(getContextTask, Task.Delay(Timeout.Infinite, cancellationToken));
-                        
+
                         if (completedTask == getContextTask)
                         {
                             context = getContextTask.Result;
@@ -147,10 +147,10 @@ namespace StorageWatch.Services.CentralServer
                 {
                     _logger.Log($"[CentralServer] Unhandled request: {request.HttpMethod} {request.RawUrl}");
                     response.StatusCode = 404;
-                    await WriteJsonResponseAsync(response, new ApiResponse 
-                    { 
-                        Success = false, 
-                        Message = "Endpoint not found" 
+                    await WriteJsonResponseAsync(response, new ApiResponse
+                    {
+                        Success = false,
+                        Message = "Endpoint not found"
                     });
                 }
             }
@@ -293,7 +293,7 @@ namespace StorageWatch.Services.CentralServer
         {
             _logger.Log("[CentralServer] Stopping central server");
             _cts?.Cancel();
-            
+
             if (_listenerTask != null)
             {
                 try

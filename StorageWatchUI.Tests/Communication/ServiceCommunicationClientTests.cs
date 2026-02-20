@@ -21,7 +21,7 @@ public class ServiceCommunicationClientTests
     {
         // Act
         var status = await _client.GetStatusAsync();
-        
+
         // Assert - Service likely not running in test environment
         // Should handle gracefully without throwing
         status.Should().BeNull();
@@ -38,7 +38,7 @@ public class ServiceCommunicationClientTests
 
         // Act
         var response = await _client.SendRequestAsync(request);
-        
+
         // Assert - Should get a response indicating error or timeout
         response.Should().NotBeNull();
         response.Success.Should().BeFalse();

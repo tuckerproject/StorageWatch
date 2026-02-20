@@ -9,7 +9,7 @@ public class MachineStatus
     public DateTime LastReportTime { get; set; }
     public bool IsOnline => (DateTime.UtcNow - LastReportTime).TotalMinutes < 10;
     public List<DiskInfo> Disks { get; set; } = new();
-    public DiskStatusLevel WorstStatus => Disks.Any() 
-        ? Disks.Max(d => d.Status) 
+    public DiskStatusLevel WorstStatus => Disks.Any()
+        ? Disks.Max(d => d.Status)
         : DiskStatusLevel.OK;
 }

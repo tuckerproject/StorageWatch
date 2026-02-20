@@ -53,7 +53,7 @@ public class BoolToGreenRedConverter : IValueConverter
     {
         if (value is bool boolValue)
         {
-            return boolValue 
+            return boolValue
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green)
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
         }

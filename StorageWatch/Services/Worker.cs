@@ -84,11 +84,11 @@ namespace StorageWatch.Services
 
             // Initialize the disk monitoring component
             var monitor = new DiskAlertMonitor(options);
-            
+
             // Build the list of alert senders using the new plugin architecture
             var pluginManager = AlertSenderFactory.CreatePluginManager(_serviceProvider, options, _logger);
             var senders = pluginManager.GetEnabledSenders();
-            
+
             if (options.General.EnableStartupLogging)
             {
                 _logger.Log($"[STARTUP] Loaded {senders.Count} alert sender plugin(s)");
@@ -97,10 +97,10 @@ namespace StorageWatch.Services
                     _logger.Log($"[STARTUP]   - {sender.Name}");
                 }
             }
-            
+
             // Initialize the central server forwarder if in agent mode
             CentralServerForwarder? forwarder = null;
-            if (options.CentralServer.Enabled && 
+            if (options.CentralServer.Enabled &&
                 options.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -115,7 +115,7 @@ namespace StorageWatch.Services
                     throw;
                 }
             }
-            
+
             // Initialize the SQL reporter component with optional forwarder
             var sqlReporter = new SqlReporter(options, _logger, forwarder);
 
@@ -137,7 +137,7 @@ namespace StorageWatch.Services
             }
 
             // Initialize central server if enabled in server mode
-            if (options.CentralServer.Enabled && 
+            if (options.CentralServer.Enabled &&
                 options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -214,7 +214,7 @@ namespace StorageWatch.Services
                         _logger.Log($"[WORKER ERROR] Retention cleanup failed: {ex}");
                     }
                 }
-                
+
                 // Wait 30 seconds before checking again
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }

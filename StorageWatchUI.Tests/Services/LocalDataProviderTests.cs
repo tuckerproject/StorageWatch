@@ -24,7 +24,7 @@ public class LocalDataProviderTests : IDisposable
         // Use isolated test database in TestData folder
         _testDbPath = Path.Combine(testDataDir, $"test_{Guid.NewGuid()}.db");
         _connectionString = $"Data Source={_testDbPath}";
-        
+
         // Create mock path provider for testing
         _mockPathProvider = new MockPathProvider(_testDbPath);
 

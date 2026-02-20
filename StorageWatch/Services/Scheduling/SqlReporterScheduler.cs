@@ -72,7 +72,7 @@ namespace StorageWatch.Services.Scheduling
             // Calculate the scheduled time for today based on the configured CollectionTime
             // For example, if CollectionTime is "02:00", scheduled would be today at 02:00
             DateTime scheduled = now.Date + collectionTime;
-            
+
             // Load the last time SQL reporting was executed
             DateTime? lastRun = LoadLastRun();
 
@@ -83,7 +83,7 @@ namespace StorageWatch.Services.Scheduling
                 // ================================================================
                 // Mode: Run at most once per day
                 // ================================================================
-                
+
                 if (lastRun == null || lastRun.Value.Date < now.Date)
                 {
                     // We have never run before or haven't run today yet
@@ -104,7 +104,7 @@ namespace StorageWatch.Services.Scheduling
                 // ================================================================
                 // Mode: Can run multiple times per day at the scheduled time
                 // ================================================================
-                
+
                 // Run if we've reached or passed the scheduled time today
                 if (now >= scheduled)
                     shouldRun = true;
@@ -135,7 +135,7 @@ namespace StorageWatch.Services.Scheduling
 
                 // Read the file content and trim whitespace
                 string text = File.ReadAllText(_lastRunPath).Trim();
-                
+
                 // Attempt to parse the content as a DateTime
                 // Using "o" format (ISO 8601 round-trip format) for consistency
                 if (DateTime.TryParse(text, out var dt))

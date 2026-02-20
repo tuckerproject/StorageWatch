@@ -77,7 +77,7 @@ namespace StorageWatch.Config.Migration
                 },
                 ["Database"] = new Dictionary<string, object>
                 {
-                    ["ConnectionString"] = root.Element("Database")?.Element("ConnectionString")?.Value ?? 
+                    ["ConnectionString"] = root.Element("Database")?.Element("ConnectionString")?.Value ??
                                          "Data Source=StorageWatch.db;Version=3;"
                 },
                 ["Alerting"] = new Dictionary<string, object>
@@ -124,12 +124,12 @@ namespace StorageWatch.Config.Migration
         {
             return new Dictionary<string, object>
             {
-                ["Enabled"] = smtpElement != null ? 
+                ["Enabled"] = smtpElement != null ?
                     ParseBool(smtpElement.Element("EnableSmtp")?.Value ?? "false") : false,
                 ["Host"] = smtpElement?.Element("Host")?.Value ?? "smtp.gmail.com",
-                ["Port"] = smtpElement != null ? 
+                ["Port"] = smtpElement != null ?
                     int.Parse(smtpElement.Element("Port")?.Value ?? "587") : 587,
-                ["UseSsl"] = smtpElement != null ? 
+                ["UseSsl"] = smtpElement != null ?
                     ParseBool(smtpElement.Element("UseSsl")?.Value ?? "true") : true,
                 ["Username"] = smtpElement?.Element("Username")?.Value ?? "",
                 ["Password"] = smtpElement?.Element("Password")?.Value ?? "",
@@ -145,7 +145,7 @@ namespace StorageWatch.Config.Migration
         {
             return new Dictionary<string, object>
             {
-                ["Enabled"] = groupMeElement != null ? 
+                ["Enabled"] = groupMeElement != null ?
                     ParseBool(groupMeElement.Element("EnableGroupMe")?.Value ?? "false") : false,
                 ["BotId"] = groupMeElement?.Element("BotId")?.Value ?? ""
             };
@@ -158,14 +158,14 @@ namespace StorageWatch.Config.Migration
         {
             return new Dictionary<string, object>
             {
-                ["Enabled"] = serverElement != null ? 
+                ["Enabled"] = serverElement != null ?
                     ParseBool(serverElement.Element("Enabled")?.Value ?? "false") : false,
                 ["Mode"] = serverElement?.Element("Mode")?.Value ?? "Agent",
                 ["ServerUrl"] = serverElement?.Element("ServerUrl")?.Value ?? "",
                 ["ApiKey"] = serverElement?.Element("ApiKey")?.Value ?? "",
-                ["Port"] = serverElement != null ? 
+                ["Port"] = serverElement != null ?
                     int.Parse(serverElement.Element("Port")?.Value ?? "5000") : 5000,
-                ["CentralConnectionString"] = serverElement?.Element("CentralConnectionString")?.Value ?? 
+                ["CentralConnectionString"] = serverElement?.Element("CentralConnectionString")?.Value ??
                                              "Data Source=StorageWatch_Central.db;Version=3;",
                 ["ServerId"] = serverElement?.Element("ServerId")?.Value ?? "central-server"
             };

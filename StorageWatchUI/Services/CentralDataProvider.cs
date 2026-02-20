@@ -71,9 +71,9 @@ public class CentralDataProvider
                 return machines;
 
             var json = await response.Content.ReadAsStringAsync();
-            var apiResponse = JsonSerializer.Deserialize<ApiResponse>(json, new JsonSerializerOptions 
-            { 
-                PropertyNameCaseInsensitive = true 
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
             });
 
             if (apiResponse?.Success == true && apiResponse.Data != null)

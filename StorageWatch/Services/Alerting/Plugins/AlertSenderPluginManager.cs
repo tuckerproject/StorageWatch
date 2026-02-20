@@ -141,7 +141,7 @@ namespace StorageWatch.Services.Alerting.Plugins
                     _logger.Log($"[PLUGIN MANAGER] Running health check for: {sender.Name}");
                     var healthy = await sender.HealthCheckAsync();
                     results[sender.Name] = healthy;
-                    
+
                     if (!healthy)
                     {
                         _logger.Log($"[PLUGIN MANAGER] Health check FAILED for: {sender.Name}");

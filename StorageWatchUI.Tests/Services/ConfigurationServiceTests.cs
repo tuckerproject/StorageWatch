@@ -16,11 +16,11 @@ public class ConfigurationServiceTests : IDisposable
     public ConfigurationServiceTests()
     {
         _originalCurrentDir = Directory.GetCurrentDirectory();
-        
+
         // Setup test directories
         _testProgramDataPath = Path.Combine(Path.GetTempPath(), $"StorageWatch_Test_{Guid.NewGuid()}");
         _testCurrentDirPath = Path.Combine(Path.GetTempPath(), $"StorageWatch_CurrentDir_{Guid.NewGuid()}");
-        
+
         Directory.CreateDirectory(_testProgramDataPath);
         Directory.CreateDirectory(_testCurrentDirPath);
     }
@@ -38,7 +38,7 @@ public class ConfigurationServiceTests : IDisposable
                 Database = new { ConnectionString = "Data Source=test.db" }
             }
         };
-        
+
         await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(testConfig));
         Directory.SetCurrentDirectory(_testCurrentDirPath);
 

@@ -24,7 +24,7 @@ public class ConfigurationService
         // Try ProgramData first
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         var path = Path.Combine(programData, "StorageWatch", "StorageWatchConfig.json");
-        
+
         if (File.Exists(path))
             return path;
 

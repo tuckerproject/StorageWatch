@@ -73,7 +73,7 @@ namespace StorageWatch.Config
         /// <param name="encryptor">Optional encryptor for decrypting sensitive fields.</param>
         /// <returns>An IOptionsMonitor that automatically reloads configuration when file changes.</returns>
         public static IOptionsMonitor<StorageWatchOptions> CreateOptionsMonitor(
-            string configPath, 
+            string configPath,
             IConfigurationEncryptor? encryptor = null)
         {
             if (!File.Exists(configPath))
@@ -86,7 +86,7 @@ namespace StorageWatch.Config
                 .Build();
 
             var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-            services.Configure<StorageWatchOptions>(cfg => 
+            services.Configure<StorageWatchOptions>(cfg =>
             {
                 config.GetSection(StorageWatchOptions.SectionKey).Bind(cfg);
                 DecryptSensitiveFields(cfg, encryptor);
