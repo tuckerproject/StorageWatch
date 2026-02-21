@@ -25,22 +25,34 @@ jobs:
     - name: Build solution
       run: dotnet build --configuration Release --no-restore
 
-    - name: Run unit tests
-      run: dotnet test StorageWatch.Tests/StorageWatch.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=normal" /p:CollectCoverage=true /p:CoverletOutput=./coverage/ /p:CoverletOutputFormat=cobertura
+    # -------------------------
+    # Run ALL test projects
+    # -------------------------
+    - name: Run StorageWatchService.Tests
+      run: dotnet test StorageWatchService.Tests/StorageWatchService.Tests.csproj --configuration Release --no-build --verbosity normal
 
-    - name: Run integration tests
-      run: dotnet test StorageWatch.Tests/StorageWatch.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=normal" --filter "Category=Integration" || true
+    - name: Run StorageWatchServer.Tests
+      run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration Release --no-build --verbosity normal
 
+    - name: Run StorageWatchUI.Tests
+      run: dotnet test StorageWatchUI.Tests/StorageWatchUI.Tests.csproj --configuration Release --no-build --verbosity normal
+
+    # -------------------------
+    # Code coverage (optional)
+    # -------------------------
     - name: Upload coverage to artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: code-coverage-reports
-        path: StorageWatch.Tests/coverage/
+        path: StorageWatchService.Tests/coverage/
         retention-days: 30
 
+    # -------------------------
+    # Publish service
+    # -------------------------
     - name: Publish build artifacts - Service
-      run: dotnet publish StorageWatch/StorageWatchService.csproj --configuration Release --output ./publish/StorageWatchService
+      run: dotnet publish StorageWatchService/StorageWatchService.csproj --configuration Release --output ./publish/StorageWatchService
 
     - name: Upload service executable artifact
       uses: actions/upload-artifact@v4
@@ -49,6 +61,9 @@ jobs:
         path: ./publish/StorageWatchService/
         retention-days: 30
 
+    # -------------------------
+    # Auto-format (PR only)
+    # -------------------------
     - name: Auto-format code (PR only)
       if: github.event_name == 'pull_request'
       run: dotnet format --verbosity diagnostic
