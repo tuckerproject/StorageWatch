@@ -1,0 +1,64 @@
+@page "/dashboard/reports"
+@model StorageWatchServer.Dashboard.ReportsModel
+
+<h1>Recent Reports</h1>
+
+<div class="card">
+    <table class="table" id="reports-table">
+        <thead>
+            <tr>
+                <th>Agent</th>
+                <th>Timestamp (UTC)</th>
+                <th>Drives</th>
+                <th>Alerts</th>
+            </tr>
+        </thead>
+        <tbody id="reports-body">
+            <tr>
+                <td colspan="4">Loading reports...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    const reportEndpoint = `/api/dashboard/reports/recent?count=@Model.DefaultCount`;
+    const reportsBody = document.getElementById('reports-body');
+
+    const formatDrives = drives => {
+        if (!drives || drives.length === 0) {
+            return 'No drives';
+        }
+        return drives.map(drive => `${drive.driveLetter} ${drive.usedPercent.toFixed(1)}%`).join(', ');
+    };
+
+    const formatAlerts = alerts => {
+        if (!alerts || alerts.length === 0) {
+            return 'None';
+        }
+        return alerts.map(alert => `${alert.level}: ${alert.message} (${alert.driveLetter})`).join('; ');
+    };
+
+    fetch(reportEndpoint)
+        .then(response => response.ok ? response.json() : Promise.reject(response.statusText))
+        .then(reports => {
+            reportsBody.innerHTML = '';
+            if (!reports || reports.length === 0) {
+                reportsBody.innerHTML = '<tr><td colspan="4">No reports have been received yet.</td></tr>';
+                return;
+            }
+            reports.forEach(report => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${report.agentId}</td>
+                    <td>${new Date(report.timestampUtc).toISOString().replace('T', ' ').replace('Z', '')}</td>
+                    <td>${formatDrives(report.drives)}</td>
+                    <td>${formatAlerts(report.alerts)}</td>
+                `;
+                reportsBody.appendChild(row);
+            });
+        })
+        .catch(() => {
+            reportsBody.innerHTML = '<tr><td colspan="4">Unable to load reports.</td></tr>';
+        });
+</script>

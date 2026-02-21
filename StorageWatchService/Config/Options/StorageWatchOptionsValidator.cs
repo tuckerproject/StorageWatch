@@ -35,24 +35,6 @@ namespace StorageWatch.Config.Options
             if (options.Alerting == null)
                 return ValidateOptionsResult.Fail("Alerting options section is required");
 
-            if (options.CentralServer == null)
-                return ValidateOptionsResult.Fail("CentralServer options section is required");
-
-            // Validate central server consistency
-            if (options.CentralServer.Enabled)
-            {
-                if (options.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (string.IsNullOrWhiteSpace(options.CentralServer.ServerUrl))
-                        return ValidateOptionsResult.Fail("CentralServer.ServerUrl is required when Mode is 'Agent'");
-                }
-                else if (options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (string.IsNullOrWhiteSpace(options.CentralServer.CentralConnectionString))
-                        return ValidateOptionsResult.Fail("CentralServer.CentralConnectionString is required when Mode is 'Server'");
-                }
-            }
-
             // Validate alerting consistency: If notifications enabled, at least one plugin must be enabled
             if (options.Alerting.EnableNotifications)
             {
@@ -206,6 +188,9 @@ namespace StorageWatch.Config.Options
             {
                 if (string.IsNullOrWhiteSpace(options.ServerUrl))
                     return ValidateOptionsResult.Fail("ServerUrl is required when Mode is 'Agent'");
+
+                if (options.ReportIntervalSeconds <= 0)
+                    return ValidateOptionsResult.Fail("ReportIntervalSeconds must be greater than 0 when Mode is 'Agent'");
 
                 // Basic URL validation
                 if (!Uri.TryCreate(options.ServerUrl, UriKind.Absolute, out _))

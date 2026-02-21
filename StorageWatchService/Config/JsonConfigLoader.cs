@@ -96,7 +96,6 @@ namespace StorageWatch.Config
             services.AddSingleton<IValidateOptions<MonitoringOptions>, MonitoringOptionsValidator>();
             services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
             services.AddSingleton<IValidateOptions<GroupMeOptions>, GroupMeOptionsValidator>();
-            services.AddSingleton<IValidateOptions<CentralServerOptions>, CentralServerOptionsValidator>();
 
             var provider = services.BuildServiceProvider();
             return provider.GetRequiredService<IOptionsMonitor<StorageWatchOptions>>();
@@ -200,16 +199,6 @@ namespace StorageWatch.Config
                     result.Warnings.Add($"GroupMe: {validationResult.FailureMessage} (disabled, ignoring)");
                 }
             }
-
-            var centralServerValidator = new CentralServerOptionsValidator();
-            validationResult = centralServerValidator.Validate(null, options.CentralServer);
-            if (!validationResult.Succeeded)
-            {
-                if (options.CentralServer.Enabled)
-                {
-                    result.Warnings.Add($"Central Server: {validationResult.FailureMessage}");
-                }
-            }
         }
 
         /// <summary>
@@ -254,11 +243,6 @@ namespace StorageWatch.Config
             result = groupMeValidator.Validate(null, options.Alerting.GroupMe);
             if (!result.Succeeded)
                 throw new InvalidOperationException($"GroupMe configuration validation failed: {result.FailureMessage}");
-
-            var centralServerValidator = new CentralServerOptionsValidator();
-            result = centralServerValidator.Validate(null, options.CentralServer);
-            if (!result.Succeeded)
-                throw new InvalidOperationException($"Central server configuration validation failed: {result.FailureMessage}");
         }
 
         /// <summary>
@@ -276,10 +260,6 @@ namespace StorageWatch.Config
             // Decrypt GroupMe BotId
             if (!string.IsNullOrEmpty(options.Alerting.GroupMe.BotId))
                 options.Alerting.GroupMe.BotId = encryptor.Decrypt(options.Alerting.GroupMe.BotId);
-
-            // Decrypt Central Server API Key
-            if (!string.IsNullOrEmpty(options.CentralServer.ApiKey))
-                options.CentralServer.ApiKey = encryptor.Decrypt(options.CentralServer.ApiKey);
         }
     }
 }

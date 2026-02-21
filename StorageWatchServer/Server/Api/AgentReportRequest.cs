@@ -2,24 +2,31 @@ namespace StorageWatchServer.Server.Api;
 
 public class AgentReportRequest
 {
-    public string MachineName { get; set; } = string.Empty;
+    public string AgentId { get; set; } = string.Empty;
 
-    public DateTime CollectionTimeUtc { get; set; }
+    public DateTime TimestampUtc { get; set; }
 
-    public List<AgentDriveReport> Drives { get; set; } = new();
+    public List<DriveReportDto> Drives { get; set; } = new();
+
+    public List<AlertDto> Alerts { get; set; } = new();
 }
 
-public class AgentDriveReport
+public class DriveReportDto
 {
     public string DriveLetter { get; set; } = string.Empty;
 
     public double TotalSpaceGb { get; set; }
 
-    public double UsedSpaceGb { get; set; }
-
     public double FreeSpaceGb { get; set; }
 
-    public double PercentFree { get; set; }
+    public double UsedPercent { get; set; }
+}
 
-    public DateTime CollectionTimeUtc { get; set; }
+public class AlertDto
+{
+    public string DriveLetter { get; set; } = string.Empty;
+
+    public string Level { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
 }

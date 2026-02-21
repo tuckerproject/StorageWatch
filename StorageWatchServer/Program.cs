@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Data;
+using StorageWatchServer.Server.Reporting.Data;
 using StorageWatchServer.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,8 @@ builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("Serv
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<ServerOptions>>().Value);
 builder.Services.AddSingleton<ServerSchema>();
 builder.Services.AddSingleton<ServerRepository>();
+builder.Services.AddSingleton<AgentReportSchema>();
+builder.Services.AddSingleton<IAgentReportRepository, AgentReportRepository>();
 builder.Services.AddSingleton<MachineStatusService>();
 
 var serverOptions = builder.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
@@ -29,6 +32,7 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("StorageWatch Server starting in server mode...");
 logger.LogInformation("Server listening on: {ListenUrl}", serverOptions.ListenUrl);
 logger.LogInformation("Database path: {DatabasePath}", serverOptions.DatabasePath);
+logger.LogInformation("Agent report database path: {AgentReportDatabasePath}", serverOptions.AgentReportDatabasePath);
 logger.LogInformation("Online timeout: {TimeoutMinutes} minutes", serverOptions.OnlineTimeoutMinutes);
 
 var schema = app.Services.GetRequiredService<ServerSchema>();
@@ -40,6 +44,18 @@ try
 catch (Exception ex)
 {
     logger.LogError(ex, "Failed to initialize database");
+    throw;
+}
+
+var reportSchema = app.Services.GetRequiredService<AgentReportSchema>();
+try
+{
+    await reportSchema.InitializeDatabaseAsync();
+    logger.LogInformation("Agent report database initialized successfully");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Failed to initialize agent report database");
     throw;
 }
 

@@ -32,7 +32,10 @@
       "Mode": "Agent",
       "ServerUrl": "http://central-server.example.com:5000",
       "ApiKey": "your-optional-api-key",
+      "AgentId": "",
+      "ReportIntervalSeconds": 300,
       "Port": 5000,
+      "CentralConnectionString": "",
       "ServerId": "central-server"
     },
     "SqlReporting": {

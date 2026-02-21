@@ -135,6 +135,18 @@ public class DashboardPagesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReportsPage_Loads_WithoutError()
+    {
+        // Act
+        var response = await _client!.GetAsync("/dashboard/reports");
+
+        // Assert
+        Assert.True(response.IsSuccessStatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Recent Reports", content);
+    }
+
+    [Fact]
     public async Task NavigationLinks_ArePresent_OnIndexPage()
     {
         // Act
@@ -143,6 +155,7 @@ public class DashboardPagesTests : IAsyncLifetime
 
         // Assert
         Assert.Contains("/alerts", content);
+        Assert.Contains("/dashboard/reports", content);
         Assert.Contains("/settings", content);
         Assert.Contains("Dashboard", content);
     }

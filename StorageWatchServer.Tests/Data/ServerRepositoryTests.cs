@@ -46,19 +46,19 @@ public class ServerRepositoryTests
         // Arrange
         await using var factory = await TestDatabaseFactory.CreateAsync();
         var repository = factory.CreateRepository();
-        var report1 = TestDataFactory.CreateAgentReport("Machine1");
-        var report2 = TestDataFactory.CreateAgentReport("Machine2");
+        var machineName1 = "Machine1";
+        var machineName2 = "Machine2";
         var now = DateTime.UtcNow;
-        var id1 = await repository.UpsertMachineAsync(report1.MachineName, now);
-        var id2 = await repository.UpsertMachineAsync(report2.MachineName, now);
+        var id1 = await repository.UpsertMachineAsync(machineName1, now);
+        var id2 = await repository.UpsertMachineAsync(machineName2, now);
 
         // Act
         var machines = await repository.GetMachinesAsync();
 
         // Assert
         Assert.True(machines.Count >= 2, $"Expected at least 2 machines, got {machines.Count}");
-        Assert.Contains(machines, m => m.MachineName == "Machine1");
-        Assert.Contains(machines, m => m.MachineName == "Machine2");
+        Assert.Contains(machines, m => m.MachineName == machineName1);
+        Assert.Contains(machines, m => m.MachineName == machineName2);
     }
 
     [Fact]

@@ -32,6 +32,7 @@ namespace StorageWatch.Services
     public class Worker : BackgroundService
     {
         private readonly IOptionsMonitor<StorageWatchOptions> _optionsMonitor;
+        private readonly IOptionsMonitor<CentralServerOptions> _centralServerOptions;
         private readonly IServiceProvider _serviceProvider;
         private readonly RollingFileLogger _logger;
         private readonly SqlReporterScheduler _sqlScheduler;
@@ -44,9 +45,13 @@ namespace StorageWatch.Services
         /// </summary>
         /// <param name="optionsMonitor">Monitor for accessing and observing configuration changes.</param>
         /// <param name="serviceProvider">Service provider for resolving dependencies.</param>
-        public Worker(IOptionsMonitor<StorageWatchOptions> optionsMonitor, IServiceProvider serviceProvider)
+        public Worker(
+            IOptionsMonitor<StorageWatchOptions> optionsMonitor,
+            IOptionsMonitor<CentralServerOptions> centralServerOptions,
+            IServiceProvider serviceProvider)
         {
             _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+            _centralServerOptions = centralServerOptions ?? throw new ArgumentNullException(nameof(centralServerOptions));
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -59,6 +64,7 @@ namespace StorageWatch.Services
 
             // Get current options snapshot
             var options = _optionsMonitor.CurrentValue;
+            var centralOptions = _centralServerOptions.CurrentValue;
 
             // Log startup information if enabled in configuration
             if (options.General.EnableStartupLogging)
@@ -100,14 +106,14 @@ namespace StorageWatch.Services
 
             // Initialize the central server forwarder if in agent mode
             CentralServerForwarder? forwarder = null;
-            if (options.CentralServer.Enabled &&
-                options.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
+            if (centralOptions.Enabled &&
+                centralOptions.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    forwarder = new CentralServerForwarder(options.CentralServer, _logger);
+                    forwarder = new CentralServerForwarder(centralOptions, _logger);
                     if (options.General.EnableStartupLogging)
-                        _logger.Log($"[STARTUP] Central server forwarder initialized for {options.CentralServer.ServerUrl}");
+                        _logger.Log($"[STARTUP] Central server forwarder initialized for {centralOptions.ServerUrl}");
                 }
                 catch (Exception ex)
                 {
@@ -137,18 +143,18 @@ namespace StorageWatch.Services
             }
 
             // Initialize central server if enabled in server mode
-            if (options.CentralServer.Enabled &&
-                options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
+            if (centralOptions.Enabled &&
+                centralOptions.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    var centralSchema = new CentralServerSchema(options.CentralServer.CentralConnectionString, _logger);
+                    var centralSchema = new CentralServerSchema(centralOptions.CentralConnectionString, _logger);
                     centralSchema.InitializeDatabaseAsync().Wait();
                     if (options.General.EnableStartupLogging)
                         _logger.Log("[STARTUP] Central server database initialized");
 
-                    var centralRepository = new CentralServerRepository(options.CentralServer.CentralConnectionString, _logger);
-                    _centralServer = new CentralServerService(options.CentralServer, _logger, centralRepository);
+                    var centralRepository = new CentralServerRepository(centralOptions.CentralConnectionString, _logger);
+                    _centralServer = new CentralServerService(centralOptions, _logger, centralRepository);
 
                     if (options.General.EnableStartupLogging)
                         _logger.Log("[STARTUP] Central server initialized");

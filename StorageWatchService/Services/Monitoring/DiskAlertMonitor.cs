@@ -20,7 +20,7 @@ namespace StorageWatch.Services.Monitoring
     /// No logging, no threshold logic, no state tracking.
     /// NotificationLoop handles all alerting and logging.
     /// </summary>
-    public class DiskAlertMonitor
+    public class DiskAlertMonitor : IDiskStatusProvider
     {
         private readonly MonitoringOptions _monitoringOptions;
 

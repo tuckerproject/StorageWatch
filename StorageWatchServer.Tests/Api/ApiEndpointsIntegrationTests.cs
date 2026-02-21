@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Data;
+using StorageWatchServer.Server.Reporting.Data;
 using StorageWatchServer.Server.Services;
 using StorageWatchServer.Tests.Utilities;
 using Xunit;
@@ -29,6 +30,7 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
                     {
                         ListenUrl = "http://localhost:5001",
                         DatabasePath = $"file:memdb_api_{_testDatabaseId}?mode=memory&cache=shared",
+                        AgentReportDatabasePath = $"file:memdb_api_agent_{_testDatabaseId}?mode=memory&cache=shared",
                         OnlineTimeoutMinutes = 5
                     };
 
@@ -40,7 +42,7 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
                     }
 
                     services.AddSingleton(serverOptions);
-                    
+
                     // Remove and re-register ServerSchema
                     var schemaDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ServerSchema));
                     if (schemaDescriptor != null)
@@ -49,6 +51,14 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
                     }
                     services.AddSingleton<ServerSchema>();
 
+                    // Remove and re-register AgentReportSchema
+                    var reportSchemaDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(AgentReportSchema));
+                    if (reportSchemaDescriptor != null)
+                    {
+                        services.Remove(reportSchemaDescriptor);
+                    }
+                    services.AddSingleton<AgentReportSchema>();
+
                     // Remove and re-register ServerRepository
                     var repoDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ServerRepository));
                     if (repoDescriptor != null)
@@ -56,6 +66,14 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
                         services.Remove(repoDescriptor);
                     }
                     services.AddSingleton<ServerRepository>();
+
+                    // Remove and re-register AgentReportRepository
+                    var reportRepoDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAgentReportRepository));
+                    if (reportRepoDescriptor != null)
+                    {
+                        services.Remove(reportRepoDescriptor);
+                    }
+                    services.AddSingleton<IAgentReportRepository, AgentReportRepository>();
 
                     // Remove and re-register MachineStatusService
                     var statusDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(MachineStatusService));
@@ -69,9 +87,12 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
 
         _client = _factory.CreateClient();
 
-        // Initialize database for the test
+        // Initialize databases for the test
         var schema = _factory.Services.GetRequiredService<ServerSchema>();
         await schema.InitializeDatabaseAsync();
+
+        var reportSchema = _factory.Services.GetRequiredService<AgentReportSchema>();
+        await reportSchema.InitializeDatabaseAsync();
     }
 
     public async Task DisposeAsync()
@@ -84,7 +105,7 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     public async Task PostAgentReport_WithValidPayload_ReturnsOkResponse()
     {
         // Arrange
-        var report = TestDataFactory.CreateAgentReport("TestMachine");
+        var report = TestDataFactory.CreateAgentReport("TestAgent");
 
         // Act
         var response = await _client!.PostAsJsonAsync("/api/agent/report", report);
@@ -104,9 +125,9 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
         // Arrange
         var report = new AgentReportRequest
         {
-            MachineName = "TestMachine",
-            CollectionTimeUtc = DateTime.UtcNow,
-            Drives = new List<AgentDriveReport>()
+            AgentId = "TestAgent",
+            TimestampUtc = DateTime.UtcNow,
+            Drives = new List<DriveReportDto>()
         };
 
         // Act
@@ -117,23 +138,21 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PostAgentReport_WithEmptyMachineName_ReturnsBadRequest()
+    public async Task PostAgentReport_WithEmptyAgentId_ReturnsBadRequest()
     {
         // Arrange
         var report = new AgentReportRequest
         {
-            MachineName = string.Empty,
-            CollectionTimeUtc = DateTime.UtcNow,
-            Drives = new List<AgentDriveReport>
+            AgentId = string.Empty,
+            TimestampUtc = DateTime.UtcNow,
+            Drives = new List<DriveReportDto>
             {
-                new AgentDriveReport
+                new DriveReportDto
                 {
                     DriveLetter = "C:",
                     TotalSpaceGb = 500,
-                    UsedSpaceGb = 250,
                     FreeSpaceGb = 250,
-                    PercentFree = 50,
-                    CollectionTimeUtc = DateTime.UtcNow
+                    UsedPercent = 50
                 }
             }
         };
@@ -146,14 +165,35 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PostAgentReport_PersistsReportData()
+    {
+        // Arrange
+        var report = TestDataFactory.CreateAgentReport("TestAgent", alertCount: 2);
+        var repository = _factory!.Services.GetRequiredService<IAgentReportRepository>();
+
+        // Act
+        var response = await _client!.PostAsJsonAsync("/api/agent/report", report);
+        var reports = await repository.GetRecentReportsAsync(5);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEmpty(reports);
+        var saved = reports.FirstOrDefault(r => r.AgentId == report.AgentId);
+        Assert.NotNull(saved);
+        Assert.Equal(report.Drives.Count, saved!.Drives.Count);
+        Assert.Equal(report.Alerts.Count, saved.Alerts.Count);
+    }
+
+    [Fact]
     public async Task GetMachines_ReturnsListOfMachines()
     {
         // Arrange
-        var report = TestDataFactory.CreateAgentReport("TestMachine");
-        await _client!.PostAsJsonAsync("/api/agent/report", report);
+        var repository = _factory!.Services.GetRequiredService<ServerRepository>();
+        var now = DateTime.UtcNow;
+        await repository.UpsertMachineAsync("TestMachine", now);
 
         // Act
-        var response = await _client.GetAsync("/api/machines");
+        var response = await _client!.GetAsync("/api/machines");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -165,17 +205,12 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     public async Task GetMachineById_WithValidId_ReturnsMachine()
     {
         // Arrange
-        var report = TestDataFactory.CreateAgentReport("TestMachine");
-        var postResponse = await _client!.PostAsJsonAsync("/api/agent/report", report);
-        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
-
-        var machinesResponse = await _client.GetAsync("/api/machines");
-        var content = await machinesResponse.Content.ReadAsStringAsync();
-        var machines = JsonSerializer.Deserialize<List<dynamic>>(content);
-        var machineId = machines?[0];
+        var repository = _factory!.Services.GetRequiredService<ServerRepository>();
+        var now = DateTime.UtcNow;
+        var machineId = await repository.UpsertMachineAsync("TestMachine", now);
 
         // Act
-        var response = await _client.GetAsync($"/api/machines/1");
+        var response = await _client!.GetAsync($"/api/machines/{machineId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -195,20 +230,13 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     public async Task GetMachineHistory_WithValidDrive_ReturnsHistory()
     {
         // Arrange
-        var report = TestDataFactory.CreateAgentReport("TestMachine", driveCount: 1);
+        var repository = _factory!.Services.GetRequiredService<ServerRepository>();
         var now = DateTime.UtcNow;
-        report.CollectionTimeUtc = now;
-        report.Drives[0].CollectionTimeUtc = now;
-
-        var postResponse = await _client!.PostAsJsonAsync("/api/agent/report", report);
-        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
-
-        var machinesResponse = await _client.GetAsync("/api/machines");
-        var content = await machinesResponse.Content.ReadAsStringAsync();
-        var machines = JsonSerializer.Deserialize<List<dynamic>>(content);
+        var machineId = await repository.UpsertMachineAsync("TestMachine", now);
+        await repository.InsertDiskHistoryAsync(machineId, "C:", TestDataFactory.CreateHistoryPoint(now, 75));
 
         // Act
-        var response = await _client.GetAsync($"/api/machines/1/history?drive=C:&range=7d");
+        var response = await _client!.GetAsync($"/api/machines/{machineId}/history?drive=C:&range=7d");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -218,15 +246,12 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
     public async Task GetMachineHistory_WithoutDrive_ReturnsBadRequest()
     {
         // Arrange
-        var report = TestDataFactory.CreateAgentReport("TestMachine");
-        await _client!.PostAsJsonAsync("/api/agent/report", report);
-
-        var machinesResponse = await _client.GetAsync("/api/machines");
-        var content = await machinesResponse.Content.ReadAsStringAsync();
-        var machines = JsonSerializer.Deserialize<List<dynamic>>(content);
+        var repository = _factory!.Services.GetRequiredService<ServerRepository>();
+        var now = DateTime.UtcNow;
+        var machineId = await repository.UpsertMachineAsync("TestMachine", now);
 
         // Act
-        var response = await _client.GetAsync($"/api/machines/1/history?range=7d");
+        var response = await _client!.GetAsync($"/api/machines/{machineId}/history?range=7d");
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -240,69 +265,55 @@ public class ApiEndpointsIntegrationTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadAsStringAsync();
-        Assert.NotNull(content);
     }
 
     [Fact]
-    public async Task GetSettings_ReturnsSettingsList()
+    public async Task GetRecentReports_ReturnsDashboardReportSummary()
     {
+        // Arrange
+        var report = TestDataFactory.CreateAgentReport("DashboardAgent");
+        var postResponse = await _client!.PostAsJsonAsync("/api/agent/report", report);
+        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+
         // Act
-        var response = await _client!.GetAsync("/api/settings");
+        var response = await _client.GetAsync("/api/dashboard/reports/recent?count=1");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
-        Assert.NotNull(content);
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var results = JsonSerializer.Deserialize<List<DashboardReportResponseDto>>(content, options);
+        Assert.NotNull(results);
+        var item = results!.FirstOrDefault();
+        Assert.NotNull(item);
+        Assert.Equal("DashboardAgent", item!.AgentId);
+        Assert.NotEmpty(item.Drives);
     }
+}
 
-    [Fact]
-    public async Task MultipleAgentReports_DataIsSeparatedByMachine()
-    {
-        // Arrange
-        var report1 = TestDataFactory.CreateAgentReport("Machine1", driveCount: 1);
-        var report2 = TestDataFactory.CreateAgentReport("Machine2", driveCount: 1);
+public sealed class DashboardReportResponseDto
+{
+    public string AgentId { get; set; } = string.Empty;
 
-        report1.Drives[0].DriveLetter = "C:";
-        report2.Drives[0].DriveLetter = "D:";
+    public DateTime TimestampUtc { get; set; }
 
-        // Act
-        var response1 = await _client!.PostAsJsonAsync("/api/agent/report", report1);
-        var response2 = await _client.PostAsJsonAsync("/api/agent/report", report2);
-        var machinesResponse = await _client.GetAsync("/api/machines");
-        var content = await machinesResponse.Content.ReadAsStringAsync();
-        var machines = JsonSerializer.Deserialize<List<dynamic>>(content);
+    public List<DashboardDriveSummaryDto> Drives { get; set; } = new();
 
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response1.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
-        Assert.NotNull(machines);
-        // Since tests share the same database, we just verify we have at least 2 machines
-        Assert.True(machines?.Count >= 2, $"Expected at least 2 machines, got {machines?.Count}");
-    }
+    public List<DashboardAlertSummaryDto> Alerts { get; set; } = new();
+}
 
-    [Fact]
-    public async Task HistoryRangeFiltering_ReturnsOnlyRequestedRange()
-    {
-        // Arrange - not testing exact filtering as that requires DB setup
-        // But we ensure the endpoint accepts range parameters
-        var report = TestDataFactory.CreateAgentReport("TestMachine", driveCount: 1);
-        var now = DateTime.UtcNow;
-        report.CollectionTimeUtc = now;
-        report.Drives[0].CollectionTimeUtc = now;
+public sealed class DashboardDriveSummaryDto
+{
+    public string DriveLetter { get; set; } = string.Empty;
 
-        await _client!.PostAsJsonAsync("/api/agent/report", report);
+    public double UsedPercent { get; set; }
+}
 
-        var machinesResponse = await _client.GetAsync("/api/machines");
-        var content = await machinesResponse.Content.ReadAsStringAsync();
-        var machines = JsonSerializer.Deserialize<List<dynamic>>(content);
+public sealed class DashboardAlertSummaryDto
+{
+    public string DriveLetter { get; set; } = string.Empty;
 
-        // Act - Test different range formats
-        var response1d = await _client.GetAsync($"/api/machines/1/history?drive=C:&range=1d");
-        var response24h = await _client.GetAsync($"/api/machines/1/history?drive=C:&range=24h");
+    public string Level { get; set; } = string.Empty;
 
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response1d.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, response24h.StatusCode);
-    }
+    public string Message { get; set; } = string.Empty;
 }

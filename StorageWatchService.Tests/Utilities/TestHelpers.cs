@@ -50,16 +50,6 @@ namespace StorageWatch.Tests.Utilities
                         Enabled = false,
                         BotId = "test-bot-id"
                     }
-                },
-                CentralServer = new CentralServerOptions
-                {
-                    Enabled = false,
-                    Mode = "Agent",
-                    ServerUrl = "http://localhost:5000",
-                    ApiKey = "test-key",
-                    Port = 5000,
-                    CentralConnectionString = "Data Source=:memory:",
-                    ServerId = "test-server"
                 }
             };
         }
@@ -156,6 +146,8 @@ namespace StorageWatch.Tests.Utilities
     <Mode>Agent</Mode>
     <ServerUrl>http://localhost:5000</ServerUrl>
     <ApiKey>test-key</ApiKey>
+    <AgentId>test-agent</AgentId>
+    <ReportIntervalSeconds>300</ReportIntervalSeconds>
     <Port>5000</Port>
     <CentralConnectionString>Data Source=central.db</CentralConnectionString>
     <ServerId>test-server</ServerId>

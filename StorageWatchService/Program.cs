@@ -13,7 +13,9 @@ using StorageWatch.Config.Options;
 using StorageWatch.Services;
 using StorageWatch.Services.Alerting;
 using StorageWatch.Services.Alerting.Plugins;
+using StorageWatch.Services.CentralServer;
 using StorageWatch.Services.Logging;
+using StorageWatch.Services.Monitoring;
 using StorageWatch.Models;
 using StorageWatch.Communication;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,12 +49,6 @@ var host = Host.CreateDefaultBuilder(args)
         var databasePath = Path.Combine(storageWatchDirectory, "StorageWatch.db");
         options.Database.ConnectionString = $"Data Source={databasePath}";
 
-        if (options.CentralServer.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
-        {
-            var centralDatabasePath = Path.Combine(storageWatchDirectory, "StorageWatch_Central.db");
-            options.CentralServer.CentralConnectionString = $"Data Source={centralDatabasePath}";
-        }
-
         // Register options in the service container for dependency injection
         services.Configure<StorageWatchOptions>(cfg =>
         {
@@ -60,8 +56,9 @@ var host = Host.CreateDefaultBuilder(args)
             cfg.Monitoring = options.Monitoring;
             cfg.Database = options.Database;
             cfg.Alerting = options.Alerting;
-            cfg.CentralServer = options.CentralServer;
         });
+
+        services.Configure<CentralServerOptions>(context.Configuration.GetSection(CentralServerOptions.SectionKey));
 
         // Register option validators
         services.AddSingleton<IValidateOptions<StorageWatchOptions>, StorageWatchOptionsValidator>();
@@ -122,6 +119,13 @@ var host = Host.CreateDefaultBuilder(args)
         // ====================================================================
         // End IPC Communication Server Registration
         // ====================================================================
+
+        services.AddSingleton<IDiskStatusProvider>(sp =>
+            new DiskAlertMonitor(sp.GetRequiredService<IOptionsMonitor<StorageWatchOptions>>().CurrentValue));
+        services.AddSingleton<AgentReportBuilder>();
+        services.AddHttpClient();
+        services.AddHttpClient<AgentReportSender>();
+        services.AddHostedService<AgentReportWorker>();
 
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();

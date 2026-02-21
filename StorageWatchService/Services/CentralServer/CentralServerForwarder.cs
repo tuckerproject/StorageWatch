@@ -73,20 +73,19 @@ namespace StorageWatch.Services.CentralServer
 
                 var report = new AgentReportRequest
                 {
-                    MachineName = entry.AgentMachineName,
-                    CollectionTimeUtc = entry.CollectionTimeUtc,
-                    Drives = new List<AgentDriveReport>
+                    AgentId = entry.AgentMachineName,
+                    TimestampUtc = entry.CollectionTimeUtc,
+                    Drives = new List<DriveReportDto>
                     {
-                        new AgentDriveReport
+                        new DriveReportDto
                         {
                             DriveLetter = entry.DriveLetter,
                             TotalSpaceGb = entry.TotalSpaceGb,
-                            UsedSpaceGb = entry.UsedSpaceGb,
                             FreeSpaceGb = entry.FreeSpaceGb,
-                            PercentFree = entry.PercentFree,
-                            CollectionTimeUtc = entry.CollectionTimeUtc
+                            UsedPercent = entry.PercentFree
                         }
-                    }
+                    },
+                    Alerts = new List<AlertDto>()
                 };
 
                 // Serialize the entry to JSON

@@ -9,30 +9,40 @@ namespace StorageWatchServer.Tests.Utilities;
 public static class TestDataFactory
 {
     public static AgentReportRequest CreateAgentReport(
-        string machineName = "TestMachine",
-        DateTime? collectionTimeUtc = null,
-        int driveCount = 2)
+        string agentId = "TestAgent",
+        DateTime? timestampUtc = null,
+        int driveCount = 2,
+        int alertCount = 1)
     {
         var report = new AgentReportRequest
         {
-            MachineName = machineName,
-            CollectionTimeUtc = collectionTimeUtc ?? DateTime.UtcNow,
-            Drives = new List<AgentDriveReport>()
+            AgentId = agentId,
+            TimestampUtc = timestampUtc ?? DateTime.UtcNow,
+            Drives = new List<DriveReportDto>(),
+            Alerts = new List<AlertDto>()
         };
 
         var driveLetter = 'C';
         for (int i = 0; i < driveCount; i++)
         {
-            report.Drives.Add(new AgentDriveReport
+            report.Drives.Add(new DriveReportDto
             {
                 DriveLetter = $"{driveLetter}:",
                 TotalSpaceGb = 500,
-                UsedSpaceGb = 350,
                 FreeSpaceGb = 150,
-                PercentFree = 30,
-                CollectionTimeUtc = collectionTimeUtc ?? DateTime.UtcNow
+                UsedPercent = 70
             });
             driveLetter++;
+        }
+
+        for (int i = 0; i < alertCount; i++)
+        {
+            report.Alerts.Add(new AlertDto
+            {
+                DriveLetter = "C:",
+                Level = "Warning",
+                Message = "Low disk space"
+            });
         }
 
         return report;

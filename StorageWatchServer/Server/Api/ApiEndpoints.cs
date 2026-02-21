@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Models;
+using StorageWatchServer.Server.Reporting;
+using StorageWatchServer.Server.Reporting.Data;
 using StorageWatchServer.Server.Services;
 
 namespace StorageWatchServer.Server.Api;
@@ -27,55 +29,36 @@ public static class ApiEndpoints
 
         group.MapGet("/settings", GetSettings)
             .WithName("GetSettings");
+
+        group.MapGet("/dashboard/reports/recent", GetRecentReports)
+            .WithName("GetRecentReports");
     }
 
     private static async Task<IResult> PostAgentReport(
         AgentReportRequest request,
-        ServerRepository repository,
+        IAgentReportRepository repository,
         ILogger<Program> logger,
         HttpContext context)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(request.MachineName) || request.Drives.Count == 0)
+            if (!TryValidateAgentReport(request, out var validationMessage))
             {
-                logger.LogWarning("Agent report validation failed: MachineName={MachineName}, DriveCount={DriveCount}",
-                    request.MachineName, request.Drives.Count);
+                logger.LogWarning("Agent report validation failed: {Message}", validationMessage);
                 return Results.BadRequest(new ApiResponse
                 {
                     Success = false,
-                    Message = "MachineName and at least one drive are required."
+                    Message = validationMessage
                 });
             }
 
-            var reportTime = request.CollectionTimeUtc == default ? DateTime.UtcNow : request.CollectionTimeUtc;
-            var machineId = await repository.UpsertMachineAsync(request.MachineName, reportTime);
-            logger.LogInformation("Agent report received from {MachineName} (ID: {MachineId}). Drives: {DriveCount}",
-                request.MachineName, machineId, request.Drives.Count);
+            var receivedUtc = DateTime.UtcNow;
+            var report = AgentReportMapper.Map(request, receivedUtc);
 
-            foreach (var drive in request.Drives)
-            {
-                var driveTime = drive.CollectionTimeUtc == default ? reportTime : drive.CollectionTimeUtc;
-                var status = new MachineDriveStatus
-                {
-                    DriveLetter = drive.DriveLetter,
-                    TotalSpaceGb = drive.TotalSpaceGb,
-                    UsedSpaceGb = drive.UsedSpaceGb,
-                    FreeSpaceGb = drive.FreeSpaceGb,
-                    PercentFree = drive.PercentFree,
-                    LastSeenUtc = driveTime
-                };
+            await repository.SaveReportAsync(report);
 
-                await repository.UpsertDriveAsync(machineId, status);
-                await repository.InsertDiskHistoryAsync(machineId, drive.DriveLetter, new DiskHistoryPoint
-                {
-                    CollectionTimeUtc = driveTime,
-                    TotalSpaceGb = drive.TotalSpaceGb,
-                    UsedSpaceGb = drive.UsedSpaceGb,
-                    FreeSpaceGb = drive.FreeSpaceGb,
-                    PercentFree = drive.PercentFree
-                });
-            }
+            logger.LogInformation("Agent report received from {AgentId}. Drives: {DriveCount}, Alerts: {AlertCount}",
+                report.AgentId, report.Drives.Count, report.Alerts.Count);
 
             return Results.Ok(new ApiResponse
             {
@@ -85,9 +68,63 @@ public static class ApiEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing agent report from {MachineName}", request.MachineName);
+            logger.LogError(ex, "Error processing agent report from {AgentId}", request.AgentId);
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
+    }
+
+    private static bool TryValidateAgentReport(AgentReportRequest request, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(request.AgentId))
+        {
+            message = "AgentId is required.";
+            return false;
+        }
+
+        if (request.Drives.Count == 0)
+        {
+            message = "At least one drive report is required.";
+            return false;
+        }
+
+        if (request.Drives.Any(drive => string.IsNullOrWhiteSpace(drive.DriveLetter)))
+        {
+            message = "DriveLetter is required for all drive reports.";
+            return false;
+        }
+
+        if (request.Drives.Any(drive => drive.TotalSpaceGb < 0 || drive.FreeSpaceGb < 0))
+        {
+            message = "Drive space values must be non-negative.";
+            return false;
+        }
+
+        if (request.Drives.Any(drive => drive.UsedPercent < 0 || drive.UsedPercent > 100))
+        {
+            message = "UsedPercent must be between 0 and 100.";
+            return false;
+        }
+
+        if (request.Alerts.Any(alert => string.IsNullOrWhiteSpace(alert.DriveLetter)))
+        {
+            message = "DriveLetter is required for all alerts.";
+            return false;
+        }
+
+        if (request.Alerts.Any(alert => string.IsNullOrWhiteSpace(alert.Level)))
+        {
+            message = "Level is required for all alerts.";
+            return false;
+        }
+
+        if (request.Alerts.Any(alert => string.IsNullOrWhiteSpace(alert.Message)))
+        {
+            message = "Message is required for all alerts.";
+            return false;
+        }
+
+        message = string.Empty;
+        return true;
     }
 
     private static async Task<IResult> GetMachines(
@@ -121,7 +158,7 @@ public static class ApiEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving machines");
+            logger.LogError(ex, "Failed to retrieve machines");
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -137,18 +174,14 @@ public static class ApiEndpoints
             var machine = await repository.GetMachineAsync(id);
             if (machine == null)
             {
-                logger.LogWarning("Machine not found: ID={MachineId}", id);
                 return Results.NotFound();
             }
 
-            logger.LogDebug("Retrieved machine: ID={MachineId}, Name={MachineName}", id, machine.MachineName);
-
-            return Results.Ok(new
+            var response = new
             {
                 machine.Id,
                 machine.MachineName,
                 machine.LastSeenUtc,
-                machine.CreatedUtc,
                 IsOnline = statusService.IsOnline(machine.LastSeenUtc),
                 Drives = machine.Drives.Select(drive => new
                 {
@@ -159,11 +192,13 @@ public static class ApiEndpoints
                     drive.PercentFree,
                     drive.LastSeenUtc
                 })
-            });
+            };
+
+            return Results.Ok(response);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving machine: ID={MachineId}", id);
+            logger.LogError(ex, "Failed to retrieve machine {MachineId}", id);
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -179,24 +214,17 @@ public static class ApiEndpoints
         {
             if (string.IsNullOrWhiteSpace(drive))
             {
-                logger.LogWarning("History request missing drive parameter: MachineId={MachineId}", id);
-                return Results.BadRequest(new ApiResponse
-                {
-                    Success = false,
-                    Message = "Drive letter is required."
-                });
+                return Results.BadRequest("Drive letter is required");
             }
 
-            var startUtc = ParseRange(range);
+            var startUtc = GetHistoryStartUtc(range);
             var history = await repository.GetDiskHistoryAsync(id, drive, startUtc);
-            logger.LogDebug("Retrieved {PointCount} history points for Machine={MachineId}, Drive={Drive}",
-                history.Count, id, drive);
 
             return Results.Ok(history);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving history: MachineId={MachineId}, Drive={Drive}", id, drive);
+            logger.LogError(ex, "Failed to retrieve machine history for {MachineId}", id);
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -208,12 +236,11 @@ public static class ApiEndpoints
         try
         {
             var alerts = await repository.GetAlertsAsync();
-            logger.LogDebug("Retrieved {AlertCount} alerts", alerts.Count);
             return Results.Ok(alerts);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving alerts");
+            logger.LogError(ex, "Failed to retrieve alerts");
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -225,34 +252,63 @@ public static class ApiEndpoints
         try
         {
             var settings = await repository.GetSettingsAsync();
-            logger.LogDebug("Retrieved {SettingCount} settings", settings.Count);
             return Results.Ok(settings);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving settings");
+            logger.LogError(ex, "Failed to retrieve settings");
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
 
-    private static DateTime ParseRange(string? range)
+    private static async Task<IResult> GetRecentReports(
+        int? count,
+        IAgentReportRepository repository,
+        ILogger<Program> logger)
     {
-        if (string.IsNullOrWhiteSpace(range))
+        var reportCount = count.GetValueOrDefault(50);
+        if (reportCount <= 0)
         {
-            return DateTime.UtcNow.AddDays(-7);
+            return Results.BadRequest("Count must be greater than zero.");
         }
 
-        var trimmed = range.Trim().ToLowerInvariant();
-        if (trimmed.EndsWith("d") && int.TryParse(trimmed[..^1], out var days))
+        try
         {
-            return DateTime.UtcNow.AddDays(-days);
-        }
+            var reports = await repository.GetRecentReportsAsync(reportCount);
+            var response = reports.Select(report => new DashboardReportResponse
+            {
+                AgentId = report.AgentId,
+                TimestampUtc = report.TimestampUtc,
+                Drives = report.Drives.Select(drive => new DashboardDriveSummary
+                {
+                    DriveLetter = drive.DriveLetter,
+                    UsedPercent = drive.UsedPercent
+                }).ToList(),
+                Alerts = report.Alerts.Select(alert => new DashboardAlertSummary
+                {
+                    DriveLetter = alert.DriveLetter,
+                    Level = alert.Level,
+                    Message = alert.Message
+                }).ToList()
+            });
 
-        if (trimmed.EndsWith("h") && int.TryParse(trimmed[..^1], out var hours))
+            return Results.Ok(response);
+        }
+        catch (Exception ex)
         {
-            return DateTime.UtcNow.AddHours(-hours);
+            logger.LogError(ex, "Failed to retrieve recent reports");
+            return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }
+    }
 
-        return DateTime.UtcNow.AddDays(-7);
+    private static DateTime GetHistoryStartUtc(string range)
+    {
+        return range switch
+        {
+            "24h" => DateTime.UtcNow.AddHours(-24),
+            "7d" => DateTime.UtcNow.AddDays(-7),
+            "30d" => DateTime.UtcNow.AddDays(-30),
+            _ => DateTime.UtcNow.AddDays(-7)
+        };
     }
 }

@@ -6,5 +6,7 @@ public class ServerOptions
 
     public string DatabasePath { get; set; } = "Data/StorageWatchServer.db";
 
+    public string AgentReportDatabasePath { get; set; } = "Data/StorageWatchAgentReports.db";
+
     public int OnlineTimeoutMinutes { get; set; } = 10;
 }
