@@ -33,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StorageWatch\StorageWatchService.csproj" />
+    <ProjectReference Include="..\StorageWatchService\StorageWatchService.csproj" />
   </ItemGroup>
 
 </Project>
