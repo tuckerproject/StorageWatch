@@ -14,14 +14,22 @@ public class ServerSchema
 
     public async Task InitializeDatabaseAsync()
     {
-        var databasePath = Path.GetFullPath(_options.DatabasePath);
-        var directory = Path.GetDirectoryName(databasePath);
-        if (!string.IsNullOrWhiteSpace(directory))
+        // Handle in-memory database connection strings (for testing)
+        string connectionString;
+        if (_options.DatabasePath.Contains("mode=memory") || _options.DatabasePath.StartsWith("file:"))
         {
-            Directory.CreateDirectory(directory);
+            connectionString = $"Data Source={_options.DatabasePath}";
         }
-
-        var connectionString = $"Data Source={databasePath}";
+        else
+        {
+            var databasePath = Path.GetFullPath(_options.DatabasePath);
+            var directory = Path.GetDirectoryName(databasePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            connectionString = $"Data Source={databasePath}";
+        }
 
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync();

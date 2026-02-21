@@ -8,26 +8,40 @@ public class IndexModel : PageModel
 {
     private readonly ServerRepository _repository;
     private readonly MachineStatusService _statusService;
+    private readonly ILogger<IndexModel> _logger;
 
-    public IndexModel(ServerRepository repository, MachineStatusService statusService)
+    public IndexModel(ServerRepository repository, MachineStatusService statusService, ILogger<IndexModel> logger)
     {
         _repository = repository;
         _statusService = statusService;
+        _logger = logger;
     }
 
     public IReadOnlyList<MachineSummaryView> Machines { get; private set; } = Array.Empty<MachineSummaryView>();
 
+    public string? ErrorMessage { get; private set; }
+
     public async Task OnGetAsync()
     {
-        var machines = await _repository.GetMachinesAsync();
-        Machines = machines.Select(machine => new MachineSummaryView
+        try
         {
-            Id = machine.Id,
-            MachineName = machine.MachineName,
-            LastSeenUtc = machine.LastSeenUtc,
-            IsOnline = _statusService.IsOnline(machine.LastSeenUtc),
-            Drives = machine.Drives
-        }).ToList();
+            var machines = await _repository.GetMachinesAsync();
+            _logger.LogDebug("Loaded {MachineCount} machines for dashboard", machines.Count);
+
+            Machines = machines.Select(machine => new MachineSummaryView
+            {
+                Id = machine.Id,
+                MachineName = machine.MachineName,
+                LastSeenUtc = machine.LastSeenUtc,
+                IsOnline = _statusService.IsOnline(machine.LastSeenUtc),
+                Drives = machine.Drives
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading machines for dashboard");
+            ErrorMessage = "An error occurred while loading machines. Please try again later.";
+        }
     }
 }
 

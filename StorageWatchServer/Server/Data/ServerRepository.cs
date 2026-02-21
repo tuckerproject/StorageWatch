@@ -15,6 +15,12 @@ public class ServerRepository
 
     private string GetConnectionString()
     {
+        // Handle in-memory database connection strings (for testing)
+        if (_options.DatabasePath.Contains("mode=memory") || _options.DatabasePath.StartsWith("file:"))
+        {
+            return $"Data Source={_options.DatabasePath}";
+        }
+        
         var databasePath = Path.GetFullPath(_options.DatabasePath);
         return $"Data Source={databasePath}";
     }

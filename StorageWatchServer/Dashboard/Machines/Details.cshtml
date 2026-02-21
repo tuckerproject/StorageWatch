@@ -3,7 +3,13 @@
 
 <h1>@Model.Machine?.MachineName</h1>
 
-@if (Model.Machine == null)
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="card error">
+        <strong>Error:</strong> @Model.ErrorMessage
+    </div>
+}
+else if (Model.Machine == null)
 {
     <div class="card">Machine not found.</div>
 }

@@ -3,6 +3,13 @@
 
 <h1>Alerts</h1>
 
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="card error">
+        <strong>Error:</strong> @Model.ErrorMessage
+    </div>
+}
+
 <div class="card">
     <table class="table">
         <thead>

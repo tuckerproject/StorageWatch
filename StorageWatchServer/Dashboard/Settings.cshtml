@@ -3,6 +3,13 @@
 
 <h1>Settings</h1>
 
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="card error">
+        <strong>Error:</strong> @Model.ErrorMessage
+    </div>
+}
+
 <div class="card">
     <table class="table">
         <thead>
@@ -13,13 +20,22 @@
             </tr>
         </thead>
         <tbody>
-        @foreach (var setting in Model.Settings)
+        @if (Model.Settings.Count == 0)
         {
             <tr>
-                <td>@setting.Key</td>
-                <td>@setting.Value</td>
-                <td>@setting.Description</td>
+                <td colspan="3">No settings have been configured.</td>
             </tr>
+        }
+        else
+        {
+            @foreach (var setting in Model.Settings)
+            {
+                <tr>
+                    <td>@setting.Key</td>
+                    <td><code>@setting.Value</code></td>
+                    <td>@setting.Description</td>
+                </tr>
+            }
         }
         </tbody>
     </table>

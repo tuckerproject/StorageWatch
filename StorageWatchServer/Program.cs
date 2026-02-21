@@ -24,8 +24,24 @@ if (!string.IsNullOrWhiteSpace(serverOptions.ListenUrl))
 
 var app = builder.Build();
 
+// Log server startup
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("StorageWatch Server starting in server mode...");
+logger.LogInformation("Server listening on: {ListenUrl}", serverOptions.ListenUrl);
+logger.LogInformation("Database path: {DatabasePath}", serverOptions.DatabasePath);
+logger.LogInformation("Online timeout: {TimeoutMinutes} minutes", serverOptions.OnlineTimeoutMinutes);
+
 var schema = app.Services.GetRequiredService<ServerSchema>();
-await schema.InitializeDatabaseAsync();
+try
+{
+    await schema.InitializeDatabaseAsync();
+    logger.LogInformation("Database initialized successfully");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Failed to initialize database");
+    throw;
+}
 
 app.UseStaticFiles();
 
@@ -33,5 +49,7 @@ app.MapRazorPages();
 
 var apiGroup = app.MapGroup("/api");
 apiGroup.MapAgentEndpoints();
+
+logger.LogInformation("StorageWatch Server ready to accept connections");
 
 app.Run();
