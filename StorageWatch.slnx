@@ -1,35 +1,23 @@
 <Solution>
   <Folder Name="/Docs/">
-    <File Path="Docs/BUILD_FIX_VERIFICATION.md" />
-    <File Path="Docs/CentralWebDashboard.md" />
+    <File Path="Docs/Architecture.md" />
+    <File Path="Docs/BuildInstaller.md" />
     <File Path="Docs/CHANGELOG.md" />
-    <File Path="Docs/CHANGESET.md" />
-    <File Path="Docs/COMPLETE_TEST_FIX_REPORT.md" />
+    <File Path="Docs/ConfigReference.md" />
+    <File Path="Docs/CONTRIBUTING.md" />
     <File Path="Docs/CopilotMasterPrompt.md" />
-    <File Path="Docs/OPENAPI_REMOVAL_FIX.md" />
-    <File Path="Docs/PHASE1_ITEM3_COMPLETION.md" />
-    <File Path="Docs/Phase2-Item9-FileChanges.md" />
-    <File Path="Docs/Phase2-Item9-ImplementationSummary.md" />
-    <File Path="Docs/Phase2Item10ChangesSummary.md" />
-    <File Path="Docs/Phase2Item10CompletionReport.md" />
-    <File Path="Docs/Phase2Item10QuickReference.md" />
-    <File Path="Docs/Phase2Item10README.md" />
-    <File Path="Docs/Phase2Item10RetentionImplementation.md" />
-    <File Path="Docs/Phase2Item8ImplementationSummary.md" />
-    <File Path="Docs/PHASE3_ITEM11_SUMMARY.md" />
-    <File Path="Docs/Phase3_Step13.5_Checklist.md" />
-    <File Path="Docs/Phase3_Step13.5_Summary.md" />
-    <File Path="Docs/PHASE4_STEP14_COMPLETION_REPORT.md" />
-    <File Path="Docs/QUICK_REFERENCE_FIXES.md" />
+    <File Path="Docs/FAQ.md" />
+    <File Path="Docs/Installer.md" />
     <File Path="Docs/README.md" />
-    <File Path="Docs/SQLITE_MIGRATION.md" />
-    <File Path="Docs/SQLITE_TECHNICAL.md" />
-    <File Path="Docs/TEST_FIXES_SUMMARY.md" />
-    <File Path="Docs/TEST_ISOLATION_FIXES.md" />
-    <File Path="Docs/VERIFICATION_CHECKLIST.md" />
+    <File Path="Docs/SQLiteMigration.md" />
+    <File Path="Docs/Troubleshooting.md" />
   </Folder>
   <Folder Name="/InstallerNSIS/">
     <File Path="InstallerNSIS/StorageWatchInstaller.nsi" />
+  </Folder>
+  <Folder Name="/InstallerNSIS/Docs/">
+    <File Path="InstallerNSIS/Docs/QUICK-START.md" />
+    <File Path="InstallerNSIS/Docs/README.md" />
   </Folder>
   <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />
   <Project Path="StorageWatchServer/StorageWatchServer.csproj" />
