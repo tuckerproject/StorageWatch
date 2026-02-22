@@ -90,7 +90,6 @@ set Server__OnlineTimeoutMinutes=5
 ### Quick References
 - **[Quick Reference Guide](./Docs/QuickReference.md)** — Common tasks, API examples, troubleshooting
 - **[Complete API Documentation](./Docs/CentralWebDashboard.md)** — Full technical reference
-- **[Completion Summary](./Docs/Phase4_Step14_Completion_Summary.md)** — Implementation details
 
 ### Key Sections
 - [REST API Reference](#rest-api-reference)
@@ -489,19 +488,6 @@ dotnet test StorageWatchServer.Tests
 - [Deployment Guide](./Docs/CentralWebDashboard.md#deployment) — Production setup
 - [Quick Reference](./Docs/QuickReference.md) — Developer cheat sheet
 
-## 🗺️ Roadmap
-
-**Phase 4 - Advanced Features**
-- ✅ Step 14: **Central Web Dashboard** (Complete)
-- 🔄 Step 15: Remote Monitoring Agents (In Progress)
-- ⏳ Step 16: Auto-Update Mechanism (Planned)
-
-**Phase 5 - Community**
-- ⏳ Step 17: Documentation Overhaul
-- ⏳ Step 18: Community & Ecosystem
-
-See [CopilotMasterPrompt.md](./Docs/CopilotMasterPrompt.md) for full roadmap.
-
 ## 📄 License
 
 StorageWatch is released under the **CC0 1.0 Universal (Public Domain)** license.
@@ -510,22 +496,16 @@ All dependencies are MIT, Public Domain, or similarly permissive licenses.
 
 ## 🤝 Contributing
 
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
+Contributions welcome! See [CONTRIBUTING.md](../Docs/CONTRIBUTING.md) for guidelines.
 
 ## 📞 Support
 
 For issues, questions, or suggestions:
-- Check [Troubleshooting Guide](./Docs/QuickReference.md#troubleshooting)
-- Review [FAQ](./Docs/CentralWebDashboard.md#faq)
+- Check [Troubleshooting Guide](../Docs/Troubleshooting.md)
+- Review [FAQ](../Docs/FAQ.md)
 - See [Complete Documentation](./Docs/CentralWebDashboard.md)
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: January 2024  
-**Status**: ✅ Production Ready  
-**Framework**: .NET 10
+**Framework**: .NET 10  
+**License**: CC0 1.0 Universal (Public Domain)
