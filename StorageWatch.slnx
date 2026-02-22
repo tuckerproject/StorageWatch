@@ -29,7 +29,6 @@
     <File Path="Docs/VERIFICATION_CHECKLIST.md" />
   </Folder>
   <Folder Name="/InstallerNSIS/">
-    <File Path="InstallerNSIS/README.md" />
     <File Path="InstallerNSIS/StorageWatchInstaller.nsi" />
   </Folder>
   <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />
