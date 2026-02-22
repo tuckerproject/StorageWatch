@@ -35,6 +35,14 @@ namespace StorageWatch.Config.Options
             if (options.Alerting == null)
                 return ValidateOptionsResult.Fail("Alerting options section is required");
 
+            // Validate mode-specific requirements
+            if (options.Mode == StorageWatchMode.Agent)
+            {
+                // Agent mode requires CentralServerOptions to be enabled
+                // This will be validated by CentralServerOptionsValidator
+            }
+            // Standalone mode requires no CentralServerOptions
+
             // Validate alerting consistency: If notifications enabled, at least one plugin must be enabled
             if (options.Alerting.EnableNotifications)
             {
@@ -203,7 +211,7 @@ namespace StorageWatch.Config.Options
             }
             else
             {
-                return ValidateOptionsResult.Fail("Mode must be 'Agent' or 'Server'");
+                return ValidateOptionsResult.Fail($"Mode must be 'Agent' or 'Server', got: '{options.Mode}'");
             }
 
             return ValidateOptionsResult.Success;

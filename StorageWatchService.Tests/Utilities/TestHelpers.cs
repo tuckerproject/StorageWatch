@@ -18,6 +18,7 @@ namespace StorageWatch.Tests.Utilities
         {
             return new StorageWatchOptions
             {
+                Mode = StorageWatchMode.Standalone,
                 General = new GeneralOptions
                 {
                     EnableStartupLogging = false
@@ -52,6 +53,26 @@ namespace StorageWatch.Tests.Utilities
                     }
                 }
             };
+        }
+
+        /// <summary>
+        /// Creates a valid test configuration for Agent mode.
+        /// </summary>
+        public static StorageWatchOptions CreateAgentTestConfig()
+        {
+            var config = CreateDefaultTestConfig();
+            config.Mode = StorageWatchMode.Agent;
+            return config;
+        }
+
+        /// <summary>
+        /// Creates a valid test configuration for Standalone mode.
+        /// </summary>
+        public static StorageWatchOptions CreateStandaloneTestConfig()
+        {
+            var config = CreateDefaultTestConfig();
+            config.Mode = StorageWatchMode.Standalone;
+            return config;
         }
 
         /// <summary>

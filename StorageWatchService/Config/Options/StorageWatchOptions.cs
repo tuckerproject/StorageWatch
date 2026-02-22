@@ -21,6 +21,14 @@ namespace StorageWatch.Config.Options
         public const string SectionKey = "StorageWatch";
 
         /// <summary>
+        /// Operational mode: Standalone, Agent, or Server.
+        /// Default: Standalone (simplest, no external dependencies)
+        /// Configuration file will override this default for specific deployments
+        /// </summary>
+        [Required]
+        public StorageWatchMode Mode { get; set; } = StorageWatchMode.Standalone;
+
+        /// <summary>
         /// General service settings section.
         /// </summary>
         [Required]
@@ -319,5 +327,27 @@ namespace StorageWatch.Config.Options
         /// Enables or disables exporting of archived data to CSV format.
         /// </summary>
         public bool ExportCsvEnabled { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Operational modes for StorageWatch service.
+    /// </summary>
+    public enum StorageWatchMode
+    {
+        /// <summary>
+        /// Standalone mode: Runs independently on a single host.
+        /// </summary>
+        Standalone,
+
+        /// <summary>
+        /// Agent mode: Runs as an agent reporting to a central server.
+        /// Default mode.
+        /// </summary>
+        Agent,
+
+        /// <summary>
+        /// Server mode: Runs as a central server managing multiple agents.
+        /// </summary>
+        Server
     }
 }

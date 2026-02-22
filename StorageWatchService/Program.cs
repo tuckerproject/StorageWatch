@@ -56,6 +56,7 @@ var host = Host.CreateDefaultBuilder(args)
             cfg.Monitoring = options.Monitoring;
             cfg.Database = options.Database;
             cfg.Alerting = options.Alerting;
+            cfg.Mode = options.Mode;
         });
 
         services.Configure<CentralServerOptions>(context.Configuration.GetSection(CentralServerOptions.SectionKey));
@@ -123,9 +124,17 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IDiskStatusProvider>(sp =>
             new DiskAlertMonitor(sp.GetRequiredService<IOptionsMonitor<StorageWatchOptions>>().CurrentValue));
         services.AddSingleton<AgentReportBuilder>();
-        services.AddHttpClient();
-        services.AddHttpClient<AgentReportSender>();
-        services.AddHostedService<AgentReportWorker>();
+
+        // Register mode-specific services
+        if (options.Mode == StorageWatchMode.Agent)
+        {
+            // Agent mode: Register reporting services
+            services.AddHttpClient();
+            services.AddHttpClient<AgentReportSender>();
+            services.AddHostedService<AgentReportWorker>();
+        }
+        // Standalone mode: Do NOT register AgentReportWorker or HttpClient for reporting
+        // Server mode is handled by StorageWatchServer project
 
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();
@@ -134,6 +143,7 @@ var host = Host.CreateDefaultBuilder(args)
         {
             var defaultOptions = new StorageWatchOptions();
             defaultOptions.Alerting.EnableNotifications = false;
+            defaultOptions.Mode = StorageWatchMode.Standalone;
 
             var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
             var driveLetter = string.IsNullOrWhiteSpace(systemDrive)
