@@ -1,0 +1,57 @@
+<Window x:Class="StorageWatchUI.Views.UpdateProgressDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Installing Update" Height="250" Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White"
+        WindowStyle="ToolWindow">
+    <Grid Margin="20">
+        <StackPanel VerticalAlignment="Center">
+            <!-- Title -->
+            <TextBlock Text="StorageWatch Update in Progress" 
+                       FontSize="16" 
+                       FontWeight="Bold" 
+                       Foreground="#FF333333"
+                       Margin="0,0,0,20"/>
+
+            <!-- Status Text -->
+            <TextBlock Text="{Binding StatusText}" 
+                       FontSize="13" 
+                       Foreground="#FF666666"
+                       Margin="0,0,0,15"/>
+
+            <!-- Progress Bar -->
+            <ProgressBar Height="25" 
+                         Value="{Binding Progress}" 
+                         IsIndeterminate="{Binding IsIndeterminate}"
+                         Background="#FFE0E0E0"
+                         Foreground="#FF4CAF50"
+                         Margin="0,0,0,20"/>
+
+            <!-- Progress Percentage (when determinate) -->
+            <TextBlock Foreground="#FF999999"
+                       FontSize="11"
+                       TextAlignment="Center"
+                       Margin="0,0,0,15">
+                <Run Text="{Binding Progress, StringFormat=N0}"/>
+                <Run Text="%"/>
+            </TextBlock>
+
+            <!-- Cancel Button -->
+            <Button Content="Cancel" 
+                    Command="{Binding CancelCommand}"
+                    Width="100" 
+                    Padding="10,8"
+                    HorizontalAlignment="Center"
+                    Background="Transparent"
+                    Foreground="#FF333333"
+                    BorderThickness="1"
+                    BorderBrush="#FFCCCCCC"
+                    Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

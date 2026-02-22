@@ -1,13 +1,3 @@
-/// <summary>
-/// StorageWatch Service Program Entry Point
-/// 
-/// This is the main entry point for the Windows Service. It configures the host builder,
-/// sets up dependency injection, and registers the background Worker service that monitors
-/// disk space and sends alerts.
-/// 
-/// Now includes plugin architecture for extensible alert senders.
-/// </summary>
-
 using StorageWatch.Config;
 using StorageWatch.Config.Options;
 using StorageWatch.Services;
@@ -16,6 +6,7 @@ using StorageWatch.Services.Alerting.Plugins;
 using StorageWatch.Services.CentralServer;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
+using StorageWatch.Services.AutoUpdate;
 using StorageWatch.Models;
 using StorageWatch.Communication;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +48,14 @@ var host = Host.CreateDefaultBuilder(args)
             cfg.Database = options.Database;
             cfg.Alerting = options.Alerting;
             cfg.Mode = options.Mode;
+            cfg.AutoUpdate = options.AutoUpdate;
+        });
+
+        services.Configure<AutoUpdateOptions>(cfg =>
+        {
+            cfg.Enabled = options.AutoUpdate.Enabled;
+            cfg.ManifestUrl = options.AutoUpdate.ManifestUrl;
+            cfg.CheckIntervalMinutes = options.AutoUpdate.CheckIntervalMinutes;
         });
 
         services.Configure<CentralServerOptions>(context.Configuration.GetSection(CentralServerOptions.SectionKey));
@@ -139,21 +138,39 @@ var host = Host.CreateDefaultBuilder(args)
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();
 
-        StorageWatchOptions CreateDefaultOptions()
-        {
-            var defaultOptions = new StorageWatchOptions();
-            defaultOptions.Alerting.EnableNotifications = false;
-            defaultOptions.Mode = StorageWatchMode.Standalone;
+        // ====================================================================
+        // Auto-Update Services
+        // ====================================================================
 
-            var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
-            var driveLetter = string.IsNullOrWhiteSpace(systemDrive)
-                ? "C:"
-                : systemDrive.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        services.AddHttpClient<IServiceUpdateChecker, ServiceUpdateChecker>();
+        services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
+        services.AddSingleton<IServiceRestartHandler, ServiceRestartHandler>();
+        services.AddSingleton<IServiceUpdateInstaller, ServiceUpdateInstaller>();
+        services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
+        services.AddHttpClient<IPluginUpdateChecker, PluginUpdateChecker>();
+        services.AddHostedService<ServiceAutoUpdateWorker>();
 
-            defaultOptions.Monitoring.Drives = new List<string> { driveLetter };
-            return defaultOptions;
-        }
+        // ====================================================================
+        // End Auto-Update Services
+        // ====================================================================
     })
     .Build();
 
 await host.RunAsync();
+
+StorageWatchOptions CreateDefaultOptions()
+{
+    var defaultOptions = new StorageWatchOptions();
+    defaultOptions.Alerting.EnableNotifications = false;
+    defaultOptions.Mode = StorageWatchMode.Standalone;
+    defaultOptions.AutoUpdate.Enabled = true;
+    defaultOptions.AutoUpdate.CheckIntervalMinutes = 60;
+
+    var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
+    var driveLetter = string.IsNullOrWhiteSpace(systemDrive)
+        ? "C:"
+        : systemDrive.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    defaultOptions.Monitoring.Drives = new List<string> { driveLetter };
+    return defaultOptions;
+}

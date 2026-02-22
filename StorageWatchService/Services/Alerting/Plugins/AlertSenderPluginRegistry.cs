@@ -20,7 +20,14 @@ namespace StorageWatch.Services.Alerting.Plugins
     /// </summary>
     public class AlertSenderPluginRegistry
     {
+        public static AlertSenderPluginRegistry? Current { get; private set; }
+
         private readonly Dictionary<string, AlertSenderPluginMetadata> _plugins = new();
+
+        public AlertSenderPluginRegistry()
+        {
+            Current = this;
+        }
 
         /// <summary>
         /// Gets all registered plugins.

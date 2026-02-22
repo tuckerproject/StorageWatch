@@ -57,6 +57,12 @@ namespace StorageWatch.Config.Options
         /// </summary>
         [Required]
         public RetentionOptions Retention { get; set; } = new();
+
+        /// <summary>
+        /// Auto-update configuration section.
+        /// </summary>
+        [Required]
+        public AutoUpdateOptions AutoUpdate { get; set; } = new();
     }
 
     /// <summary>
@@ -327,6 +333,58 @@ namespace StorageWatch.Config.Options
         /// Enables or disables exporting of archived data to CSV format.
         /// </summary>
         public bool ExportCsvEnabled { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Auto-update configuration options.
+    /// </summary>
+    public class AutoUpdateOptions
+    {
+        /// <summary>
+        /// Configuration section key within StorageWatch section
+        /// </summary>
+        public const string SectionKey = "AutoUpdate";
+
+        /// <summary>
+        /// Enables or disables automatic updates for the service.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// URL to the update manifest JSON.
+        /// </summary>
+        [StringLength(500, ErrorMessage = "ManifestUrl cannot exceed 500 characters")]
+        public string ManifestUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Interval in minutes between automatic update checks.
+        /// Valid range: 1-10080 (1 minute to 7 days)
+        /// </summary>
+        [Range(1, 10080, ErrorMessage = "CheckIntervalMinutes must be between 1 and 10080")]
+        public int CheckIntervalMinutes { get; set; } = 60;
+    }
+
+    /// <summary>
+    /// Update notification options.
+    /// </summary>
+    public class UpdateNotificationOptions
+    {
+        /// <summary>
+        /// Enables or disables notifications for available updates.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Notification delivery method: Email, Slack, etc.
+        /// Default: Email
+        /// </summary>
+        public string DeliveryMethod { get; set; } = "Email";
+
+        /// <summary>
+        /// Optional recipient list for notifications.
+        /// Comma-separated email addresses or Slack user IDs, etc.
+        /// </summary>
+        public string RecipientList { get; set; } = string.Empty;
     }
 
     /// <summary>

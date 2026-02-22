@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Options;
+using StorageWatchServer.Config;
+using StorageWatchServer.Models;
+using StorageWatchServer.Services.AutoUpdate;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Reporting.Data;
@@ -55,12 +58,20 @@ builder.Services.AddRazorPages(options =>
 });
 
 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("Server"));
+builder.Services.Configure<AutoUpdateOptions>(builder.Configuration.GetSection(AutoUpdateOptions.SectionKey));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<ServerOptions>>().Value);
 builder.Services.AddSingleton<ServerSchema>();
 builder.Services.AddSingleton<ServerRepository>();
 builder.Services.AddSingleton<AgentReportSchema>();
 builder.Services.AddSingleton<IAgentReportRepository, AgentReportRepository>();
 builder.Services.AddSingleton<MachineStatusService>();
+
+builder.Services.AddHttpClient<IServerUpdateChecker, ServerUpdateChecker>();
+builder.Services.AddHttpClient<IServerUpdateDownloader, ServerUpdateDownloader>();
+builder.Services.AddSingleton<IServerRestartHandler, ServerRestartHandler>();
+builder.Services.AddSingleton<IServerUpdateInstaller, ServerUpdateInstaller>();
+builder.Services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
+builder.Services.AddHostedService<ServerAutoUpdateWorker>();
 
 var serverOptions = builder.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
 if (!string.IsNullOrWhiteSpace(serverOptions.ListenUrl))

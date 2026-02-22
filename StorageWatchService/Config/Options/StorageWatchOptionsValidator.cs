@@ -35,6 +35,9 @@ namespace StorageWatch.Config.Options
             if (options.Alerting == null)
                 return ValidateOptionsResult.Fail("Alerting options section is required");
 
+            if (options.AutoUpdate == null)
+                return ValidateOptionsResult.Fail("AutoUpdate options section is required");
+
             // Validate mode-specific requirements
             if (options.Mode == StorageWatchMode.Agent)
             {

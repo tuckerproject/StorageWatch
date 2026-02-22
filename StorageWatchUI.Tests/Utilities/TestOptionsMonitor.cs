@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace StorageWatch.Tests.Utilities
+namespace StorageWatchUI.Tests.Utilities
 {
     public class TestOptionsMonitor<T> : IOptionsMonitor<T>, IOptions<T> where T : class
     {
@@ -17,12 +17,6 @@ namespace StorageWatch.Tests.Utilities
         public T Get(string? name) => CurrentValue;
 
         public IDisposable OnChange(Action<T, string?> listener) => new NoOpDisposable();
-
-        public void Update(T value)
-        {
-            CurrentValue = value;
-            Value = value;
-        }
 
         private sealed class NoOpDisposable : IDisposable
         {

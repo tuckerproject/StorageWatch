@@ -13,19 +13,22 @@ public class MainViewModel : ViewModelBase
     private readonly CentralViewModel _centralViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ServiceStatusViewModel _serviceStatusViewModel;
+    private readonly UpdateViewModel _updateViewModel;
 
     public MainViewModel(
         DashboardViewModel dashboardViewModel,
         TrendsViewModel trendsViewModel,
         CentralViewModel centralViewModel,
         SettingsViewModel settingsViewModel,
-        ServiceStatusViewModel serviceStatusViewModel)
+        ServiceStatusViewModel serviceStatusViewModel,
+        UpdateViewModel updateViewModel)
     {
         _dashboardViewModel = dashboardViewModel;
         _trendsViewModel = trendsViewModel;
         _centralViewModel = centralViewModel;
         _settingsViewModel = settingsViewModel;
         _serviceStatusViewModel = serviceStatusViewModel;
+        _updateViewModel = updateViewModel;
 
         // Start with Dashboard view
         CurrentViewModel = _dashboardViewModel;
@@ -43,6 +46,8 @@ public class MainViewModel : ViewModelBase
         get => _currentViewModel;
         set => SetProperty(ref _currentViewModel, value);
     }
+
+    public UpdateViewModel UpdateViewModel => _updateViewModel;
 
     public ICommand NavigateToDashboardCommand { get; }
     public ICommand NavigateToTrendsCommand { get; }
