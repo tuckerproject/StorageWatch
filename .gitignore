@@ -364,3 +364,5 @@ FodyWeavers.xsd
 /DiskSpaceService/DiskSpaceConfig.xml
 # StorageWatch configuration file
 StorageWatchConfig.xml
+#NSIS Installer Payload
+InstallerNSIS/Payload/
