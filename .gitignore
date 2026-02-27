@@ -366,3 +366,5 @@ FodyWeavers.xsd
 StorageWatchConfig.xml
 #NSIS Installer Payload
 InstallerNSIS/Payload/
+# Ignore installer output
+/InstallerNSIS/*.exe

@@ -3,6 +3,7 @@ RequestExecutionLevel admin
 
 !include "MUI2.nsh"
 !include "x64.nsh"
+!include "FileFunc.nsh"
 
 !define APP_NAME "StorageWatch"
 !define COMPANY_NAME "StorageWatch"
@@ -46,35 +47,30 @@ Var ServerPort
 Var ServerDataDir
 Var hwndRoleAgent
 Var hwndRoleServer
+Var ServerDataDirEscaped
 
-Section "StorageWatch Service" SecService
+Section -StorageWatchService SecService
     SetShellVarContext all
     Call StopServiceIfRunning
 
     SetOutPath "$INSTDIR\Service"
     File /r "${PAYLOAD_DIR}\Service\*"
 
-    SetOutPath "$INSTDIR\Service"
-    File /r "${PAYLOAD_DIR}\SQLite\*"
-
     Call InstallService
 SectionEnd
 
-Section "StorageWatch Central Server" SecServer
+Section -StorageWatchCentralServer SecServer
     SetShellVarContext all
     Call StopServerIfRunning
 
     SetOutPath "$INSTDIR\Server"
     File /r "${PAYLOAD_DIR}\Server\*"
 
-    CreateDirectory "$INSTDIR\Server\Data"
-    CreateDirectory "$INSTDIR\Server\Logs"
-
     Call GenerateServerConfig
     Call InstallServerService
 SectionEnd
 
-Section "StorageWatch UI" SecUI
+Section -StorageWatchUI SecUI
     SetShellVarContext all
     SetOutPath "$INSTDIR\UI"
     File /r "${PAYLOAD_DIR}\UI\*"
@@ -88,26 +84,35 @@ Section /o "Desktop Shortcut" SecDesktop
     CreateShortCut "$DESKTOP\StorageWatch Dashboard.lnk" "$INSTDIR\UI\StorageWatchUI.exe"
 SectionEnd
 
-Section "ProgramData" SecProgramData
+Section -ProgramData SecProgramData
     SetShellVarContext all
-    CreateDirectory "$COMMONAPPDATA\${APP_NAME}\Config"
-    CreateDirectory "$COMMONAPPDATA\${APP_NAME}\Plugins"
-    CreateDirectory "$COMMONAPPDATA\${APP_NAME}\Logs"
-    CreateDirectory "$COMMONAPPDATA\${APP_NAME}\Data"
+
+    ; Create root ProgramData folder
+    CreateDirectory "$APPDATA\${APP_NAME}"
+
+    ; Create subfolders (but NOT Config)
+    CreateDirectory "$APPDATA\${APP_NAME}\Plugins"
+    CreateDirectory "$APPDATA\${APP_NAME}\Logs"
+    CreateDirectory "$APPDATA\${APP_NAME}\Data"
 
     Call ApplyFolderPermissions
 
-    IfFileExists "$COMMONAPPDATA\${APP_NAME}\Config\StorageWatchConfig.json" 0 +2
+    ; Write the shared config file to the root ProgramData folder
+    IfFileExists "$APPDATA\${APP_NAME}\StorageWatchConfig.json" 0 +2
         Goto SkipDefaultConfig
-    SetOutPath "$COMMONAPPDATA\${APP_NAME}\Config"
+
+    SetOutPath "$APPDATA\${APP_NAME}"
     File "${PAYLOAD_DIR}\Config\StorageWatchConfig.json"
+
     SkipDefaultConfig:
 
-    SetOutPath "$COMMONAPPDATA\${APP_NAME}\Plugins"
-    File /r "${PAYLOAD_DIR}\Plugins\*.dll"
+    ; Copy plugins
+    SetOutPath "$APPDATA\${APP_NAME}\Plugins"
+    File /nonfatal /r "${PAYLOAD_DIR}\Plugins\*.dll"
 SectionEnd
 
 Section -PostInstall
+    WriteUninstaller "$INSTDIR\Uninstall.exe"
     SetShellVarContext all
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "InstallDir" "$INSTDIR"
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "Role" "$SelectedRole"
@@ -121,8 +126,8 @@ SectionEnd
 
 Section "Uninstall"
     SetShellVarContext all
-    Call StopAndRemoveService
-    Call StopAndRemoveServerService
+    Call un.StopAndRemoveService
+    Call un.StopAndRemoveServerService
 
     Delete "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Dashboard.lnk"
     Delete "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Central Dashboard.lnk"
@@ -135,13 +140,13 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\Server"
     RMDir "$INSTDIR"
 
-    Call PromptDeleteConfig
-    Call PromptDeleteLogs
-    Call PromptDeleteData
-    Call PromptDeletePlugins
-    Call PromptDeleteServerData
+    Call un.PromptDeleteConfig
+    Call un.PromptDeleteLogs
+    Call un.PromptDeleteData
+    Call un.PromptDeletePlugins
+    Call un.PromptDeleteServerData
 
-    RMDir "$COMMONAPPDATA\${APP_NAME}"
+    RMDir "$APPDATA\${APP_NAME}"
 
     DeleteRegKey ${REG_ROOT} "${REG_KEY}"
 SectionEnd
@@ -218,9 +223,9 @@ Function ServerConfigPage
     ${NSD_CreateLabel} 20u 50u 80u 12u "Data Directory:"
     Pop $4
     
-    ${NSD_CreateText} 110u 48u 100u 12u "$INSTDIR\Server\Data"
+    ${NSD_CreateText} 110u 48u 100u 12u "$APPDATA\${APP_NAME}\Data"
     Pop $5
-    StrCpy $ServerDataDir "$INSTDIR\Server\Data"
+    StrCpy $ServerDataDir "$APPDATA\${APP_NAME}\Data"
     ${NSD_OnChange} $5 ServerDataDirChanged
     
     ${NSD_CreateLabel} 20u 70u 260u 35u "The server will listen on http://localhost:<port>$\r$\nand store the SQLite database in the specified directory.$\r$\nEnsure the data directory has sufficient disk space."
@@ -252,17 +257,22 @@ Function StopServiceIfRunning
     ExecWait '"$SYSDIR\sc.exe" stop "${SERVICE_NAME}"'
 FunctionEnd
 
-Function StopAndRemoveService
+Function un.StopAndRemoveService
     ExecWait '"$SYSDIR\sc.exe" stop "${SERVICE_NAME}"'
     ExecWait '"$SYSDIR\sc.exe" delete "${SERVICE_NAME}"'
 FunctionEnd
 
 Function InstallServerService
-    ExecWait '"$SYSDIR\sc.exe" create "${SERVER_SERVICE_NAME}" binPath= "$INSTDIR\Server\StorageWatchServer.exe" start= auto DisplayName= "${SERVER_SERVICE_DISPLAY_NAME}"'
+    ; Remove any existing broken service
+    ExecWait '"$SYSDIR\sc.exe" delete "${SERVER_SERVICE_NAME}"'
+
+    ; Correct service creation with contentRoot
+    ExecWait '"$SYSDIR\sc.exe" create "${SERVER_SERVICE_NAME}" binPath= "\"$INSTDIR\Server\StorageWatchServer.exe\" --contentRoot \"$INSTDIR\Server\"" start= auto DisplayName= "${SERVER_SERVICE_DISPLAY_NAME}" obj= LocalSystem'
     
+    ; Start menu shortcuts
     CreateDirectory "$SMPROGRAMS\${STARTMENU_FOLDER}"
-    CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Central Dashboard.lnk" "http://localhost:$ServerPort" "" "" 0 SW_SHOWNORMAL
-    CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Server Logs.lnk" "$INSTDIR\Server\Logs"
+    CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Central Dashboard.lnk" "http://localhost:$ServerPort"
+    CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Logs.lnk" "$APPDATA\${APP_NAME}\Logs"
 FunctionEnd
 
 Function StartServerService
@@ -273,17 +283,45 @@ Function StopServerIfRunning
     ExecWait '"$SYSDIR\sc.exe" stop "${SERVER_SERVICE_NAME}"'
 FunctionEnd
 
-Function StopAndRemoveServerService
+Function un.StopAndRemoveServerService
     ExecWait '"$SYSDIR\sc.exe" stop "${SERVER_SERVICE_NAME}"'
     ExecWait '"$SYSDIR\sc.exe" delete "${SERVER_SERVICE_NAME}"'
 FunctionEnd
 
+Function EscapeBackslashes
+    Exch $0 ; input
+    Push $1
+    Push $2
+    StrCpy $1 ""
+loop:
+    StrCpy $2 $0 1
+    StrCmp $2 "" done
+    StrCmp $2 "\" addslash noslash
+addslash:
+    StrCpy $1 "$1\\"
+    Goto next
+noslash:
+    StrCpy $1 "$1$2"
+next:
+    StrCpy $0 $0 "" 1
+    Goto loop
+done:
+    Pop $2
+    Pop $0
+    Exch $1 ; output
+FunctionEnd
+
 Function GenerateServerConfig
+    ; Escape backslashes for JSON
+    Push $ServerDataDir
+    Call EscapeBackslashes
+    Pop $ServerDataDirEscaped
+
     FileOpen $0 "$INSTDIR\Server\appsettings.json" w
     FileWrite $0 "{$\r$\n"
     FileWrite $0 '  "Server": {$\r$\n'
     FileWrite $0 '    "ListenUrl": "http://localhost:$ServerPort",$\r$\n'
-    FileWrite $0 '    "DatabasePath": "$ServerDataDir/StorageWatchServer.db",$\r$\n'
+    FileWrite $0 '    "DatabasePath": "$ServerDataDirEscaped\\StorageWatchServer.db",$\r$\n'
     FileWrite $0 '    "OnlineTimeoutMinutes": 10$\r$\n'
     FileWrite $0 "  }$\r$\n"
     FileWrite $0 "}"
@@ -291,53 +329,51 @@ Function GenerateServerConfig
 FunctionEnd
 
 Function ApplyFolderPermissions
-    ExecWait '"$SYSDIR\icacls.exe" "$COMMONAPPDATA\${APP_NAME}" /grant "SYSTEM:(OI)(CI)F" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$COMMONAPPDATA\${APP_NAME}\Logs" /grant "Users:(OI)(CI)M" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$COMMONAPPDATA\${APP_NAME}\Data" /grant "Users:(OI)(CI)M" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$COMMONAPPDATA\${APP_NAME}\Config" /grant "Users:(OI)(CI)RX" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$COMMONAPPDATA\${APP_NAME}\Plugins" /grant "Users:(OI)(CI)RX" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}" /grant "SYSTEM:(OI)(CI)F" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Logs" /grant "Users:(OI)(CI)M" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Data" /grant "Users:(OI)(CI)M" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Config" /grant "Users:(OI)(CI)RX" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Plugins" /grant "Users:(OI)(CI)RX" /T'
     
-    ${If} $SelectedRole == "Server"
-        ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Server" /grant "SYSTEM:(OI)(CI)F" /T'
-        ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Server\Data" /grant "Users:(OI)(CI)M" /T'
-        ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Server\Logs" /grant "Users:(OI)(CI)M" /T'
-    ${EndIf}
+${If} $SelectedRole == "Server"
+    ; No Program Files permissions needed anymore
+${EndIf}
 FunctionEnd
 
-Function PromptDeleteConfig
+Function un.PromptDeleteConfig
     MessageBox MB_YESNO "Delete configuration files?" IDYES deleteConfig IDNO doneConfig
     deleteConfig:
-        RMDir /r "$COMMONAPPDATA\${APP_NAME}\Config"
+        RMDir /r "$APPDATA\${APP_NAME}\Config"
     doneConfig:
 FunctionEnd
 
-Function PromptDeleteLogs
+Function un.PromptDeleteLogs
     MessageBox MB_YESNO "Delete logs?" IDYES deleteLogs IDNO doneLogs
     deleteLogs:
-        RMDir /r "$COMMONAPPDATA\${APP_NAME}\Logs"
+        RMDir /r "$APPDATA\${APP_NAME}\Logs"
     doneLogs:
 FunctionEnd
 
-Function PromptDeleteData
+Function un.PromptDeleteData
     MessageBox MB_YESNO "Delete SQLite data?" IDYES deleteData IDNO doneData
     deleteData:
-        RMDir /r "$COMMONAPPDATA\${APP_NAME}\Data"
+        RMDir /r "$APPDATA\${APP_NAME}\Data"
     doneData:
 FunctionEnd
 
-Function PromptDeleteServerData
+Function un.PromptDeleteServerData
     ${If} $SelectedRole == "Server"
         MessageBox MB_YESNO "Delete server database?" IDYES deleteServerData IDNO doneServerData
         deleteServerData:
-            RMDir /r "$INSTDIR\Server\Data"
+            RMDir /r "$APPDATA\${APP_NAME}\Data"
         doneServerData:
     ${EndIf}
 FunctionEnd
 
-Function PromptDeletePlugins
+Function un.PromptDeletePlugins
     MessageBox MB_YESNO "Delete plugins?" IDYES deletePlugins IDNO donePlugins
     deletePlugins:
-        RMDir /r "$COMMONAPPDATA\${APP_NAME}\Plugins"
+        RMDir /r "$APPDATA\${APP_NAME}\Plugins"
     donePlugins:
 FunctionEnd
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using StorageWatchServer.Config;
 using StorageWatchServer.Models;
 using StorageWatchServer.Services.AutoUpdate;
@@ -10,6 +11,9 @@ using System.IO;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Enable Windows Service hosting
+builder.Host.UseWindowsService();
 
 // Check operational mode before proceeding
 var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -56,6 +60,8 @@ builder.Services.AddRazorPages(options =>
 {
     options.RootDirectory = "/Dashboard";
 });
+
+builder.Services.AddControllers();
 
 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("Server"));
 builder.Services.Configure<AutoUpdateOptions>(builder.Configuration.GetSection(AutoUpdateOptions.SectionKey));
@@ -115,6 +121,7 @@ catch (Exception ex)
 
 app.UseStaticFiles();
 
+app.MapControllers();
 app.MapRazorPages();
 
 var apiGroup = app.MapGroup("/api");
