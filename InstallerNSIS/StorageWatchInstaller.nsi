@@ -7,8 +7,8 @@ RequestExecutionLevel admin
 
 !define APP_NAME "StorageWatch"
 !define COMPANY_NAME "StorageWatch"
-!define SERVICE_NAME "StorageWatchService"
-!define SERVICE_DISPLAY_NAME "StorageWatch Service"
+!define SERVICE_NAME "StorageWatchAgent"
+!define SERVICE_DISPLAY_NAME "StorageWatch Agent"
 !define SERVER_SERVICE_NAME "StorageWatchServer"
 !define SERVER_SERVICE_DISPLAY_NAME "StorageWatch Central Server"
 !define STARTMENU_FOLDER "StorageWatch"
@@ -49,12 +49,12 @@ Var hwndRoleAgent
 Var hwndRoleServer
 Var ServerDataDirEscaped
 
-Section -StorageWatchService SecService
+Section -StorageWatchAgent SecService
     SetShellVarContext all
     Call StopServiceIfRunning
 
-    SetOutPath "$INSTDIR\Service"
-    File /r "${PAYLOAD_DIR}\Service\*"
+    SetOutPath "$INSTDIR\Agent"
+    File /r "${PAYLOAD_DIR}\Agent\*"
 
     Call InstallService
 SectionEnd
@@ -135,7 +135,7 @@ Section "Uninstall"
     RMDir "$SMPROGRAMS\${STARTMENU_FOLDER}"
     Delete "$DESKTOP\StorageWatch Dashboard.lnk"
 
-    RMDir /r "$INSTDIR\Service"
+    RMDir /r "$INSTDIR\Agent"
     RMDir /r "$INSTDIR\UI"
     RMDir /r "$INSTDIR\Server"
     RMDir "$INSTDIR"
@@ -153,7 +153,7 @@ SectionEnd
 
 Function .onInit
     SetShellVarContext all
-    IfFileExists "$INSTDIR\Service\StorageWatchService.exe" 0 checkServer
+    IfFileExists "$INSTDIR\Agent\StorageWatchAgent.exe" 0 checkServer
     Call StopServiceIfRunning
     checkServer:
     IfFileExists "$INSTDIR\Server\StorageWatchServer.exe" 0 done
@@ -246,7 +246,7 @@ Function ServerConfigLeave
 FunctionEnd
 
 Function InstallService
-    ExecWait '"$SYSDIR\sc.exe" create "${SERVICE_NAME}" binPath= "$INSTDIR\Service\StorageWatchService.exe" start= auto DisplayName= "${SERVICE_DISPLAY_NAME}"'
+    ExecWait '"$SYSDIR\sc.exe" create "${SERVICE_NAME}" binPath= "$INSTDIR\Agent\StorageWatchAgent.exe" start= auto DisplayName= "${SERVICE_DISPLAY_NAME}"'
 FunctionEnd
 
 Function StartService

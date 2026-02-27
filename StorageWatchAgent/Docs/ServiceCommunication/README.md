@@ -22,11 +22,11 @@ We chose **Named Pipes** for IPC communication because:
 
 ## 🏗️ Architecture
 
-### Service Side (StorageWatchService)
+### Service Side (StorageWatchAgent)
 
 **New Components:**
 1. **`ServiceCommunicationServer`** (Hosted Background Service)
-   - Listens on Named Pipe: `StorageWatchServicePipe`
+   - Listens on Named Pipe: `StorageWatchAgentPipe`
    - Handles incoming requests from UI
    - Provides access to:
      - Service status
@@ -141,7 +141,7 @@ We chose **Named Pipes** for IPC communication because:
 ### 6. ✅ Communication Mechanism
 
 **Protocol:** Named Pipes
-- **Pipe Name:** `StorageWatchServicePipe`
+- **Pipe Name:** `StorageWatchAgentPipe`
 - **Direction:** Bidirectional (InOut)
 - **Mode:** Message-based
 - **Security:** Localhost-only
@@ -335,7 +335,7 @@ else
 ## 🔒 Security Considerations
 
 ### Localhost-Only Communication
-Named Pipes are configured for localhost-only access. The pipe name `\\.\pipe\StorageWatchServicePipe` uses the `.` notation, restricting access to the local machine.
+Named Pipes are configured for localhost-only access. The pipe name `\\.\pipe\StorageWatchAgentPipe` uses the `.` notation, restricting access to the local machine.
 
 ### No Authentication Required
 Since both the service and UI run on the same machine under the same user context (or with elevation), no additional authentication is required.
@@ -354,7 +354,7 @@ Quick diagnostics:
 
 1. **Check if service is running:**
    ```powershell
-   Get-Service StorageWatchService | Format-List *
+   Get-Service StorageWatchAgent | Format-List *
    ```
 
 2. **Check service logs:**
@@ -408,7 +408,7 @@ Quick diagnostics:
 ```
 feat: Implement Phase 3, Item 12 - Local Service ↔ UI Communication Layer
 
-Add secure Named Pipe-based IPC communication between StorageWatch service and UI.
+Add secure Named Pipe-based IPC communication between StorageWatchAgent service and UI.
 
 Service side:
 - Add ServiceCommunicationServer (hosted background service)

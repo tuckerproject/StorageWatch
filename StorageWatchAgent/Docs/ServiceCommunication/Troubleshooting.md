@@ -19,7 +19,7 @@
 
 #### Check if service is truly running:
 ```powershell
-Get-Service StorageWatchService | Format-List *
+Get-Service StorageWatchAgent | Format-List *
 ```
 
 #### Check service logs for IPC startup:
@@ -40,11 +40,11 @@ If missing, the IPC server failed to start. Check for errors above this line.
 [System.IO.Directory]::GetFiles("\\.\\pipe\\")
 ```
 
-Look for `StorageWatchServicePipe` in the output.
+Look for `StorageWatchAgentPipe` in the output.
 
 #### Restart the service:
 ```powershell
-Restart-Service StorageWatchService
+Restart-Service StorageWatchAgent
 ```
 
 ---
@@ -64,7 +64,7 @@ Restart-Service StorageWatchService
 
 #### Start the service:
 ```powershell
-Start-Service StorageWatchService
+Start-Service StorageWatchAgent
 ```
 
 #### Wait for service to fully start:
@@ -75,7 +75,7 @@ After starting the service, wait 5-10 seconds before attempting IPC operations.
 Event Viewer → Windows Logs → Application
 ```
 
-Filter by source: `.NET Runtime`, `StorageWatchService`
+Filter by source: `.NET Runtime`, `StorageWatchAgent`
 
 ---
 
@@ -209,7 +209,7 @@ Right-click `StorageWatchUI.exe` → "Run as administrator"
 
 #### Grant user permissions to control service:
 ```powershell
-sc.exe sdset StorageWatchService "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWRPWPDTLOCRRC;;;SU)"
+sc.exe sdset StorageWatchAgent "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWRPWPDTLOCRRC;;;SU)"
 ```
 
 This grants "Interactive Users" (IU) the right to start/stop the service.
@@ -239,7 +239,7 @@ Get-Process StorageWatchUI | Stop-Process
 
 #### Restart the service:
 ```powershell
-Restart-Service StorageWatchService
+Restart-Service StorageWatchAgent
 ```
 
 #### Check for conflicting applications:
@@ -274,8 +274,8 @@ Use **Process Monitor** (procmon.exe) from Sysinternals:
 1. Download from: https://docs.microsoft.com/en-us/sysinternals/downloads/procmon
 2. Run as Administrator
 3. Filter by:
-   - Process Name: `StorageWatchService.exe` or `StorageWatchUI.exe`
-   - Path: Contains `StorageWatchServicePipe`
+   - Process Name: `StorageWatchAgent.exe` or `StorageWatchUI.exe`
+   - Path: Contains `StorageWatchAgentPipe`
 4. Look for:
    - `CreateFile` events (connection attempts)
    - `ReadFile` / `WriteFile` events (data transfer)
@@ -290,13 +290,13 @@ Use **PipeList** and **PipeSniffer** from Sysinternals:
 pipelist.exe
 ```
 
-Look for `\Device\NamedPipe\StorageWatchServicePipe`
+Look for `\Device\NamedPipe\StorageWatchAgentPipe`
 
 ### Check Windows Event Logs
 
 ```powershell
 # Application errors
-Get-EventLog -LogName Application -Source "StorageWatchService" -Newest 50
+Get-EventLog -LogName Application -Source "StorageWatchAgent" -Newest 50
 
 # System errors
 Get-EventLog -LogName System -Source "Service Control Manager" -Newest 50 | Where-Object { $_.Message -like "*StorageWatch*" }
@@ -339,7 +339,7 @@ By default, Named Pipes inherit the security descriptor of the service. Since th
 
 ### Can Remote Machines Connect?
 
-No. Named Pipes in this implementation are localhost-only. The pipe name `\\.\pipe\StorageWatchServicePipe` uses the `.` notation, which restricts access to the local machine.
+No. Named Pipes in this implementation are localhost-only. The pipe name `\\.\pipe\StorageWatchAgentPipe` uses the `.` notation, which restricts access to the local machine.
 
 ### Can I Encrypt the Communication?
 

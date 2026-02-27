@@ -124,7 +124,7 @@ The service waits for network readiness (DNS resolution) before sending the firs
 
 **Q: Can I add Slack, Teams, or webhook notifications?**
 
-Custom alert senders can be added via the plugin architecture. See [PluginArchitecture.md](../StorageWatchService/Docs/PluginArchitecture.md) and [QuickStart-AddingPlugins.md](../StorageWatchService/Docs/QuickStart-AddingPlugins.md).
+Custom alert senders can be added via the plugin architecture. See [PluginArchitecture.md](../StorageWatchAgent/Docs/PluginArchitecture.md) and [QuickStart-AddingPlugins.md](../StorageWatchAgent/Docs/QuickStart-AddingPlugins.md).
 
 ---
 
@@ -205,7 +205,7 @@ dotnet test
 dotnet test
 ```
 
-See [StorageWatchService.Tests/README.md](../StorageWatchService.Tests/README.md) for details on running specific test categories and generating coverage reports.
+See [StorageWatchAgent.Tests/README.md](../StorageWatchAgent.Tests/README.md) for details on running specific test categories and generating coverage reports.
 
 ---
 

@@ -12,9 +12,9 @@
 
 ```powershell
 # Agent Service
-dotnet publish StorageWatchService\StorageWatchService.csproj `
+dotnet publish StorageWatchAgent\StorageWatchAgent.csproj `
   -c Release -f net10.0 `
-  -o InstallerNSIS\Payload\Service\
+  -o InstallerNSIS\Payload\Agent\
 
 # Central Server
 dotnet publish StorageWatchServer\StorageWatchServer.csproj `

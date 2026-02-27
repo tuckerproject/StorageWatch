@@ -16,7 +16,7 @@ namespace StorageWatch.Communication;
 /// </summary>
 public class ServiceCommunicationServer : BackgroundService
 {
-    private const string PipeName = "StorageWatchServicePipe";
+    private const string PipeName = "StorageWatchAgentPipe";
     private readonly RollingFileLogger _logger;
     private readonly IServiceProvider _serviceProvider;
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The StorageWatch service and UI communicate via **Named Pipes**, a Windows IPC mechanism that provides secure, high-performance, localhost-only communication.
+The StorageWatchAgent service and UI communicate via **Named Pipes**, a Windows IPC mechanism that provides secure, high-performance, localhost-only communication.
 
 ## Architecture Diagram
 
@@ -19,11 +19,11 @@ The StorageWatch service and UI communicate via **Named Pipes**, a Windows IPC m
 │  └────────────────────────────────┘ │
 └─────────────────┬───────────────────┘
                   │
-                  │ Named Pipe: "StorageWatchServicePipe"
+                  │ Named Pipe: "StorageWatchAgentPipe"
                   │ (localhost only, secure)
                   │
 ┌─────────────────▼───────────────────┐
-│  StorageWatchService (Windows Svc)  │
+│   StorageWatchAgent (Windows Svc)   │
 │                                     │
 │  ┌────────────────────────────────┐ │
 │  │ ServiceCommunicationServer     │ │
@@ -242,7 +242,7 @@ All responses follow this structure:
 
 ### Localhost Only
 
-Named Pipes in this implementation are configured for **localhost-only** communication. The pipe name `StorageWatchServicePipe` can only be accessed from the local machine.
+Named Pipes in this implementation are configured for **localhost-only** communication. The pipe name `StorageWatchAgentPipe` can only be accessed from the local machine.
 
 ### No Authentication Required
 

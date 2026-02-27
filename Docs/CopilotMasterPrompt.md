@@ -10,7 +10,7 @@ All work should follow **.NET 10**, modern .NET best practices, and the roadmap 
 
 StorageWatch is a Windows‑based storage monitoring platform consisting of:
 
-- **StorageWatchService.exe**  
+- **StorageWatchAgent.exe**  
   - Runs as a Windows Service  
   - Monitors local disks  
   - Stores data in local SQLite  
@@ -150,7 +150,7 @@ Installer must ask:
 
 ### 13. Installer Package
 Create a complete NSIS installer for StorageWatch that packages and installs:
-- `StorageWatchService.exe`  
+- `StorageWatchAgent.exe`  
 - `StorageWatchUI.exe`  
 - SQLite runtime files  
 - Default config templates  

@@ -12,7 +12,7 @@ namespace StorageWatchUI.Communication;
 /// </summary>
 public class ServiceCommunicationClient
 {
-    private const string PipeName = "StorageWatchServicePipe";
+    private const string PipeName = "StorageWatchAgentPipe";
     private const int TimeoutMilliseconds = 5000;
     private const int MaxRetries = 3;
 

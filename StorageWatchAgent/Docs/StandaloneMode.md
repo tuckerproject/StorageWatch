@@ -10,7 +10,7 @@ Set the mode in `appsettings.json` under `StorageWatch.Mode`:
 |---|---|
 | `Standalone` | Local drive monitoring only. No central server communication. |
 | `Agent` | Local monitoring + periodic reports to a central StorageWatchServer. |
-| `Server` | Central aggregation server. Use StorageWatchServer.exe, not StorageWatchService.exe. |
+| `Server` | Central aggregation server. Use StorageWatchServer.exe, not StorageWatchAgent.exe. |
 
 ---
 
@@ -66,7 +66,7 @@ Set the mode in `appsettings.json` under `StorageWatch.Mode`:
 
 ## Server Mode
 
-The Server mode is handled by **StorageWatchServer.exe**, not StorageWatchService.exe. If StorageWatchServer detects the mode is not `Server`, it exits with an error.
+The Server mode is handled by **StorageWatchServer.exe**, not StorageWatchAgent.exe. If StorageWatchServer detects the mode is not `Server`, it exits with an error.
 
 ---
 

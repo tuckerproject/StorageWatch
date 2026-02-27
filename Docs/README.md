@@ -12,7 +12,7 @@ StorageWatch consists of three components that work independently or together:
 
 | Component | Description |
 |---|---|
-| **StorageWatchService** | Windows Service — monitors local disks, stores data in SQLite, sends alerts |
+| **StorageWatchAgent** | Windows Service — monitors local disks, stores data in SQLite, sends alerts |
 | **StorageWatchServer** | Central server — aggregates data from agents, hosts web dashboard |
 | **StorageWatchUI** | Desktop GUI — shows local and central trends, manages service |
 
@@ -116,7 +116,7 @@ For the full configuration reference, see [ConfigReference.md](./ConfigReference
 
 | Component | Documentation |
 |---|---|
-| StorageWatchService | [Plugin Architecture](../StorageWatchService/Docs/PluginArchitecture.md) · [IPC Communication](../StorageWatchService/Docs/ServiceCommunication/README.md) · [Standalone Mode](../StorageWatchService/Docs/StandaloneMode.md) |
+| StorageWatchAgent | [Plugin Architecture](../StorageWatchAgent/Docs/PluginArchitecture.md) · [IPC Communication](../StorageWatchAgent/Docs/ServiceCommunication/README.md) · [Standalone Mode](../StorageWatchAgent/Docs/StandaloneMode.md) |
 | StorageWatchServer | [API Reference](../StorageWatchServer/Docs/CentralWebDashboard.md) · [Quick Reference](../StorageWatchServer/Docs/QuickReference.md) |
 | StorageWatchUI | [User Guide](../StorageWatchUI/Docs/UI/UserGuide.md) · [Architecture](../StorageWatchUI/Docs/UI/Architecture.md) |
 | Installer | [Build Guide](../InstallerNSIS/Docs/README.md) · [Quick Start](../InstallerNSIS/Docs/QUICK-START.md) |

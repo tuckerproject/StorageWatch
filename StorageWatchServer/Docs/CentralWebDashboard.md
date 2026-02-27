@@ -854,7 +854,7 @@ The following are **only enabled** when running StorageWatchServer:
 
 ### Agent vs. Server
 
-| Feature | StorageWatchService (Agent) | StorageWatchServer (Server) |
+| Feature | StorageWatchAgent (Agent) | StorageWatchServer (Server) |
 |---------|-------|--------|
 | Local disk monitoring | ✅ Yes | ❌ No |
 | Local SQLite database | ✅ Yes | ✅ Yes (multi-machine) |

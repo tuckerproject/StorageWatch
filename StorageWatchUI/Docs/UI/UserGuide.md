@@ -7,7 +7,7 @@ StorageWatchUI is a desktop application for monitoring disk space on Windows mac
 ## Installation
 
 1. Extract the StorageWatchUI files to a folder (e.g., `C:\Program Files\StorageWatch\`)
-2. Ensure the StorageWatch Windows Service is installed and running
+2. Ensure the StorageWatchAgent Windows Service is installed and running
 3. Run `StorageWatchUI.exe` with Administrator privileges
 
 **Note**: Administrator privileges are required for service management features.
@@ -38,7 +38,7 @@ The main window consists of two areas:
 - Auto-refresh every 30 seconds
 
 **What to do if no disks appear**:
-1. Ensure StorageWatch service is running (check Service Status view)
+1. Ensure StorageWatchAgent service is running (check Service Status view)
 2. Verify the service has collected data (check service logs)
 3. Confirm the database file exists at `%ProgramData%\StorageWatch\StorageWatch.db`
 
@@ -91,12 +91,12 @@ The main window consists of two areas:
 - Fallback: Current directory
 
 **Important**:
-- After editing the config file, restart the StorageWatch service for changes to take effect
+- After editing the config file, restart the StorageWatchAgent service for changes to take effect
 - Invalid JSON will prevent the service from starting
 
 ### 5. Service Status
 
-**Purpose**: Monitor and control the StorageWatch Windows Service.
+**Purpose**: Monitor and control the StorageWatchAgent Windows Service.
 
 **Features**:
 - Service installation status
@@ -190,7 +190,7 @@ Currently, the UI uses mouse-driven navigation. Future versions may add keyboard
 ## Updating the UI
 
 1. Close the UI application
-2. Stop the StorageWatch service (if updating both)
+2. Stop the StorageWatchAgent service (if updating both)
 3. Replace the executable files
 4. Start the service
 5. Launch the UI

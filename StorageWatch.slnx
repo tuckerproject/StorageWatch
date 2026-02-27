@@ -21,8 +21,8 @@
   </Folder>
   <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />
   <Project Path="StorageWatchServer/StorageWatchServer.csproj" />
-  <Project Path="StorageWatchService.Tests/StorageWatchService.Tests.csproj" />
-  <Project Path="StorageWatchService/StorageWatchService.csproj" />
+  <Project Path="StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj" />
+  <Project Path="StorageWatchAgent/StorageWatchAgent.csproj" />
   <Project Path="StorageWatchUI.Tests/StorageWatchUI.Tests.csproj" />
   <Project Path="StorageWatchUI/StorageWatchUI.csproj" />
 </Solution>

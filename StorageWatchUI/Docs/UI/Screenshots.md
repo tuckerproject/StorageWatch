@@ -120,7 +120,7 @@
 │ Service Status                                                         │
 │                                                                        │
 │ ┌──────────────────────────────────────────────────────────────────┐ │
-│ │ Service: StorageWatchService                                      │ │
+│ │ Service: StorageWatchAgent                                        │ │
 │ │ Status:  Running                                                  │ │
 │ │                                                                   │ │
 │ │ [Start Service] [Stop Service] [Restart Service] [Refresh]       │ │
@@ -129,7 +129,7 @@
 │ Recent Log Entries (Last 20)                   [Refresh Logs]         │
 │                                                                        │
 │ ┌──────────────────────────────────────────────────────────────────┐ │
-│ │ [2024-01-15 14:45:00]  [Worker] Starting StorageWatch Service    │ │
+│ │ [2024-01-15 14:45:00]  [Worker] Starting StorageWatch Agent      │ │
 │ │ [2024-01-15 14:45:01]  [SQLite] Database initialized             │ │
 │ │ [2024-01-15 14:45:01]  [Monitor] Monitoring drives: C:, D:       │ │
 │ │ [2024-01-15 14:45:05]  [Alert] Disk D: is below threshold        │ │

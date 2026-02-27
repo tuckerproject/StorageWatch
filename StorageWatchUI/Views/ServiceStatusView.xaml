@@ -28,7 +28,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                     <TextBlock Text="Service: " FontSize="16" 
                                Foreground="{DynamicResource SecondaryText}"/>
-                    <TextBlock Text="StorageWatchService" FontSize="16" FontWeight="Bold" 
+                    <TextBlock Text="StorageWatchAgent" FontSize="16" FontWeight="Bold" 
                                Foreground="{DynamicResource PrimaryText}"/>
                 </StackPanel>
 

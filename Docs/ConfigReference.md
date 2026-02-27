@@ -4,7 +4,7 @@ This document describes every configuration option for all StorageWatch componen
 
 ---
 
-## StorageWatchService
+## StorageWatchAgent
 
 The service uses two JSON files:
 
@@ -41,7 +41,7 @@ Sets the operational mode for the service.
 |---|---|
 | `Standalone` | Local monitoring only. No central server communication. |
 | `Agent` | Local monitoring + reports to a central StorageWatchServer. |
-| `Server` | Runs as central server. Not used for StorageWatchService — use StorageWatchServer instead. |
+| `Server` | Runs as central server. Not used for StorageWatchAgent — use StorageWatchServer instead. |
 
 **Default:** `Standalone`
 

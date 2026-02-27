@@ -10,7 +10,7 @@ namespace StorageWatchUI.Services;
 /// </summary>
 public class ServiceManager : IServiceManager
 {
-    private const string ServiceName = "StorageWatchService";
+    private const string ServiceName = "StorageWatchAgent";
 
     /// <summary>
     /// Checks if the current process is running with administrator privileges.

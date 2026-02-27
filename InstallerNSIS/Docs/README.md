@@ -13,7 +13,7 @@ Place the files below before running `makensis.exe`:
 InstallerNSIS/
   Payload/
     Service/
-      StorageWatchService.exe
+      StorageWatchAgent.exe
       (service dependencies)
     UI/
       StorageWatchUI.exe

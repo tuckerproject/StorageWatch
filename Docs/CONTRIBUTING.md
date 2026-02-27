@@ -80,7 +80,7 @@ All code changes should include tests. The project uses:
 - **Moq** — mocking
 - **FluentAssertions** — assertions
 
-New features require unit tests. Changes to data access or service communication require integration tests. See [StorageWatchService.Tests/README.md](../StorageWatchService.Tests/README.md) for guidance.
+New features require unit tests. Changes to data access or service communication require integration tests. See [StorageWatchAgent.Tests/README.md](../StorageWatchAgent.Tests/README.md) for guidance.
 
 ### Pull Request Checklist
 
@@ -133,7 +133,7 @@ StorageWatch supports custom alert senders via the plugin architecture. To add a
 3. Add the `[AlertSenderPlugin]` attribute.
 4. Register the sender in the DI container.
 
-See [PluginArchitecture.md](../StorageWatchService/Docs/PluginArchitecture.md) and [QuickStart-AddingPlugins.md](../StorageWatchService/Docs/QuickStart-AddingPlugins.md) for complete instructions.
+See [PluginArchitecture.md](../StorageWatchAgent/Docs/PluginArchitecture.md) and [QuickStart-AddingPlugins.md](../StorageWatchAgent/Docs/QuickStart-AddingPlugins.md) for complete instructions.
 
 ---
 
@@ -142,7 +142,7 @@ See [PluginArchitecture.md](../StorageWatchService/Docs/PluginArchitecture.md) a
 Documentation improvements are always welcome. Docs live in:
 
 - `Docs/` — Solution-level docs (architecture, config reference, troubleshooting, FAQ)
-- `StorageWatchService/Docs/` — Service-specific docs
+- `StorageWatchAgent/Docs/` — Service-specific docs
 - `StorageWatchServer/Docs/` — Server-specific docs
 - `StorageWatchUI/Docs/` — UI-specific docs
 - `InstallerNSIS/Docs/` — Installer-specific docs

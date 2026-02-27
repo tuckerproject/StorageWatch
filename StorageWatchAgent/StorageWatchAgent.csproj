@@ -4,8 +4,8 @@
 	<TargetFramework>net10.0</TargetFramework>
 	<Nullable>enable</Nullable>
 	<ImplicitUsings>enable</ImplicitUsings>
-	<RootNamespace>StorageWatchService</RootNamespace>
-	<AssemblyName>StorageWatchService</AssemblyName>
+	<RootNamespace>StorageWatchAgent</RootNamespace>
+	<AssemblyName>StorageWatchAgent</AssemblyName>
 	<UserSecretsId>dotnet-StorageWatch-5171660d-2158-404d-801d-e9cb0c54631b</UserSecretsId>
 	<WindowsService>true</WindowsService>
   </PropertyGroup>

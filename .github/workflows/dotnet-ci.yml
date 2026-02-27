@@ -28,8 +28,8 @@ jobs:
     # -------------------------
     # Run ALL test projects
     # -------------------------
-    - name: Run StorageWatchService.Tests
-      run: dotnet test StorageWatchService.Tests/StorageWatchService.Tests.csproj --configuration Release --no-build --verbosity normal
+    - name: Run StorageWatchAgent.Tests
+      run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration Release --no-build --verbosity normal
 
     - name: Run StorageWatchServer.Tests
       run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration Release --no-build --verbosity normal
@@ -45,20 +45,20 @@ jobs:
       if: always()
       with:
         name: code-coverage-reports
-        path: StorageWatchService.Tests/coverage/
+        path: StorageWatchAgent.Tests/coverage/
         retention-days: 30
 
     # -------------------------
-    # Publish service
+    # Publish agent
     # -------------------------
-    - name: Publish build artifacts - Service
-      run: dotnet publish StorageWatchService/StorageWatchService.csproj --configuration Release --output ./publish/StorageWatchService
+    - name: Publish build artifacts - Agent
+      run: dotnet publish StorageWatchAgent/StorageWatchAgent.csproj --configuration Release --output ./publish/StorageWatchAgent
 
-    - name: Upload service executable artifact
+    - name: Upload agent executable artifact
       uses: actions/upload-artifact@v4
       with:
-        name: StorageWatchService-executable
-        path: ./publish/StorageWatchService/
+        name: StorageWatchAgent-executable
+        path: ./publish/StorageWatchAgent/
         retention-days: 30
 
     # -------------------------

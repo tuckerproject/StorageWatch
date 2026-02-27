@@ -4,7 +4,7 @@ This guide covers common problems and their solutions for all StorageWatch compo
 
 ---
 
-## StorageWatchService
+## StorageWatchAgent
 
 ### Service Won't Start
 
@@ -184,9 +184,9 @@ This guide covers common problems and their solutions for all StorageWatch compo
 
 **Steps:**
 1. Ensure the UI is running with administrator privileges (required for service control).
-2. Verify the service name is `StorageWatchService`:
+2. Verify the service name is `StorageWatchAgent`:
    ```powershell
-   Get-Service StorageWatchService
+   Get-Service StorageWatchAgent
    ```
 3. If the named-pipe IPC connection fails, the UI falls back to direct SCM queries.
 
@@ -221,7 +221,7 @@ This guide covers common problems and their solutions for all StorageWatch compo
 **Steps:**
 1. Remove the existing service manually:
    ```powershell
-   sc delete StorageWatchService
+   sc delete StorageWatchAgent
    ```
 2. Run the installer again.
 
@@ -257,7 +257,7 @@ dotnet --list-runtimes
 ### Restarting the Service
 
 ```powershell
-Restart-Service StorageWatchService
+Restart-Service StorageWatchAgent
 ```
 
 ### Viewing Windows Event Log Entries

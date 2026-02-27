@@ -1,10 +1,10 @@
-# StorageWatch Alert Sender Plugin Architecture Diagram
+# StorageWatchAgent Alert Sender Plugin Architecture Diagram
 
 ## Component Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         StorageWatch Service                             │
+│                         StorageWatchAgent                              │
 │                                                                           │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                          Worker.cs                                 │  │

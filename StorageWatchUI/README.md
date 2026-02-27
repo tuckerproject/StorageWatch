@@ -16,7 +16,7 @@ When a central StorageWatchServer is configured, the UI also shows a fleet-wide 
 
 - Windows 10 or later
 - .NET 10 Desktop Runtime
-- StorageWatchService installed (recommended, but not required for read-only views)
+- StorageWatchAgent installed (recommended, but not required for read-only views)
 - Administrator privileges (required for service start/stop/restart)
 
 ---
@@ -59,7 +59,7 @@ Displays the current configuration.
 
 ### Service Status
 
-Monitors and controls the StorageWatchService Windows Service.
+Monitors and controls the StorageWatchAgent Windows Service.
 
 - Detects current service state (Running, Stopped, etc.)
 - Start / Stop / Restart buttons (requires administrator)

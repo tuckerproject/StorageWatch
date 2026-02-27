@@ -51,8 +51,8 @@ if (currentMode != "Server" && !string.IsNullOrEmpty(currentMode))
 {
     var logger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
     logger.LogError("StorageWatch Server can only run in 'Server' mode. Current mode: {Mode}", currentMode ?? "Unknown");
-    logger.LogError("To run in Agent mode, use StorageWatchService.exe");
-    logger.LogError("To run in Standalone mode, use StorageWatchService.exe");
+    logger.LogError("To run in Agent mode, use StorageWatchAgent.exe");
+    logger.LogError("To run in Standalone mode, use StorageWatchAgent.exe");
     Environment.Exit(1);
 }
 

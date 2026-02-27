@@ -13,13 +13,13 @@ StorageWatch is composed of three deployable components:
 │                      StorageWatch Platform                   │
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────┐  │
-│  │ StorageWatchSvc  │  │ StorageWatchSvr  │  │   UI     │  │
-│  │  (Windows Svc)   │  │  (Central Svc)   │  │  (WPF)   │  │
+│  │ StorageWatchAgent│  │ StorageWatchServer│ │StorageWatchUI│
+│  │(Monitoring Agent)│  │ (Central Server) │ │   (WPF)   │  │
 │  └──────────────────┘  └──────────────────┘  └──────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### StorageWatchService
+### StorageWatchAgent
 
 A .NET 10 Windows Service that runs on every monitored machine.
 
@@ -73,7 +73,7 @@ A .NET 10 WPF desktop application.
 - Displays local disk usage from the local SQLite database
 - Displays historical trend charts
 - Shows multi-machine status from the central server (when configured)
-- Controls the StorageWatchService (start/stop/restart)
+- Controls the StorageWatchAgent (start/stop/restart)
 - Shows service logs and current configuration
 
 **Internal components:**
@@ -101,7 +101,7 @@ StorageWatch supports three deployment modes, configured via `StorageWatch.Mode`
 ┌────────────────────────────┐
 │   Single Machine           │
 │                            │
-│  StorageWatchService       │
+│  StorageWatchAgent       │
 │  ├── Drive monitoring      │
 │  ├── SQLite (local)        │
 │  └── Alert plugins         │
@@ -119,12 +119,12 @@ Best for: single-machine environments, home labs.
 ┌───────────────────┐    ┌───────────────────────────┐
 │   Agent Machine   │    │   Central Server Machine  │
 │                   │    │                           │
-│  SW Service       │───▶│  StorageWatchServer       │
+│  StorageWatchAgent│───▶│  StorageWatchServer       │
 │  ├── Monitoring   │    │  ├── REST API             │
 │  ├── SQLite       │    │  ├── SQLite (multi)       │
 │  └── Alerts       │    │  └── Web dashboard        │
 │                   │    │                           │
-│  SW UI            │    │  SW UI (optional)         │
+│  StorageWatchUI   │    │  StorageWatchUI (optional)│
 │  └── Local + API  │    │  └── Full fleet view      │
 └───────────────────┘    └───────────────────────────┘
 ```
@@ -135,7 +135,7 @@ Best for: multi-machine environments, server farms.
 
 ## Data Flow
 
-### Alert Flow (Service)
+### Alert Flow (Agent)
 
 ```
 Drive scan
@@ -151,7 +151,7 @@ State machine evaluation
                                └── GroupMeAlertSender
 ```
 
-### Reporting Flow (Service)
+### Reporting Flow (Agent)
 
 ```
 Daily schedule (CollectionTime)
@@ -171,7 +171,7 @@ StorageWatchUI
     │
     ├── LocalDataProvider ──▶ Local SQLite (StorageWatch.db)
     │
-    ├── ServiceCommunicationClient ──▶ Named pipe ──▶ StorageWatchService
+    ├── ServiceCommunicationClient ──▶ Named pipe ──▶ StorageWatchAgent
     │
     └── CentralDataProvider ──▶ HTTP ──▶ StorageWatchServer /api/...
 ```
@@ -180,7 +180,7 @@ StorageWatchUI
 
 ## IPC Communication (Service ↔ UI)
 
-The service and UI communicate over a **named pipe** (`StorageWatchServicePipe`) for:
+The service and UI communicate over a **named pipe** (`StorageWatchAgentPipe`) for:
 - Real-time service status (uptime, last execution, errors)
 - Log access
 - Configuration validation
@@ -189,7 +189,7 @@ The service and UI communicate over a **named pipe** (`StorageWatchServicePipe`)
 
 The UI falls back to direct SQLite and file reads when the service pipe is unavailable.
 
-See [ServiceCommunication/Architecture.md](../StorageWatchService/Docs/ServiceCommunication/Architecture.md) for details.
+See [ServiceCommunication/Architecture.md](../StorageWatchAgent/Docs/ServiceCommunication/Architecture.md) for details.
 
 ---
 
@@ -197,7 +197,7 @@ See [ServiceCommunication/Architecture.md](../StorageWatchService/Docs/ServiceCo
 
 ### Local Database (StorageWatch.db)
 
-Used by StorageWatchService and StorageWatchUI.
+Used by StorageWatchAgent and StorageWatchUI.
 
 ```sql
 CREATE TABLE DiskSpaceLog (
@@ -252,7 +252,7 @@ All dependencies are MIT, Public Domain, or similarly permissive.
 ```
 StorageWatch/
 ├── Docs/                          # Solution-level documentation
-├── StorageWatchService/           # Windows Service project
+├── StorageWatchAgent/           # Windows Service project
 │   ├── Config/                    # Configuration loading and options
 │   ├── Data/                      # SQLite schema and repository
 │   ├── Services/
@@ -261,7 +261,7 @@ StorageWatch/
 │   │   └── Scheduling/            # Background loops
 │   ├── Communication/             # Named-pipe IPC server
 │   └── Docs/                      # Service-level documentation
-├── StorageWatchService.Tests/     # Service unit and integration tests
+├── StorageWatchAgent.Tests/     # Service unit and integration tests
 ├── StorageWatchServer/            # Central server project
 │   ├── Server/
 │   │   ├── Api/                   # REST API endpoints

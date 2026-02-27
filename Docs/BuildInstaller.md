@@ -16,9 +16,9 @@ Publish each project to the `Payload` directory:
 
 #### Agent Service
 ```powershell
-dotnet publish StorageWatchService\StorageWatchService.csproj `
+dotnet publish StorageWatchAgent\StorageWatchAgent.csproj `
   -c Release -f net10.0 `
-  -o InstallerNSIS\Payload\Service\
+  -o InstallerNSIS\Payload\Agent\
 ```
 
 #### Central Server
@@ -90,9 +90,9 @@ Save as `build-installer.ps1`:
 
 ```powershell
 # Build and publish all components
-Write-Host "Publishing StorageWatchService..."
-dotnet publish StorageWatchService\StorageWatchService.csproj `
-  -c Release -f net10.0 -o InstallerNSIS\Payload\Service\
+Write-Host "Publishing StorageWatchAgent..."
+dotnet publish StorageWatchAgent\StorageWatchAgent.csproj `
+  -c Release -f net10.0 -o InstallerNSIS\Payload\Agent\
 
 Write-Host "Publishing StorageWatchServer..."
 dotnet publish StorageWatchServer\StorageWatchServer.csproj `
@@ -104,7 +104,7 @@ dotnet publish StorageWatchUI\StorageWatchUI.csproj `
 
 # Verify payload directories
 $requiredDirs = @(
-    "InstallerNSIS\Payload\Service",
+    "InstallerNSIS\Payload\Agent",
     "InstallerNSIS\Payload\Server",
     "InstallerNSIS\Payload\UI",
     "InstallerNSIS\Payload\SQLite",
@@ -162,9 +162,9 @@ The following structure must exist before running NSIS:
 
 ```
 InstallerNSIS\Payload\
-├── Service\
-│   ├── StorageWatchService.exe
-│   ├── StorageWatchService.dll
+├── Agent\
+│   ├── StorageWatchAgent.exe
+│   ├── StorageWatchAgent.dll
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
 │   └── (all dependencies)
@@ -213,7 +213,7 @@ InstallerNSIS\Payload\
 3. Skip the Server Config page
 4. Install all components
 5. Verify:
-   - `StorageWatchService` service is registered and running
+   - `StorageWatchAgent` service is registered and running
    - `StorageWatchUI.exe` can be launched from Start Menu
    - `%PROGRAMDATA%\StorageWatch\` directories created
 
@@ -254,7 +254,7 @@ InstallerNSIS\Payload\
 - Check for typos in `File` directives
 
 ### Installer runs but services don't start
-- Verify `StorageWatchService.exe` and `StorageWatchServer.exe` are 64-bit
+- Verify `StorageWatchAgent.exe` and `StorageWatchServer.exe` are 64-bit
 - Check Event Viewer → Windows Logs → Application for error details
 - Verify .NET 10 runtime is installed on target machine
 
@@ -300,7 +300,7 @@ jobs:
       
       - name: Publish Services
         run: |
-          dotnet publish StorageWatchService -c Release -f net10.0 -o InstallerNSIS\Payload\Service
+          dotnet publish StorageWatchAgent -c Release -f net10.0 -o InstallerNSIS\Payload\Agent
           dotnet publish StorageWatchServer -c Release -f net10.0 -o InstallerNSIS\Payload\Server
           dotnet publish StorageWatchUI -c Release -f net10.0 -o InstallerNSIS\Payload\UI
       
@@ -315,4 +315,3 @@ jobs:
         with:
           name: StorageWatchInstaller
           path: InstallerNSIS\StorageWatchInstaller.exe
-```

@@ -16,7 +16,7 @@ The StorageWatch Installer (`StorageWatchInstaller.exe`) is an NSIS-based Window
 **Purpose:** Monitors local disk usage on a single machine.
 
 **What Gets Installed:**
-- `StorageWatchService.exe` — Runs as a Windows Service
+- `StorageWatchAgent.exe` — Runs as a Windows Service
 - `StorageWatchUI.exe` — Local GUI dashboard
 - Local SQLite database for historical data
 - Configuration and plugin folders
@@ -24,14 +24,14 @@ The StorageWatch Installer (`StorageWatchInstaller.exe`) is an NSIS-based Window
 **Installation Path:**
 ```
 $PROGRAMFILES64\StorageWatch\
-├── Service\
+├── Agent\
 ├── UI\
 └── (other support files)
 ```
 
 **Windows Service:**
-- Service Name: `StorageWatchService`
-- Display Name: `StorageWatch Service`
+- Service Name: `StorageWatchAgent`
+- Display Name: `StorageWatch Agent`
 - Startup Type: Automatic
 
 **Configuration:**
@@ -54,7 +54,7 @@ $PROGRAMFILES64\StorageWatch\
 **Installation Path:**
 ```
 $PROGRAMFILES64\StorageWatch\
-├── Service\         (optional, for agent mode agents)
+├── Agent\           (optional, for agent mode agents)
 ├── UI\              (optional, local dashboard)
 ├── Server\
 │   ├── appsettings.json
@@ -109,7 +109,7 @@ If you select "Central Server," an additional configuration page appears:
 
 Standard NSIS component selection allows you to choose:
 
-- **StorageWatch Service** — Required for Agent mode
+- **StorageWatch Agent** — Required for Agent mode
 - **StorageWatch Central Server** — Required for Central Server mode
 - **StorageWatch UI** — Local dashboard (optional for servers)
 - **Desktop Shortcut** — Optional shortcut on desktop
@@ -211,13 +211,13 @@ $PROGRAMFILES64\StorageWatch\
 **Agent Service:**
 ```powershell
 # Start
-Start-Service StorageWatchService
+Start-Service StorageWatchAgent
 
 # Stop
-Stop-Service StorageWatchService
+Stop-Service StorageWatchAgent
 
 # Check status
-Get-Service StorageWatchService
+Get-Service StorageWatchAgent
 ```
 
 **Server Service:**
@@ -238,7 +238,7 @@ If you need to manually register the service:
 
 **Agent Service:**
 ```cmd
-sc create StorageWatchService binPath= "C:\Program Files\StorageWatch\Service\StorageWatchService.exe" start= auto DisplayName= "StorageWatch Service"
+sc create StorageWatchAgent binPath= "C:\Program Files\StorageWatch\Agent\StorageWatchAgent.exe" start= auto DisplayName= "StorageWatch Agent"
 ```
 
 **Server Service:**
@@ -287,12 +287,12 @@ The uninstaller:
 
 1. Verify the service is registered:
    ```powershell
-   Get-Service StorageWatchService
+   Get-Service StorageWatchAgent
    ```
 
 2. Check Event Viewer for error details:
    - Open `Event Viewer` → `Windows Logs` → `Application`
-   - Look for entries from `StorageWatchService` or `StorageWatchServer`
+   - Look for entries from `StorageWatchAgent` or `StorageWatchServer`
 
 3. Ensure the executable path is correct in the service registration
 
