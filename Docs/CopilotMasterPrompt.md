@@ -138,12 +138,12 @@ Installer must ask:
   - Reads from central server API  
   - Shows multi‑machine trends  
 - Additional features:
-  - Service status  
+  - Agent status  
   - Log viewer  
   - Settings editor  
   - Alert testing tools  
 
-### 12. Service ↔ UI Communication
+### 12. Agent ↔ UI Communication
 - Local SQLite for local trends  
 - REST API (Kestrel) for central server communication  
 - Optional named pipes for advanced local interactions  
@@ -207,7 +207,6 @@ Create a complete NSIS installer for StorageWatch that packages and installs:
 - Issue templates  
 - Feature request templates  
 - Plugin examples  
-- Sample dashboards (Power BI, Grafana)  
 
 ---
 

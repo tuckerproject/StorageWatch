@@ -1,0 +1,15 @@
+{
+  "StorageWatch": {
+    "Server": {
+      "Port": 5000
+    },
+    "Database": {
+      "ConnectionString": "Data Source=StorageWatch.db;Version=3;"
+    },
+    "CentralServer": {
+      "Enabled": true,
+      "ServerId": "central-server",
+      "ApiKey": "your-optional-api-key"
+    }
+  }
+}

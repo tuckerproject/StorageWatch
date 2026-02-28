@@ -56,6 +56,7 @@ Section -StorageWatchAgent SecService
     SetOutPath "$INSTDIR\Agent"
     File /r "${PAYLOAD_DIR}\Agent\*"
 
+    Call CreateAgentProgramData
     Call InstallService
 SectionEnd
 
@@ -66,7 +67,7 @@ Section -StorageWatchCentralServer SecServer
     SetOutPath "$INSTDIR\Server"
     File /r "${PAYLOAD_DIR}\Server\*"
 
-    Call GenerateServerConfig
+    Call CreateServerProgramData
     Call InstallServerService
 SectionEnd
 
@@ -87,24 +88,14 @@ SectionEnd
 Section -ProgramData SecProgramData
     SetShellVarContext all
 
-    ; Create root ProgramData folder
+    ; Create root ProgramData folder structure for the new Agent/Server split
     CreateDirectory "$APPDATA\${APP_NAME}"
-
-    ; Create subfolders (but NOT Config)
+    CreateDirectory "$APPDATA\${APP_NAME}\Agent"
+    CreateDirectory "$APPDATA\${APP_NAME}\Server"
     CreateDirectory "$APPDATA\${APP_NAME}\Plugins"
     CreateDirectory "$APPDATA\${APP_NAME}\Logs"
-    CreateDirectory "$APPDATA\${APP_NAME}\Data"
 
     Call ApplyFolderPermissions
-
-    ; Write the shared config file to the root ProgramData folder
-    IfFileExists "$APPDATA\${APP_NAME}\StorageWatchConfig.json" 0 +2
-        Goto SkipDefaultConfig
-
-    SetOutPath "$APPDATA\${APP_NAME}"
-    File "${PAYLOAD_DIR}\Config\StorageWatchConfig.json"
-
-    SkipDefaultConfig:
 
     ; Copy plugins
     SetOutPath "$APPDATA\${APP_NAME}\Plugins"
@@ -140,13 +131,10 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\Server"
     RMDir "$INSTDIR"
 
-    Call un.PromptDeleteConfig
+    ; Note: Do NOT delete ProgramData directories (Agent, Server, Logs, Plugins)
+    ; to preserve user configuration and data during upgrades
     Call un.PromptDeleteLogs
-    Call un.PromptDeleteData
     Call un.PromptDeletePlugins
-    Call un.PromptDeleteServerData
-
-    RMDir "$APPDATA\${APP_NAME}"
 
     DeleteRegKey ${REG_ROOT} "${REG_KEY}"
 SectionEnd
@@ -330,21 +318,44 @@ FunctionEnd
 
 Function ApplyFolderPermissions
     ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}" /grant "SYSTEM:(OI)(CI)F" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Agent" /grant "Users:(OI)(CI)M" /T'
+    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Server" /grant "Users:(OI)(CI)M" /T'
     ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Logs" /grant "Users:(OI)(CI)M" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Data" /grant "Users:(OI)(CI)M" /T'
-    ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Config" /grant "Users:(OI)(CI)RX" /T'
     ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Plugins" /grant "Users:(OI)(CI)RX" /T'
-    
-${If} $SelectedRole == "Server"
-    ; No Program Files permissions needed anymore
-${EndIf}
 FunctionEnd
 
-Function un.PromptDeleteConfig
-    MessageBox MB_YESNO "Delete configuration files?" IDYES deleteConfig IDNO doneConfig
-    deleteConfig:
-        RMDir /r "$APPDATA\${APP_NAME}\Config"
-    doneConfig:
+Function CreateAgentProgramData
+    ; Create Agent subdirectories (already created in SecProgramData, but ensure they exist)
+    CreateDirectory "$APPDATA\${APP_NAME}\Agent"
+    CreateDirectory "$APPDATA\${APP_NAME}\Logs"
+
+    ; Copy default AgentConfig.json ONLY if it does NOT already exist
+    IfFileExists "$APPDATA\${APP_NAME}\Agent\AgentConfig.json" SkipAgentConfig
+    
+    SetOutPath "$APPDATA\${APP_NAME}\Agent"
+    File "${PAYLOAD_DIR}\Agent\Defaults\AgentConfig.default.json"
+    
+    ; Rename the default file to AgentConfig.json
+    Rename "$APPDATA\${APP_NAME}\Agent\AgentConfig.default.json" "$APPDATA\${APP_NAME}\Agent\AgentConfig.json"
+
+    SkipAgentConfig:
+FunctionEnd
+
+Function CreateServerProgramData
+    ; Create Server subdirectories (already created in SecProgramData, but ensure they exist)
+    CreateDirectory "$APPDATA\${APP_NAME}\Server"
+    CreateDirectory "$APPDATA\${APP_NAME}\Logs"
+
+    ; Copy default ServerConfig.json ONLY if it does NOT already exist
+    IfFileExists "$APPDATA\${APP_NAME}\Server\ServerConfig.json" SkipServerConfig
+    
+    SetOutPath "$APPDATA\${APP_NAME}\Server"
+    File "${PAYLOAD_DIR}\Server\Defaults\ServerConfig.default.json"
+    
+    ; Rename the default file to ServerConfig.json
+    Rename "$APPDATA\${APP_NAME}\Server\ServerConfig.default.json" "$APPDATA\${APP_NAME}\Server\ServerConfig.json"
+
+    SkipServerConfig:
 FunctionEnd
 
 Function un.PromptDeleteLogs
@@ -352,22 +363,6 @@ Function un.PromptDeleteLogs
     deleteLogs:
         RMDir /r "$APPDATA\${APP_NAME}\Logs"
     doneLogs:
-FunctionEnd
-
-Function un.PromptDeleteData
-    MessageBox MB_YESNO "Delete SQLite data?" IDYES deleteData IDNO doneData
-    deleteData:
-        RMDir /r "$APPDATA\${APP_NAME}\Data"
-    doneData:
-FunctionEnd
-
-Function un.PromptDeleteServerData
-    ${If} $SelectedRole == "Server"
-        MessageBox MB_YESNO "Delete server database?" IDYES deleteServerData IDNO doneServerData
-        deleteServerData:
-            RMDir /r "$APPDATA\${APP_NAME}\Data"
-        doneServerData:
-    ${EndIf}
 FunctionEnd
 
 Function un.PromptDeletePlugins

@@ -1,7 +1,7 @@
 /// <summary>
 /// Configuration Loader for StorageWatch
 /// 
-/// This utility class is responsible for loading and parsing the XML configuration file (StorageWatchConfig.xml)
+/// This utility class is responsible for loading and parsing the JSON configuration file
 /// and deserializing it into strongly-typed configuration objects. It handles all configuration validation
 /// and provides sensible defaults for missing values.
 /// </summary>
@@ -14,17 +14,17 @@ using System.Xml.Linq;
 namespace StorageWatch.Config
 {
     /// <summary>
-    /// Static utility class for loading and parsing XML configuration files.
+    /// Static utility class for loading and parsing configuration files.
     /// </summary>
     public static class ConfigLoader
     {
         /// <summary>
-        /// Loads the XML configuration file and returns a fully-populated StorageWatchConfig object.
+        /// Loads the configuration file and returns a fully-populated StorageWatchConfig object.
         /// </summary>
-        /// <param name="path">The file path to the StorageWatchConfig.xml file.</param>
+        /// <param name="path">The file path to the configuration file.</param>
         /// <returns>A populated StorageWatchConfig object with all configuration settings.</returns>
         /// <exception cref="FileNotFoundException">Thrown if the configuration file does not exist.</exception>
-        /// <exception cref="Exception">Thrown if the XML document is invalid or lacks a root element.</exception>
+        /// <exception cref="Exception">Thrown if the document is invalid or lacks a root element.</exception>
         public static StorageWatchConfig Load(string path)
         {
             // Validate that the configuration file exists before attempting to load it

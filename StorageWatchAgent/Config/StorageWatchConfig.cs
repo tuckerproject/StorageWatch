@@ -3,7 +3,7 @@
 /// 
 /// This file defines the main configuration classes that represent all settings
 /// for disk monitoring, alerting, and SQL reporting functionality.
-/// These classes are populated by the ConfigLoader from the XML configuration file.
+/// These classes are populated by the ConfigLoader from the JSON configuration file.
 /// </summary>
 
 using System;

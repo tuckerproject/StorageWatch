@@ -55,13 +55,13 @@ Complete example with all options:
 {
   "StorageWatch": {
     "General": {
-      "EnableStartupLogging": true
-    },
-    "Monitoring": {
       "ThresholdPercent": 10,
       "Drives": ["C:", "D:"]
     },
     "Alerting": {
+      "EnableNotifications": true,
+      "Smtp": {
+        "Enabled": false,
       "EnableNotifications": true,
       "Smtp": {
         "Enabled": false,
@@ -74,15 +74,13 @@ Complete example with all options:
         "ToAddress": "alert-recipient@example.com"
       },
       "GroupMe": {
-        "Enabled": false,
-        "BotId": "your-groupme-bot-id"
-      }
     },
     "CentralServer": {
       "Enabled": false,
       "ServerUrl": "http://central-server.example.com:5000",
+      "AgentId": "agent-1",
       "ReportIntervalSeconds": 300
-    },
+      "ServerUrl": "http://central-server.example.com:5000",
     "SqlReporting": {
       "Enabled": true,
       "RunMissedCollection": true,
@@ -95,35 +93,27 @@ Complete example with all options:
 
 ---
 
-#### General
+#### Monitoring
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `EnableStartupLogging` | bool | `true` | Log detailed startup information |
-
----
-
-#### Monitoring
-
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `ThresholdPercent` | int | `10` | Alert threshold — percentage of free space below which an alert is sent |
 | `Drives` | string[] | `["C:"]` | List of drive letters to monitor (e.g., `"C:"`, `"D:"`) |
 
----
+#### Alerting
 
 #### Alerting
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `EnableNotifications` | bool | `true` | Master switch — disable to suppress all alerts |
+##### SMTP
 
 ##### SMTP
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `Enabled` | bool | `false` | Enable SMTP email alerts |
-| `Host` | string | — | SMTP server hostname |
 | `Port` | int | `587` | SMTP server port |
 | `UseSsl` | bool | `true` | Use TLS/SSL |
 | `Username` | string | — | SMTP authentication username |
@@ -137,8 +127,8 @@ Complete example with all options:
 |---|---|---|---|
 | `Enabled` | bool | `false` | Enable GroupMe bot alerts |
 | `BotId` | string | — | GroupMe bot ID |
-
----
+| `Enabled` | bool | `false` | Enable GroupMe bot alerts |
+| `BotId` | string | — | GroupMe bot ID |
 
 #### CentralServer (Agent Mode Only)
 
@@ -167,7 +157,7 @@ These settings only apply when `StorageWatch.Mode` is `Agent`.
 
 ### Environment Variables (Service)
 
-Any `StorageWatchConfig.json` property can be overridden using environment variables with double-underscore as the path separator:
+### Environment Variables (Service)
 
 ```
 StorageWatch__Monitoring__ThresholdPercent=15
@@ -181,14 +171,14 @@ StorageWatch__CentralServer__ServerUrl=http://central:5001
 
 ### appsettings.json
 
-```json
-{
+### appsettings.json
+
   "Server": {
     "ListenUrl": "http://localhost:5001",
     "DatabasePath": "Data/StorageWatchServer.db",
+    "ListenUrl": "http://localhost:5001",
+    "DatabasePath": "Data/StorageWatchServer.db",
     "AgentReportDatabasePath": "Data/StorageWatchAgentReports.db",
-    "OnlineTimeoutMinutes": 10
-  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -200,14 +190,14 @@ StorageWatch__CentralServer__ServerUrl=http://central:5001
 
 #### Server
 
-| Property | Type | Default | Description |
-|---|---|---|---|
+#### Server
+
 | `ListenUrl` | string | `http://localhost:5001` | URL and port the server binds to |
 | `DatabasePath` | string | `Data/StorageWatchServer.db` | Path to the central SQLite database |
 | `AgentReportDatabasePath` | string | `Data/StorageWatchAgentReports.db` | Path to the agent reports database |
 | `OnlineTimeoutMinutes` | int | `10` | Minutes since last report before a machine is marked offline |
-
-### Environment Variables (Server)
+| `AgentReportDatabasePath` | string | `Data/StorageWatchAgentReports.db` | Path to the agent reports database |
+| `OnlineTimeoutMinutes` | int | `10` | Minutes since last report before a machine is marked offline |
 
 ```
 Server__ListenUrl=http://0.0.0.0:8080
@@ -229,8 +219,8 @@ Logging__LogLevel__Default=Debug
     "ChartDataPoints": 50,
     "Theme": "Dark"
   }
-}
-```
+    "Theme": "Dark"
+  }
 
 #### StorageWatchUI
 
@@ -244,9 +234,9 @@ Logging__LogLevel__Default=Debug
 
 ## Data Directories
 
-All runtime data is stored under `%PROGRAMDATA%\StorageWatch\`:
+## Data Directories
 
-| Path | Contents |
+All runtime data is stored under `%PROGRAMDATA%\StorageWatch\`:
 |---|---|
 | `Config\StorageWatchConfig.json` | Service configuration |
 | `Data\StorageWatch.db` | Local SQLite database |
@@ -254,6 +244,8 @@ All runtime data is stored under `%PROGRAMDATA%\StorageWatch\`:
 | `alert_state.json` | Persisted alert state |
 
 ---
+
+## Security Notes
 
 ## Security Notes
 

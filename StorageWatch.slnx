@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/ConfigSchemas/">
+    <File Path="ConfigSchemas/AgentConfig.schema.json" />
+    <File Path="ConfigSchemas/ServerConfig.schema.json" />
+  </Folder>
   <Folder Name="/Docs/">
     <File Path="Docs/Architecture.md" />
     <File Path="Docs/BuildInstaller.md" />
@@ -19,10 +23,10 @@
     <File Path="InstallerNSIS/Docs/QUICK-START.md" />
     <File Path="InstallerNSIS/Docs/README.md" />
   </Folder>
-  <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />
-  <Project Path="StorageWatchServer/StorageWatchServer.csproj" />
   <Project Path="StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj" />
   <Project Path="StorageWatchAgent/StorageWatchAgent.csproj" />
+  <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />
+  <Project Path="StorageWatchServer/StorageWatchServer.csproj" />
   <Project Path="StorageWatchUI.Tests/StorageWatchUI.Tests.csproj" />
   <Project Path="StorageWatchUI/StorageWatchUI.csproj" />
 </Solution>

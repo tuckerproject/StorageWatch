@@ -21,11 +21,11 @@ var host = Host.CreateDefaultBuilder(args)
     .UseWindowsService()
     .ConfigureServices((context, services) =>
     {
-        // Load and validate JSON configuration
+        // Load and validate JSON configuration from AgentConfig.json
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var storageWatchDirectory = Path.Combine(programData, "StorageWatch");
-        Directory.CreateDirectory(storageWatchDirectory);
-        var configPath = Path.Combine(storageWatchDirectory, "StorageWatchConfig.json");
+        var agentDirectory = Path.Combine(programData, "StorageWatch", "Agent");
+        Directory.CreateDirectory(agentDirectory);
+        var configPath = Path.Combine(agentDirectory, "AgentConfig.json");
 
         StorageWatchOptions options;
         if (File.Exists(configPath))
@@ -34,10 +34,18 @@ var host = Host.CreateDefaultBuilder(args)
         }
         else
         {
-            options = CreateDefaultOptions();
+            // Auto-generate default config file on first run
+            var defaultConfigPath = Path.Combine(AppContext.BaseDirectory, "Defaults", "AgentConfig.default.json");
+            if (File.Exists(defaultConfigPath))
+            {
+                File.Copy(defaultConfigPath, configPath, overwrite: false);
+                var tempLogger = new RollingFileLogger(Path.Combine(programData, "StorageWatch", "Logs", "service.log"));
+                tempLogger.Log("Default AgentConfig.json created at: " + configPath);
+            }
+            options = JsonConfigLoader.LoadAndValidate(configPath);
         }
 
-        var databasePath = Path.Combine(storageWatchDirectory, "StorageWatch.db");
+        var databasePath = Path.Combine(agentDirectory, "StorageWatch.db");
         options.Database.ConnectionString = $"Data Source={databasePath}";
 
         // Register options in the service container for dependency injection

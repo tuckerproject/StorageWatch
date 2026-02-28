@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StorageWatch Agent Configuration Schema",
+  "description": "Configuration schema for StorageWatch Agent instances that monitor disk space and report to central server or local database",
+  "type": "object",
+  "properties": {
+    "StorageWatch": {
+      "type": "object",
+      "properties": {
+        "Monitoring": {
+          "type": "object",
+          "description": "Disk monitoring configuration",
+          "properties": {
+            "ThresholdPercent": {
+              "type": "integer",
+              "description": "Threshold percentage of free space before alerting",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 10
+            },
+            "Drives": {
+              "type": "array",
+              "description": "List of drive letters to monitor (e.g., ['C:', 'D:'])",
+              "items": {
+                "type": "string"
+              },
+              "default": ["C:"]
+            }
+          },
+          "required": ["ThresholdPercent", "Drives"]
+        },
+        "Alerting": {
+          "type": "object",
+          "description": "Alert notification configuration",
+          "properties": {
+            "EnableNotifications": {
+              "type": "boolean",
+              "description": "Enable or disable alert notifications",
+              "default": true
+            },
+            "Smtp": {
+              "type": "object",
+              "description": "SMTP email configuration for alerts",
+              "properties": {
+                "Enabled": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "Host": {
+                  "type": "string",
+                  "default": "smtp.gmail.com"
+                },
+                "Port": {
+                  "type": "integer",
+                  "default": 587
+                },
+                "UseSsl": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "Username": {
+                  "type": "string",
+                  "default": ""
+                },
+                "Password": {
+                  "type": "string",
+                  "default": ""
+                },
+                "FromAddress": {
+                  "type": "string",
+                  "default": ""
+                },
+                "ToAddress": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": ["Enabled"]
+            },
+            "GroupMe": {
+              "type": "object",
+              "description": "GroupMe bot configuration for alerts",
+              "properties": {
+                "Enabled": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "BotId": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": ["Enabled"]
+            }
+          },
+          "required": ["EnableNotifications"]
+        },
+        "SqlReporting": {
+          "type": "object",
+          "description": "SQL database reporting configuration",
+          "properties": {
+            "Enabled": {
+              "type": "boolean",
+              "description": "Enable or disable SQL database reporting",
+              "default": true
+            },
+            "RunMissedCollection": {
+              "type": "boolean",
+              "description": "Execute missed collection runs as soon as possible",
+              "default": true
+            },
+            "RunOnlyOncePerDay": {
+              "type": "boolean",
+              "description": "Restrict collection to once per day",
+              "default": true
+            },
+            "CollectionTime": {
+              "type": "string",
+              "description": "Daily time to execute collection (HH:mm format)",
+              "pattern": "^([0-1][0-9]|2[0-3]):[0-5][0-9]$",
+              "default": "02:00"
+            }
+          },
+          "required": ["Enabled"]
+        },
+        "CentralServer": {
+          "type": "object",
+          "description": "Central server configuration for agent reporting",
+          "properties": {
+            "Enabled": {
+              "type": "boolean",
+              "description": "Enable central server reporting",
+              "default": false
+            },
+            "ServerUrl": {
+              "type": "string",
+              "description": "URL of the central server",
+              "default": "http://localhost:5000"
+            },
+            "AgentId": {
+              "type": "string",
+              "description": "Unique identifier for this agent",
+              "default": ""
+            },
+            "ReportIntervalSeconds": {
+              "type": "integer",
+              "description": "Interval in seconds between reports to central server",
+              "minimum": 30,
+              "default": 300
+            }
+          },
+          "required": ["Enabled"]
+        }
+      },
+      "required": ["Monitoring", "Alerting", "SqlReporting", "CentralServer"]
+    }
+  },
+  "required": ["StorageWatch"]
+}

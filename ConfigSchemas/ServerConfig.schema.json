@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StorageWatch Server Configuration Schema",
+  "description": "Configuration schema for StorageWatch Server instances that aggregate data from agents and provide central dashboard",
+  "type": "object",
+  "properties": {
+    "StorageWatch": {
+      "type": "object",
+      "properties": {
+        "Server": {
+          "type": "object",
+          "description": "Server hosting and database configuration",
+          "properties": {
+            "Port": {
+              "type": "integer",
+              "description": "Port number for the server to listen on",
+              "minimum": 1024,
+              "maximum": 65535,
+              "default": 5000
+            }
+          },
+          "required": ["Port"]
+        },
+        "Database": {
+          "type": "object",
+          "description": "Central database configuration",
+          "properties": {
+            "ConnectionString": {
+              "type": "string",
+              "description": "Connection string for the central database",
+              "default": ""
+            }
+          },
+          "required": ["ConnectionString"]
+        },
+        "CentralServer": {
+          "type": "object",
+          "description": "Central server operational configuration",
+          "properties": {
+            "Enabled": {
+              "type": "boolean",
+              "description": "Enable central server functionality",
+              "default": true
+            },
+            "ServerId": {
+              "type": "string",
+              "description": "Unique identifier for this central server",
+              "default": "central-server"
+            },
+            "ApiKey": {
+              "type": "string",
+              "description": "Optional API key for agent authentication",
+              "default": ""
+            }
+          },
+          "required": ["Enabled"]
+        }
+      },
+      "required": ["Server", "Database", "CentralServer"]
+    }
+  },
+  "required": ["StorageWatch"]
+}

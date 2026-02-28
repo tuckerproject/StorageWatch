@@ -15,46 +15,30 @@ var builder = WebApplication.CreateBuilder(args);
 // Enable Windows Service hosting
 builder.Host.UseWindowsService();
 
-// Check operational mode before proceeding
+// Load and validate JSON configuration from ServerConfig.json
 var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-var storageWatchDirectory = Path.Combine(programData, "StorageWatch");
-var configPath = Path.Combine(storageWatchDirectory, "StorageWatchConfig.json");
+var serverDirectory = Path.Combine(programData, "StorageWatch", "Server");
+Directory.CreateDirectory(serverDirectory);
+var configPath = Path.Combine(serverDirectory, "ServerConfig.json");
 
-string? currentMode = "Server"; // Default to Server
-if (File.Exists(configPath))
+if (!File.Exists(configPath))
 {
-    try
+    // Auto-generate default config file on first run
+    var defaultConfigPath = Path.Combine(AppContext.BaseDirectory, "Defaults", "ServerConfig.default.json");
+    if (File.Exists(defaultConfigPath))
     {
-        using (var stream = File.OpenRead(configPath))
-        {
-            using (var jsonDoc = await JsonDocument.ParseAsync(stream))
-            {
-                var root = jsonDoc.RootElement;
-                if (root.TryGetProperty("StorageWatch", out var swElement))
-                {
-                    if (swElement.TryGetProperty("Mode", out var modeElement))
-                    {
-                        currentMode = modeElement.GetString();
-                    }
-                }
-            }
-        }
-    }
-    catch
-    {
-        // If config cannot be parsed, proceed with default Server mode
+        File.Copy(defaultConfigPath, configPath, overwrite: false);
+        var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
+        tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
     }
 }
 
-// If mode is not Server, exit gracefully
-if (currentMode != "Server" && !string.IsNullOrEmpty(currentMode))
-{
-    var logger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
-    logger.LogError("StorageWatch Server can only run in 'Server' mode. Current mode: {Mode}", currentMode ?? "Unknown");
-    logger.LogError("To run in Agent mode, use StorageWatchAgent.exe");
-    logger.LogError("To run in Standalone mode, use StorageWatchAgent.exe");
-    Environment.Exit(1);
-}
+// Load configuration from ServerConfig.json
+var configBuilder = new ConfigurationBuilder()
+    .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+    .Build();
+
+builder.Configuration.AddConfiguration(configBuilder);
 
 builder.Services.AddRazorPages(options =>
 {
