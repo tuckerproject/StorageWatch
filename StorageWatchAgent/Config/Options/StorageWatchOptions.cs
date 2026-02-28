@@ -59,6 +59,12 @@ namespace StorageWatch.Config.Options
         public CentralServerOptions CentralServer { get; set; } = new();
 
         /// <summary>
+        /// SQL reporting settings section.
+        /// </summary>
+        [Required]
+        public SqlReportingOptions SqlReporting { get; set; } = new();
+
+        /// <summary>
         /// Data retention and cleanup configuration section.
         /// </summary>
         [Required]

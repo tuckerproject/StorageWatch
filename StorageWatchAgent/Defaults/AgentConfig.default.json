@@ -1,11 +1,17 @@
 {
   "StorageWatch": {
     "Mode": "Standalone",
+    "General": {
+      "EnableStartupLogging": false
+    },
     "Monitoring": {
       "ThresholdPercent": 10,
       "Drives": [
         "C:"
       ]
+    },
+    "Database": {
+      "ConnectionString": "Data Source=C:\\ProgramData\\StorageWatch\\Agent\\StorageWatch.db"
     },
     "Alerting": {
       "EnableNotifications": false,
@@ -24,6 +30,20 @@
         "BotId": "your-groupme-bot-id"
       }
     },
+    "Retention": {
+      "Enabled": true,
+      "MaxDays": 365,
+      "MaxRows": 0,
+      "CleanupIntervalMinutes": 60,
+      "ArchiveEnabled": false,
+      "ArchiveDirectory": "",
+      "ExportCsvEnabled": true
+    },
+    "AutoUpdate": {
+      "Enabled": true,
+      "ManifestUrl": "",
+      "CheckIntervalMinutes": 60
+    },
     "SqlReporting": {
       "Enabled": true,
       "RunMissedCollection": true,
@@ -32,9 +52,14 @@
     },
     "CentralServer": {
       "Enabled": false,
+      "Mode": "Agent",
       "ServerUrl": "http://central-server.example.com:5000",
+      "ApiKey": "",
       "AgentId": "agent-1",
-      "ReportIntervalSeconds": 300
+      "ReportIntervalSeconds": 300,
+      "Port": 5000,
+      "CentralConnectionString": "Data Source=C:\\ProgramData\\StorageWatch\\Central\\StorageWatch_Central.db",
+      "ServerId": "central-server"
     }
   }
 }

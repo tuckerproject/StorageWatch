@@ -29,8 +29,7 @@ namespace StorageWatch.Services.Scheduling
 
         // Path to file that stores the last time SQL reporting successfully ran
         // This allows recovery of scheduling state across service restarts
-        private readonly string _lastRunPath =
-            Path.Combine(AppContext.BaseDirectory, "last_sql_run.txt");
+        private readonly string _lastRunPath;
 
         /// <summary>
         /// Initializes a new instance of the SqlReporterScheduler class.
@@ -46,6 +45,11 @@ namespace StorageWatch.Services.Scheduling
             _options = options;
             _reporter = reporter;
             _logger = logger;
+
+            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var agentDirectory = Path.Combine(programData, "StorageWatch", "Agent");
+            Directory.CreateDirectory(agentDirectory);
+            _lastRunPath = Path.Combine(agentDirectory, "last_sql_run.txt");
         }
 
         /// <summary>
@@ -57,17 +61,19 @@ namespace StorageWatch.Services.Scheduling
         /// <returns>A task representing the async operation.</returns>
         public async Task CheckAndRunAsync(DateTime now)
         {
-            // Note: SqlReporting configuration is not yet in StorageWatchOptions
-            // For now, we use default values. This will be enhanced in Phase 2, Item 10
-            // TODO: Add SqlReportingOptions to StorageWatchOptions
-            const bool sqlReportingEnabled = true;
-            const bool runMissedCollection = true;
-            const bool runOnlyOncePerDay = true;
-            var collectionTime = TimeSpan.Parse("02:00");
+            var sqlReporting = _options.SqlReporting;
 
-            // Early exit if SQL reporting is disabled in configuration
-            if (!sqlReportingEnabled)
+            if (!sqlReporting.Enabled)
                 return;
+
+            if (!TimeSpan.TryParse(sqlReporting.CollectionTime, out var collectionTime))
+            {
+                _logger.Log($"[SCHEDULER] Invalid SqlReporting.CollectionTime: '{sqlReporting.CollectionTime}'. Expected HH:mm.");
+                return;
+            }
+
+            bool runMissedCollection = sqlReporting.RunMissedCollection;
+            bool runOnlyOncePerDay = sqlReporting.RunOnlyOncePerDay;
 
             // Calculate the scheduled time for today based on the configured CollectionTime
             // For example, if CollectionTime is "02:00", scheduled would be today at 02:00

@@ -66,6 +66,7 @@ namespace StorageWatch.Config.Migration
         {
             var storageWatch = new Dictionary<string, object>
             {
+                ["Mode"] = root.Element("Mode")?.Value ?? "Standalone",
                 ["General"] = new Dictionary<string, object>
                 {
                     ["EnableStartupLogging"] = ParseBool(root.Element("EnableStartupLogging")?.Value ?? "false")
@@ -78,7 +79,7 @@ namespace StorageWatch.Config.Migration
                 ["Database"] = new Dictionary<string, object>
                 {
                     ["ConnectionString"] = root.Element("Database")?.Element("ConnectionString")?.Value ??
-                                         "Data Source=StorageWatch.db;Version=3;"
+                                         "Data Source=C:\\ProgramData\\StorageWatch\\Agent\\StorageWatch.db"
                 },
                 ["Alerting"] = new Dictionary<string, object>
                 {
@@ -86,14 +87,30 @@ namespace StorageWatch.Config.Migration
                     ["Smtp"] = ConvertSmtpSettings(root.Element("Smtp")),
                     ["GroupMe"] = ConvertGroupMeSettings(root.Element("GroupMe"))
                 },
-                ["CentralServer"] = ConvertCentralServerSettings(root.Element("CentralServer")),
+                ["Retention"] = new Dictionary<string, object>
+                {
+                    ["Enabled"] = ParseBool(root.Element("Retention")?.Element("Enabled")?.Value ?? "true"),
+                    ["MaxDays"] = int.Parse(root.Element("Retention")?.Element("MaxDays")?.Value ?? "365"),
+                    ["MaxRows"] = int.Parse(root.Element("Retention")?.Element("MaxRows")?.Value ?? "0"),
+                    ["CleanupIntervalMinutes"] = int.Parse(root.Element("Retention")?.Element("CleanupIntervalMinutes")?.Value ?? "60"),
+                    ["ArchiveEnabled"] = ParseBool(root.Element("Retention")?.Element("ArchiveEnabled")?.Value ?? "false"),
+                    ["ArchiveDirectory"] = root.Element("Retention")?.Element("ArchiveDirectory")?.Value ?? string.Empty,
+                    ["ExportCsvEnabled"] = ParseBool(root.Element("Retention")?.Element("ExportCsvEnabled")?.Value ?? "true")
+                },
+                ["AutoUpdate"] = new Dictionary<string, object>
+                {
+                    ["Enabled"] = ParseBool(root.Element("AutoUpdate")?.Element("Enabled")?.Value ?? "true"),
+                    ["ManifestUrl"] = root.Element("AutoUpdate")?.Element("ManifestUrl")?.Value ?? string.Empty,
+                    ["CheckIntervalMinutes"] = int.Parse(root.Element("AutoUpdate")?.Element("CheckIntervalMinutes")?.Value ?? "60")
+                },
                 ["SqlReporting"] = new Dictionary<string, object>
                 {
-                    ["Enabled"] = ParseBool(root.Element("EnableSqlReporting")?.Value ?? "true"),
-                    ["RunMissedCollection"] = ParseBool(root.Element("RunMissedCollection")?.Value ?? "true"),
-                    ["RunOnlyOncePerDay"] = ParseBool(root.Element("RunOnlyOncePerDay")?.Value ?? "true"),
-                    ["CollectionTime"] = root.Element("CollectionTime")?.Value ?? "02:00"
-                }
+                    ["Enabled"] = ParseBool(root.Element("EnableSqlReporting")?.Value ?? root.Element("SqlReporting")?.Element("Enabled")?.Value ?? "true"),
+                    ["RunMissedCollection"] = ParseBool(root.Element("RunMissedCollection")?.Value ?? root.Element("SqlReporting")?.Element("RunMissedCollection")?.Value ?? "true"),
+                    ["RunOnlyOncePerDay"] = ParseBool(root.Element("RunOnlyOncePerDay")?.Value ?? root.Element("SqlReporting")?.Element("RunOnlyOncePerDay")?.Value ?? "true"),
+                    ["CollectionTime"] = NormalizeCollectionTime(root.Element("CollectionTime")?.Value ?? root.Element("SqlReporting")?.Element("CollectionTime")?.Value)
+                },
+                ["CentralServer"] = ConvertCentralServerSettings(root.Element("CentralServer"))
             };
 
             return new Dictionary<string, object> { ["StorageWatch"] = storageWatch };
@@ -158,17 +175,34 @@ namespace StorageWatch.Config.Migration
         {
             return new Dictionary<string, object>
             {
-                ["Enabled"] = serverElement != null ?
-                    ParseBool(serverElement.Element("Enabled")?.Value ?? "false") : false,
+                ["Enabled"] = serverElement != null &&
+                    ParseBool(serverElement.Element("Enabled")?.Value ?? "false"),
                 ["Mode"] = serverElement?.Element("Mode")?.Value ?? "Agent",
                 ["ServerUrl"] = serverElement?.Element("ServerUrl")?.Value ?? "",
                 ["ApiKey"] = serverElement?.Element("ApiKey")?.Value ?? "",
+                ["AgentId"] = serverElement?.Element("AgentId")?.Value ?? "",
+                ["ReportIntervalSeconds"] = serverElement != null ?
+                    int.Parse(serverElement.Element("ReportIntervalSeconds")?.Value ?? "300") : 300,
                 ["Port"] = serverElement != null ?
                     int.Parse(serverElement.Element("Port")?.Value ?? "5000") : 5000,
                 ["CentralConnectionString"] = serverElement?.Element("CentralConnectionString")?.Value ??
-                                             "Data Source=StorageWatch_Central.db;Version=3;",
+                                             "Data Source=C:\\ProgramData\\StorageWatch\\Central\\StorageWatch_Central.db",
                 ["ServerId"] = serverElement?.Element("ServerId")?.Value ?? "central-server"
             };
+        }
+
+        /// <summary>
+        /// Normalizes the collection time to HH:mm format.
+        /// </summary>
+        private static string NormalizeCollectionTime(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "02:00";
+
+            if (TimeSpan.TryParse(value, out var time))
+                return time.ToString(@"hh\:mm");
+
+            return value;
         }
 
         /// <summary>
