@@ -69,32 +69,39 @@ public class ServiceCommunicationServer : BackgroundService
             using var reader = new StreamReader(pipeServer, Encoding.UTF8, leaveOpen: true);
             using var writer = new StreamWriter(pipeServer, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
 
-            var requestJson = await reader.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(requestJson))
+            try
             {
-                _logger.Log("[IPC] Received empty request");
-                return;
+                var requestJson = await reader.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(requestJson))
+                {
+                    _logger.Log("[IPC] Received empty request");
+                    return;
+                }
+
+                _logger.Log($"[IPC] Received request: {requestJson}");
+
+                var request = JsonSerializer.Deserialize<ServiceRequest>(requestJson);
+                if (request == null)
+                {
+                    _logger.Log("[IPC ERROR] Failed to deserialize request");
+                    await SendErrorResponse(writer, "Invalid request format");
+                    return;
+                }
+
+                var response = await ProcessRequestAsync(request, cancellationToken);
+                var responseJson = JsonSerializer.Serialize(response);
+
+                await writer.WriteLineAsync(responseJson);
+                _logger.Log($"[IPC] Sent response for {request.Command}");
             }
-
-            _logger.Log($"[IPC] Received request: {requestJson}");
-
-            var request = JsonSerializer.Deserialize<ServiceRequest>(requestJson);
-            if (request == null)
+            catch (IOException ex) when (!pipeServer.IsConnected)
             {
-                _logger.Log("[IPC ERROR] Failed to deserialize request");
-                await SendErrorResponse(writer, "Invalid request format");
-                return;
+                // Normal disconnect — suppress logging entirely
             }
-
-            var response = await ProcessRequestAsync(request, cancellationToken);
-            var responseJson = JsonSerializer.Serialize(response);
-
-            await writer.WriteLineAsync(responseJson);
-            _logger.Log($"[IPC] Sent response for {request.Command}");
-        }
-        catch (Exception ex)
-        {
-            _logger.Log($"[IPC ERROR] Error handling client: {ex.Message}");
+            catch (Exception ex)
+            {
+                _logger.Log($"[IPC ERROR] Unexpected IPC failure: {ex.Message}");
+            }
         }
         finally
         {
