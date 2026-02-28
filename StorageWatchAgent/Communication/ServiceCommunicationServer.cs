@@ -42,7 +42,6 @@ public class ServiceCommunicationServer : BackgroundService
                     PipeOptions.Asynchronous);
 
                 await pipeServer.WaitForConnectionAsync(stoppingToken);
-                _logger.Log("[IPC] Client connected");
 
                 // Handle the connection in a separate task to allow new connections
                 _ = Task.Run(async () => await HandleClientAsync(pipeServer, stoppingToken), stoppingToken);

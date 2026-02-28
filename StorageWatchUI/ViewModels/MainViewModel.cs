@@ -10,7 +10,6 @@ public class MainViewModel : ViewModelBase
     private ViewModelBase? _currentViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly TrendsViewModel _trendsViewModel;
-    private readonly CentralViewModel _centralViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ServiceStatusViewModel _serviceStatusViewModel;
     private readonly UpdateViewModel _updateViewModel;
@@ -18,14 +17,12 @@ public class MainViewModel : ViewModelBase
     public MainViewModel(
         DashboardViewModel dashboardViewModel,
         TrendsViewModel trendsViewModel,
-        CentralViewModel centralViewModel,
         SettingsViewModel settingsViewModel,
         ServiceStatusViewModel serviceStatusViewModel,
         UpdateViewModel updateViewModel)
     {
         _dashboardViewModel = dashboardViewModel;
         _trendsViewModel = trendsViewModel;
-        _centralViewModel = centralViewModel;
         _settingsViewModel = settingsViewModel;
         _serviceStatusViewModel = serviceStatusViewModel;
         _updateViewModel = updateViewModel;
@@ -36,7 +33,6 @@ public class MainViewModel : ViewModelBase
         // Setup commands
         NavigateToDashboardCommand = new RelayCommand(NavigateToDashboard);
         NavigateToTrendsCommand = new RelayCommand(NavigateToTrends);
-        NavigateToCentralCommand = new RelayCommand(NavigateToCentral);
         NavigateToSettingsCommand = new RelayCommand(NavigateToSettings);
         NavigateToServiceStatusCommand = new RelayCommand(NavigateToServiceStatus);
     }
@@ -51,7 +47,6 @@ public class MainViewModel : ViewModelBase
 
     public ICommand NavigateToDashboardCommand { get; }
     public ICommand NavigateToTrendsCommand { get; }
-    public ICommand NavigateToCentralCommand { get; }
     public ICommand NavigateToSettingsCommand { get; }
     public ICommand NavigateToServiceStatusCommand { get; }
 
@@ -65,12 +60,6 @@ public class MainViewModel : ViewModelBase
     {
         CurrentViewModel = _trendsViewModel;
         _trendsViewModel.RefreshCommand.Execute(null);
-    }
-
-    private void NavigateToCentral()
-    {
-        CurrentViewModel = _centralViewModel;
-        _centralViewModel.RefreshCommand.Execute(null);
     }
 
     private void NavigateToSettings()

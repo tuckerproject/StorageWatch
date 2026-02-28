@@ -67,7 +67,6 @@ public partial class App : Application
 
         // Services
         services.AddSingleton<IDataProvider, LocalDataProvider>();
-        services.AddSingleton<CentralDataProvider>();
         services.AddSingleton<IServiceManager, ServiceManager>();
         services.AddSingleton<ConfigurationService>();
 
@@ -85,7 +84,6 @@ public partial class App : Application
         services.AddSingleton<UpdateViewModel>();
         services.AddTransient<DashboardViewModel>();
         services.AddTransient<TrendsViewModel>();
-        services.AddTransient<CentralViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<ServiceStatusViewModel>();
 
@@ -100,14 +98,7 @@ public partial class App : Application
     private static string GetStorageWatchConfigPath()
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var configPath = Path.Combine(programData, "StorageWatch", "StorageWatchConfig.json");
-
-        // Fallback to current directory if not found
-        if (!File.Exists(configPath))
-        {
-            configPath = Path.Combine(Directory.GetCurrentDirectory(), "StorageWatchConfig.json");
-        }
-
+        var configPath = Path.Combine(programData, "StorageWatch", "Agent", "AgentConfig.json");
         return configPath;
     }
 }

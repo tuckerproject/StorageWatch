@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace StorageWatchUI.Services;
 
 /// <summary>
-/// Service for reading and managing StorageWatch configuration.
+/// Service for reading and managing StorageWatch Agent configuration.
 /// </summary>
 public class ConfigurationService
 {
@@ -21,15 +21,9 @@ public class ConfigurationService
 
     private string? FindConfigPath()
     {
-        // Try ProgramData first
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var path = Path.Combine(programData, "StorageWatch", "StorageWatchConfig.json");
+        var path = Path.Combine(programData, "StorageWatch", "Agent", "AgentConfig.json");
 
-        if (File.Exists(path))
-            return path;
-
-        // Try current directory
-        path = Path.Combine(Directory.GetCurrentDirectory(), "StorageWatchConfig.json");
         if (File.Exists(path))
             return path;
 
@@ -75,14 +69,6 @@ public class ConfigurationService
     /// Gets the path to the configuration file.
     /// </summary>
     public string? GetConfigPath() => _configPath;
-
-    /// <summary>
-    /// Checks if central server mode is enabled.
-    /// </summary>
-    public bool IsCentralServerEnabled()
-    {
-        return _configuration.GetValue<bool>("StorageWatch:CentralServer:Enabled");
-    }
 
     /// <summary>
     /// Gets the threshold percent from configuration.

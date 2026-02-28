@@ -7,6 +7,12 @@
     "StorageWatch": {
       "type": "object",
       "properties": {
+        "Mode": {
+          "type": "string",
+          "description": "Operational mode for this instance: Standalone, Agent, or Server",
+          "enum": [ "Standalone", "Agent", "Server" ],
+          "default": "Standalone"
+        },
         "Monitoring": {
           "type": "object",
           "description": "Disk monitoring configuration",
@@ -24,10 +30,10 @@
               "items": {
                 "type": "string"
               },
-              "default": ["C:"]
+              "default": [ "C:" ]
             }
           },
-          "required": ["ThresholdPercent", "Drives"]
+          "required": [ "ThresholdPercent", "Drives" ]
         },
         "Alerting": {
           "type": "object",
@@ -75,7 +81,7 @@
                   "default": ""
                 }
               },
-              "required": ["Enabled"]
+              "required": [ "Enabled" ]
             },
             "GroupMe": {
               "type": "object",
@@ -90,10 +96,10 @@
                   "default": ""
                 }
               },
-              "required": ["Enabled"]
+              "required": [ "Enabled" ]
             }
           },
-          "required": ["EnableNotifications"]
+          "required": [ "EnableNotifications" ]
         },
         "SqlReporting": {
           "type": "object",
@@ -121,21 +127,37 @@
               "default": "02:00"
             }
           },
-          "required": ["Enabled"]
+          "required": [ "Enabled" ]
         },
         "CentralServer": {
           "type": "object",
-          "description": "Central server configuration for agent reporting",
+          "description": "Central server configuration for agent or server mode",
           "properties": {
             "Enabled": {
               "type": "boolean",
-              "description": "Enable central server reporting",
+              "description": "Enable central server functionality",
               "default": false
+            },
+            "Mode": {
+              "type": "string",
+              "description": "Role for this instance: Agent or Server",
+              "enum": [ "Agent", "Server" ],
+              "default": "Agent"
             },
             "ServerUrl": {
               "type": "string",
-              "description": "URL of the central server",
-              "default": "http://localhost:5000"
+              "description": "URL of the central server (Agent mode)",
+              "default": ""
+            },
+            "BaseUrl": {
+              "type": "string",
+              "description": "Alias for ServerUrl",
+              "default": ""
+            },
+            "ApiKey": {
+              "type": "string",
+              "description": "Optional API key for authentication",
+              "default": ""
             },
             "AgentId": {
               "type": "string",
@@ -144,15 +166,40 @@
             },
             "ReportIntervalSeconds": {
               "type": "integer",
-              "description": "Interval in seconds between reports to central server",
-              "minimum": 30,
+              "description": "Interval in seconds between reports",
+              "minimum": 1,
+              "maximum": 86400,
               "default": 300
+            },
+            "ReportingIntervalSeconds": {
+              "type": "integer",
+              "description": "Alias for ReportIntervalSeconds",
+              "minimum": 1,
+              "maximum": 86400,
+              "default": 300
+            },
+            "Port": {
+              "type": "integer",
+              "description": "Port for server mode",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 5000
+            },
+            "CentralConnectionString": {
+              "type": "string",
+              "description": "SQLite connection string for central server database",
+              "default": ""
+            },
+            "ServerId": {
+              "type": "string",
+              "description": "Identifier for this central server instance",
+              "default": "central-server"
             }
           },
-          "required": ["Enabled"]
+          "required": [ "Enabled", "Mode" ]
         }
       },
-      "required": ["Monitoring", "Alerting", "SqlReporting", "CentralServer"]
+      "required": [ "Mode", "Monitoring", "Alerting", "SqlReporting", "CentralServer" ]
     }
   },
   "required": ["StorageWatch"]

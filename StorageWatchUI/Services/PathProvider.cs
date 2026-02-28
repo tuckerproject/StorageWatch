@@ -3,7 +3,7 @@ using System.IO;
 namespace StorageWatchUI.Services;
 
 /// <summary>
-/// Provides runtime-resolved file paths for StorageWatch application data.
+/// Provides runtime-resolved file paths for StorageWatch Agent application data.
 /// </summary>
 public class PathProvider : IPathProvider
 {
@@ -14,10 +14,10 @@ public class PathProvider : IPathProvider
     public PathProvider()
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var storageWatchDir = Path.Combine(programData, "StorageWatch");
+        var agentDir = Path.Combine(programData, "StorageWatch", "Agent");
 
-        _databasePath = Path.Combine(storageWatchDir, "StorageWatch.db");
-        _logDirectory = Path.Combine(storageWatchDir, "Logs");
+        _databasePath = Path.Combine(agentDir, "StorageWatch.db");
+        _logDirectory = Path.Combine(agentDir, "Logs");
         _logFilePath = Path.Combine(_logDirectory, "service.log");
 
         // Ensure directories exist
@@ -25,17 +25,17 @@ public class PathProvider : IPathProvider
     }
 
     /// <summary>
-    /// Gets the path to the StorageWatch SQLite database.
+    /// Gets the path to the StorageWatch Agent SQLite database.
     /// </summary>
     public string DatabasePath => _databasePath;
 
     /// <summary>
-    /// Gets the path to the service log file.
+    /// Gets the path to the agent service log file.
     /// </summary>
     public string LogFilePath => _logFilePath;
 
     /// <summary>
-    /// Gets the directory containing service logs.
+    /// Gets the directory containing agent service logs.
     /// </summary>
     public string LogDirectory => _logDirectory;
 

@@ -16,9 +16,6 @@
         <DataTemplate DataType="{x:Type vm:TrendsViewModel}">
             <views:TrendsView/>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:CentralViewModel}">
-            <views:CentralView/>
-        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView/>
         </DataTemplate>
@@ -52,8 +49,6 @@
                 <Button Content="Dashboard" Command="{Binding NavigateToDashboardCommand}" 
                         Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
                 <Button Content="Trends" Command="{Binding NavigateToTrendsCommand}" 
-                        Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
-                <Button Content="Central Server" Command="{Binding NavigateToCentralCommand}" 
                         Style="{StaticResource NavButtonStyle}" Margin="0,5"/>
                 <Button Content="Settings" Command="{Binding NavigateToSettingsCommand}" 
                         Style="{StaticResource NavButtonStyle}" Margin="0,5"/>

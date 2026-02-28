@@ -53,6 +53,12 @@ namespace StorageWatch.Config.Options
         public AlertingOptions Alerting { get; set; } = new();
 
         /// <summary>
+        /// Central Server settings section
+        /// </summary>
+        [Required]
+        public CentralServerOptions CentralServer { get; set; } = new();
+
+        /// <summary>
         /// Data retention and cleanup configuration section.
         /// </summary>
         [Required]
