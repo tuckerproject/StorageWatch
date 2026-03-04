@@ -75,15 +75,9 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.Configure<CentralServerOptions>(cfg =>
         {
-            cfg.Enabled = options.CentralServer.Enabled;
-            cfg.Mode = options.CentralServer.Mode;
             cfg.ServerUrl = options.CentralServer.ServerUrl;
+            cfg.CheckIntervalSeconds = options.CentralServer.CheckIntervalSeconds;
             cfg.ApiKey = options.CentralServer.ApiKey;
-            cfg.AgentId = options.CentralServer.AgentId;
-            cfg.ReportIntervalSeconds = options.CentralServer.ReportIntervalSeconds;
-            cfg.Port = options.CentralServer.Port;
-            cfg.CentralConnectionString = options.CentralServer.CentralConnectionString;
-            cfg.ServerId = options.CentralServer.ServerId;
         });
 
         // Register option validators
@@ -91,7 +85,6 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IValidateOptions<MonitoringOptions>, MonitoringOptionsValidator>();
         services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
         services.AddSingleton<IValidateOptions<GroupMeOptions>, GroupMeOptionsValidator>();
-        services.AddSingleton<IValidateOptions<CentralServerOptions>, CentralServerOptionsValidator>();
 
         // Register the logger
         var logFilePath = Path.Combine(programData, "StorageWatch", "Logs", "service.log");
@@ -148,16 +141,13 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddSingleton<IDiskStatusProvider>(sp =>
             new DiskAlertMonitor(sp.GetRequiredService<IOptionsMonitor<StorageWatchOptions>>().CurrentValue));
-        services.AddSingleton<AgentReportBuilder>();
 
-        // Register mode-specific services
-        if (options.CentralServer.Enabled && options.CentralServer.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
+        // Register CentralPublisher only when Mode == Agent
+        if (options.Mode == StorageWatchMode.Agent)
         {
             services.AddHttpClient();
-            services.AddHttpClient<AgentReportSender>();
-            services.AddHostedService<AgentReportWorker>();
+            services.AddHostedService<CentralPublisher>();
         }
-        // Server mode is handled by StorageWatchServer project
 
         // Register the Worker as a hosted background service that will run continuously
         services.AddHostedService<Worker>();

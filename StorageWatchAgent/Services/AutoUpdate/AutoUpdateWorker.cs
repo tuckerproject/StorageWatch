@@ -47,13 +47,7 @@ namespace StorageWatch.Services.AutoUpdate
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var storageOptions = _storageOptionsMonitor.CurrentValue;
-            if (storageOptions.Mode == StorageWatchMode.Server)
-            {
-                _logger.Log("[AUTOUPDATE] Auto-update is disabled in Server mode.");
-                return;
-            }
-
+            // Auto-update runs in both Standalone and Agent modes
             var autoUpdateOptions = _autoUpdateOptionsMonitor.CurrentValue;
             if (!autoUpdateOptions.Enabled)
             {

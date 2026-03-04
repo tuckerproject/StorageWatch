@@ -45,19 +45,6 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
-        public void StorageWatchOptions_CanSetMode_ToServer()
-        {
-            // Arrange
-            var options = new StorageWatchOptions();
-
-            // Act
-            options.Mode = StorageWatchMode.Server;
-
-            // Assert
-            options.Mode.Should().Be(StorageWatchMode.Server);
-        }
-
-        [Fact]
         public void StorageWatchOptionsValidator_Standalone_ValidatesSuccessfully()
         {
             // Arrange
@@ -100,104 +87,7 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
-        public void CentralServerOptionsValidator_WhenNotEnabled_SkipsValidation()
-        {
-            // Arrange
-            var validator = new CentralServerOptionsValidator();
-            var options = new CentralServerOptions
-            {
-                Enabled = false
-            };
-
-            // Act
-            var result = validator.Validate(null, options);
-
-            // Assert
-            result.Succeeded.Should().BeTrue();
-        }
-
-        [Fact]
-        public void CentralServerOptionsValidator_AgentMode_RequiresServerUrl()
-        {
-            // Arrange
-            var validator = new CentralServerOptionsValidator();
-            var options = new CentralServerOptions
-            {
-                Enabled = true,
-                Mode = "Agent",
-                ServerUrl = string.Empty,
-                ReportIntervalSeconds = 300
-            };
-
-            // Act
-            var result = validator.Validate(null, options);
-
-            // Assert
-            result.Succeeded.Should().BeFalse();
-            result.Failures.Should().Contain(f => f.Contains("ServerUrl"));
-        }
-
-        [Fact]
-        public void CentralServerOptionsValidator_AgentMode_ValidWithServerUrl()
-        {
-            // Arrange
-            var validator = new CentralServerOptionsValidator();
-            var options = new CentralServerOptions
-            {
-                Enabled = true,
-                Mode = "Agent",
-                ServerUrl = "http://localhost:5000",
-                ReportIntervalSeconds = 300
-            };
-
-            // Act
-            var result = validator.Validate(null, options);
-
-            // Assert
-            result.Succeeded.Should().BeTrue();
-        }
-
-        [Fact]
-        public void CentralServerOptionsValidator_ServerMode_RequiresCentralConnectionString()
-        {
-            // Arrange
-            var validator = new CentralServerOptionsValidator();
-            var options = new CentralServerOptions
-            {
-                Enabled = true,
-                Mode = "Server",
-                CentralConnectionString = string.Empty
-            };
-
-            // Act
-            var result = validator.Validate(null, options);
-
-            // Assert
-            result.Succeeded.Should().BeFalse();
-            result.Failures.Should().Contain(f => f.Contains("CentralConnectionString"));
-        }
-
-        [Fact]
-        public void CentralServerOptionsValidator_ServerMode_ValidWithConnectionString()
-        {
-            // Arrange
-            var validator = new CentralServerOptionsValidator();
-            var options = new CentralServerOptions
-            {
-                Enabled = true,
-                Mode = "Server",
-                CentralConnectionString = "Data Source=central.db"
-            };
-
-            // Act
-            var result = validator.Validate(null, options);
-
-            // Assert
-            result.Succeeded.Should().BeTrue();
-        }
-
-        [Fact]
-        public void ServiceBuilder_StandaloneMode_DoesNotRegisterAgentReportWorker()
+        public void ServiceBuilder_StandaloneMode_DoesNotRegisterCentralPublisher()
         {
             // Arrange
             var services = new ServiceCollection();
@@ -219,39 +109,38 @@ namespace StorageWatch.Tests.UnitTests
                 cfg.Alerting = options.Alerting;
             });
 
-            // Simulate what Program.cs does: only register AgentReportWorker for Agent mode
+            // Simulate what Program.cs does: only register CentralPublisher for Agent mode
             if (options.Mode == StorageWatchMode.Agent)
             {
                 services.AddHttpClient();
-                services.AddHttpClient<AgentReportSender>();
-                services.AddHostedService<AgentReportWorker>();
+                services.AddHostedService<CentralPublisher>();
             }
 
             var provider = services.BuildServiceProvider();
 
             // Act & Assert
             var hostedServices = provider.GetServices<IHostedService>();
-            hostedServices.Should().NotContain(s => s is AgentReportWorker,
-                "AgentReportWorker should not be registered in Standalone mode");
+            hostedServices.Should().NotContain(s => s is CentralPublisher,
+                "CentralPublisher should not be registered in Standalone mode");
         }
 
         [Fact]
-        public void ServiceBuilder_AgentMode_RegistersAgentReportWorker()
+        public void ServiceBuilder_AgentMode_RegistersCentralPublisher()
         {
             // This test verifies that the Service Collection registration happens correctly
             // for Agent mode. We don't need to fully instantiate the service provider
-            // since AgentReportWorker has complex dependencies that are better tested
+            // since CentralPublisher has complex dependencies that are better tested
             // in integration tests.
             
             // Arrange
             var agentMode = StorageWatchMode.Agent;
 
-            // Act - In Agent mode, AgentReportWorker would be registered
-            bool shouldRegisterReporter = agentMode == StorageWatchMode.Agent;
+            // Act - In Agent mode, CentralPublisher would be registered
+            bool shouldRegisterPublisher = agentMode == StorageWatchMode.Agent;
 
             // Assert
-            shouldRegisterReporter.Should().BeTrue(
-                "Agent mode should register AgentReportWorker for central server reporting");
+            shouldRegisterPublisher.Should().BeTrue(
+                "Agent mode should register CentralPublisher for central server reporting");
         }
     }
 }

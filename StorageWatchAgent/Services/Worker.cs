@@ -11,11 +11,10 @@ using StorageWatch.Config;
 using StorageWatch.Config.Options;
 using StorageWatch.Data;
 using StorageWatch.Services.Alerting;
+using StorageWatch.Services.DataRetention;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.Scheduling;
-using StorageWatch.Services.CentralServer;
-using StorageWatch.Services.DataRetention;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System;
@@ -32,12 +31,10 @@ namespace StorageWatch.Services
     public class Worker : BackgroundService
     {
         private readonly IOptionsMonitor<StorageWatchOptions> _optionsMonitor;
-        private readonly IOptionsMonitor<CentralServerOptions> _centralServerOptions;
         private readonly IServiceProvider _serviceProvider;
         private readonly RollingFileLogger _logger;
         private readonly SqlReporterScheduler _sqlScheduler;
         private readonly NotificationLoop _notificationLoop;
-        private readonly CentralServerService? _centralServer;
         private readonly RetentionManager? _retentionManager;
 
         /// <summary>
@@ -47,11 +44,9 @@ namespace StorageWatch.Services
         /// <param name="serviceProvider">Service provider for resolving dependencies.</param>
         public Worker(
             IOptionsMonitor<StorageWatchOptions> optionsMonitor,
-            IOptionsMonitor<CentralServerOptions> centralServerOptions,
             IServiceProvider serviceProvider)
         {
             _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
-            _centralServerOptions = centralServerOptions ?? throw new ArgumentNullException(nameof(centralServerOptions));
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -64,7 +59,6 @@ namespace StorageWatch.Services
 
             // Get current options snapshot
             var options = _optionsMonitor.CurrentValue;
-            var centralOptions = _centralServerOptions.CurrentValue;
 
             // Log startup information if enabled in configuration
             if (options.General.EnableStartupLogging)
@@ -104,26 +98,8 @@ namespace StorageWatch.Services
                 }
             }
 
-            // Initialize the central server forwarder if in agent mode
-            CentralServerForwarder? forwarder = null;
-            if (centralOptions.Enabled &&
-                centralOptions.Mode.Equals("Agent", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    forwarder = new CentralServerForwarder(centralOptions, _logger);
-                    if (options.General.EnableStartupLogging)
-                        _logger.Log($"[STARTUP] Central server forwarder initialized for {centralOptions.ServerUrl}");
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[STARTUP ERROR] Failed to initialize central server forwarder: {ex}");
-                    throw;
-                }
-            }
-
-            // Initialize the SQL reporter component with optional forwarder
-            var sqlReporter = new SqlReporter(options, _logger, forwarder);
+            // Initialize the SQL reporter component without forwarder
+            var sqlReporter = new SqlReporter(options, _logger);
 
             // Initialize schedulers for SQL reporting and disk notifications
             _sqlScheduler = new SqlReporterScheduler(options, sqlReporter, _logger);
@@ -142,34 +118,6 @@ namespace StorageWatch.Services
                 throw;
             }
 
-            // Initialize central server if enabled in server mode
-            if (centralOptions.Enabled &&
-                centralOptions.Mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var centralSchema = new CentralServerSchema(centralOptions.CentralConnectionString, _logger);
-                    centralSchema.InitializeDatabaseAsync().Wait();
-                    if (options.General.EnableStartupLogging)
-                        _logger.Log("[STARTUP] Central server database initialized");
-
-                    var centralRepository = new CentralServerRepository(centralOptions.CentralConnectionString, _logger);
-                    _centralServer = new CentralServerService(centralOptions, _logger, centralRepository);
-
-                    if (options.General.EnableStartupLogging)
-                        _logger.Log("[STARTUP] Central server initialized");
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[STARTUP ERROR] Failed to initialize central server: {ex}");
-                    throw;
-                }
-            }
-            else
-            {
-                _centralServer = null;
-            }
-
             // Log when components have been initialized
             if (options.General.EnableStartupLogging)
                 _logger.Log("[STARTUP] Components initialized");
@@ -184,19 +132,6 @@ namespace StorageWatch.Services
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.Log("[WORKER] ExecuteAsync started");
-
-            // Start the central server if enabled
-            if (_centralServer != null)
-            {
-                try
-                {
-                    await _centralServer.StartAsync(stoppingToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[WORKER ERROR] Central server failed to start: {ex}");
-                }
-            }
 
             // Start the notification loop as a background task (disk monitoring and alerts)
             // This runs continuously while respecting the associated stoppingToken
@@ -223,19 +158,6 @@ namespace StorageWatch.Services
 
                 // Wait 30 seconds before checking again
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-            }
-
-            // Stop the central server if it was running
-            if (_centralServer != null)
-            {
-                try
-                {
-                    await _centralServer.StopAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[WORKER ERROR] Failed to stop central server: {ex}");
-                }
             }
 
             _logger.Log("[WORKER] ExecuteAsync exiting");

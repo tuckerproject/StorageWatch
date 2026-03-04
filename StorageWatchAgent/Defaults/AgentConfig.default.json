@@ -51,15 +51,9 @@
       "CollectionTime": "02:00"
     },
     "CentralServer": {
-      "Enabled": false,
-      "Mode": "Agent",
       "ServerUrl": "http://central-server.example.com:5000",
-      "ApiKey": "",
-      "AgentId": "agent-1",
-      "ReportIntervalSeconds": 300,
-      "Port": 5000,
-      "CentralConnectionString": "Data Source=C:\\ProgramData\\StorageWatch\\Central\\StorageWatch_Central.db",
-      "ServerId": "central-server"
+      "CheckIntervalSeconds": 300,
+      "ApiKey": ""
     }
   }
 }

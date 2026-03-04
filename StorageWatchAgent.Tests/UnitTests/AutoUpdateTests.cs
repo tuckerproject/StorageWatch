@@ -281,9 +281,9 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
-        public async Task AutoUpdateWorker_DoesNotRunInServerMode()
+        public async Task AutoUpdateWorker_RunsInAgentMode()
         {
-            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(new StorageWatchOptions { Mode = StorageWatchMode.Server });
+            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(new StorageWatchOptions { Mode = StorageWatchMode.Agent });
             var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions { Enabled = true });
 
             var serviceChecker = new FakeServiceUpdateChecker(new ComponentUpdateCheckResult { IsUpdateAvailable = false });
@@ -299,7 +299,33 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
+            serviceChecker.CallCount.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task AutoUpdateWorker_DoesNotRunWhenDisabled()
+        {
+            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(new StorageWatchOptions { Mode = StorageWatchMode.Agent });
+            var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions { Enabled = false });
+
+            var serviceChecker = new FakeServiceUpdateChecker(new ComponentUpdateCheckResult { IsUpdateAvailable = false });
+            var serviceDownloader = new FakeServiceUpdateDownloader(new UpdateDownloadResult { Success = false });
+            var serviceInstaller = new FakeServiceUpdateInstaller(new UpdateInstallResult { Success = true });
+            var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = Array.Empty<PluginUpdateInfo>() });
+            var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = false });
+            var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
+            var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
+            var logger = new RollingFileLogger(TestHelpers.CreateTempLogFile());
+
+            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, timerFactory, logger);
+
+            await worker.RunAsync(CancellationToken.None);
+
             serviceChecker.CallCount.Should().Be(0);
+            serviceDownloader.CallCount.Should().Be(0);
+            serviceInstaller.CallCount.Should().Be(0);
+            pluginDownloader.CallCount.Should().Be(0);
+            pluginInstaller.CallCount.Should().Be(0);
         }
 
         [Fact]

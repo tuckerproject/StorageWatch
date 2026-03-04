@@ -7,16 +7,13 @@ namespace StorageWatch.Tests.UnitTests
     public class AgentReportOptionsBindingTests
     {
         [Fact]
-        public void CentralServerOptions_BindsReportingSettings()
+        public void CentralServerOptions_BindsPublishingSettings()
         {
             var settings = new Dictionary<string, string?>
             {
-                ["CentralServer:Enabled"] = "true",
-                ["CentralServer:Mode"] = "Agent",
-                ["CentralServer:BaseUrl"] = "http://localhost:5001",
-                ["CentralServer:ApiKey"] = "api-key",
-                ["CentralServer:AgentId"] = "agent-42",
-                ["CentralServer:ReportingIntervalSeconds"] = "120"
+                ["CentralServer:ServerUrl"] = "http://localhost:5001",
+                ["CentralServer:CheckIntervalSeconds"] = "120",
+                ["CentralServer:ApiKey"] = "api-key"
             };
 
             var config = new ConfigurationBuilder()
@@ -26,12 +23,9 @@ namespace StorageWatch.Tests.UnitTests
             var options = new CentralServerOptions();
             config.GetSection("CentralServer").Bind(options);
 
-            options.Enabled.Should().BeTrue();
-            options.Mode.Should().Be("Agent");
             options.ServerUrl.Should().Be("http://localhost:5001");
+            options.CheckIntervalSeconds.Should().Be(120);
             options.ApiKey.Should().Be("api-key");
-            options.AgentId.Should().Be("agent-42");
-            options.ReportIntervalSeconds.Should().Be(120);
         }
     }
 }

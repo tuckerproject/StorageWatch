@@ -411,13 +411,7 @@ namespace StorageWatch.Config.Options
 
         /// <summary>
         /// Agent mode: Runs as an agent reporting to a central server.
-        /// Default mode.
         /// </summary>
-        Agent,
-
-        /// <summary>
-        /// Server mode: Runs as a central server managing multiple agents.
-        /// </summary>
-        Server
+        Agent
     }
 }
