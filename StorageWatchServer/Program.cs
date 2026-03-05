@@ -27,9 +27,15 @@ if (!File.Exists(configPath))
     var defaultConfigPath = Path.Combine(AppContext.BaseDirectory, "Defaults", "ServerConfig.default.json");
     if (File.Exists(defaultConfigPath))
     {
-        File.Copy(defaultConfigPath, configPath, overwrite: false);
-        var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
-        tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
+        try
+        {
+            File.Copy(defaultConfigPath, configPath, overwrite: false);
+            var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
+            tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
+        } catch (IOException)
+        {
+            // Another test host created it first — safe to ignore
+        }
     }
 }
 
