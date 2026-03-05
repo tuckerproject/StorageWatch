@@ -14,7 +14,6 @@ public class ServerSchema
 
     public async Task InitializeDatabaseAsync()
     {
-        // Handle in-memory database connection strings (for testing)
         string connectionString;
         if (_options.DatabasePath.Contains("mode=memory") || _options.DatabasePath.StartsWith("file:"))
         {
@@ -34,6 +33,43 @@ public class ServerSchema
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync();
 
+        // Enable foreign keys
+        await using (var command = new SqliteCommand("PRAGMA foreign_keys = ON;", connection))
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Create RawDriveRows table - stores exactly what Agents send
+        var createRawDriveRows = @"
+            CREATE TABLE IF NOT EXISTS RawDriveRows (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                MachineName TEXT NOT NULL,
+                DriveLetter TEXT NOT NULL,
+                TotalSpaceGb REAL NOT NULL,
+                UsedSpaceGb REAL NOT NULL,
+                FreeSpaceGb REAL NOT NULL,
+                PercentFree REAL NOT NULL,
+                Timestamp DATETIME NOT NULL
+            );
+        ";
+
+        await using (var command = new SqliteCommand(createRawDriveRows, connection))
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Create index for efficient queries by machine name and timestamp
+        var createRawDriveRowsIndex = @"
+            CREATE INDEX IF NOT EXISTS idx_RawDriveRows_Machine_Time
+            ON RawDriveRows(MachineName, Timestamp DESC);
+        ";
+
+        await using (var command = new SqliteCommand(createRawDriveRowsIndex, connection))
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Create Machines table for tracking unique machines
         var createMachines = @"
             CREATE TABLE IF NOT EXISTS Machines (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,45 +79,12 @@ public class ServerSchema
             );
         ";
 
-        var createMachineDrives = @"
-            CREATE TABLE IF NOT EXISTS MachineDrives (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                MachineId INTEGER NOT NULL,
-                DriveLetter TEXT NOT NULL,
-                TotalSpaceGb REAL NOT NULL,
-                UsedSpaceGb REAL NOT NULL,
-                FreeSpaceGb REAL NOT NULL,
-                PercentFree REAL NOT NULL,
-                LastSeenUtc DATETIME NOT NULL,
-                UNIQUE(MachineId, DriveLetter)
-            );
-        ";
+        await using (var command = new SqliteCommand(createMachines, connection))
+        {
+            await command.ExecuteNonQueryAsync();
+        }
 
-        var createDiskHistory = @"
-            CREATE TABLE IF NOT EXISTS DiskHistory (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                MachineId INTEGER NOT NULL,
-                DriveLetter TEXT NOT NULL,
-                TotalSpaceGb REAL NOT NULL,
-                UsedSpaceGb REAL NOT NULL,
-                FreeSpaceGb REAL NOT NULL,
-                PercentFree REAL NOT NULL,
-                CollectionTimeUtc DATETIME NOT NULL
-            );
-        ";
-
-        var createAlerts = @"
-            CREATE TABLE IF NOT EXISTS Alerts (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                MachineId INTEGER NOT NULL,
-                Severity TEXT NOT NULL,
-                Message TEXT NOT NULL,
-                CreatedUtc DATETIME NOT NULL,
-                ResolvedUtc DATETIME NULL,
-                IsActive INTEGER NOT NULL
-            );
-        ";
-
+        // Create Settings table for configuration
         var createSettings = @"
             CREATE TABLE IF NOT EXISTS Settings (
                 Key TEXT PRIMARY KEY,
@@ -90,47 +93,7 @@ public class ServerSchema
             );
         ";
 
-        await using (var command = new SqliteCommand(createMachines, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
-        await using (var command = new SqliteCommand(createMachineDrives, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
-        await using (var command = new SqliteCommand(createDiskHistory, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
-        await using (var command = new SqliteCommand(createAlerts, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
         await using (var command = new SqliteCommand(createSettings, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
-        var createHistoryIndex = @"
-            CREATE INDEX IF NOT EXISTS idx_DiskHistory_Machine_Drive_Time
-            ON DiskHistory(MachineId, DriveLetter, CollectionTimeUtc);
-        ";
-
-        await using (var command = new SqliteCommand(createHistoryIndex, connection))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-
-        var createMachineDriveIndex = @"
-            CREATE INDEX IF NOT EXISTS idx_MachineDrives_Machine
-            ON MachineDrives(MachineId, DriveLetter);
-        ";
-
-        await using (var command = new SqliteCommand(createMachineDriveIndex, connection))
         {
             await command.ExecuteNonQueryAsync();
         }
@@ -139,8 +102,7 @@ public class ServerSchema
             INSERT INTO Settings (Key, Value, Description)
             VALUES
             ('OnlineTimeoutMinutes', @timeout, 'Minutes before a machine is considered offline.'),
-            ('ListenUrl', @listenUrl, 'The URL Kestrel listens on for dashboard traffic.'),
-            ('DatabasePath', @databasePath, 'The SQLite database location for the central dashboard.')
+            ('ListenUrl', @listenUrl, 'The URL Kestrel listens on for dashboard traffic.')
             ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;
         ";
 
@@ -148,7 +110,6 @@ public class ServerSchema
         {
             command.Parameters.AddWithValue("@timeout", _options.OnlineTimeoutMinutes);
             command.Parameters.AddWithValue("@listenUrl", _options.ListenUrl);
-            command.Parameters.AddWithValue("@databasePath", _options.DatabasePath);
             await command.ExecuteNonQueryAsync();
         }
     }

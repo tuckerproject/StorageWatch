@@ -5,7 +5,7 @@ using StorageWatchServer.Models;
 using StorageWatchServer.Services.AutoUpdate;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Data;
-using StorageWatchServer.Server.Reporting.Data;
+using StorageWatchServer.Server.Reporting;
 using StorageWatchServer.Server.Services;
 using System.IO;
 using System.Text.Json;
@@ -52,8 +52,7 @@ builder.Services.Configure<AutoUpdateOptions>(builder.Configuration.GetSection(A
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<ServerOptions>>().Value);
 builder.Services.AddSingleton<ServerSchema>();
 builder.Services.AddSingleton<ServerRepository>();
-builder.Services.AddSingleton<AgentReportSchema>();
-builder.Services.AddSingleton<IAgentReportRepository, AgentReportRepository>();
+builder.Services.AddSingleton<RawRowIngestionService>();
 builder.Services.AddSingleton<MachineStatusService>();
 
 builder.Services.AddHttpClient<IServerUpdateChecker, ServerUpdateChecker>();
@@ -76,7 +75,6 @@ var appLogger = app.Services.GetRequiredService<ILogger<Program>>();
 appLogger.LogInformation("StorageWatch Server starting in server mode...");
 appLogger.LogInformation("Server listening on: {ListenUrl}", serverOptions.ListenUrl);
 appLogger.LogInformation("Database path: {DatabasePath}", serverOptions.DatabasePath);
-appLogger.LogInformation("Agent report database path: {AgentReportDatabasePath}", serverOptions.AgentReportDatabasePath);
 appLogger.LogInformation("Online timeout: {TimeoutMinutes} minutes", serverOptions.OnlineTimeoutMinutes);
 
 var schema = app.Services.GetRequiredService<ServerSchema>();
@@ -91,25 +89,10 @@ catch (Exception ex)
     throw;
 }
 
-var reportSchema = app.Services.GetRequiredService<AgentReportSchema>();
-try
-{
-    await reportSchema.InitializeDatabaseAsync();
-    appLogger.LogInformation("Agent report database initialized successfully");
-}
-catch (Exception ex)
-{
-    appLogger.LogError(ex, "Failed to initialize agent report database");
-    throw;
-}
-
 app.UseStaticFiles();
 
 app.MapControllers();
 app.MapRazorPages();
-
-var apiGroup = app.MapGroup("/api");
-apiGroup.MapAgentEndpoints();
 
 appLogger.LogInformation("StorageWatch Server ready to accept connections");
 

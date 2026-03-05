@@ -8,41 +8,32 @@ namespace StorageWatchServer.Tests.Utilities;
 /// </summary>
 public static class TestDataFactory
 {
+    /// <summary>
+    /// Creates a test AgentReportRequest with the new consolidated format.
+    /// </summary>
     public static AgentReportRequest CreateAgentReport(
-        string agentId = "TestAgent",
-        DateTime? timestampUtc = null,
-        int driveCount = 2,
-        int alertCount = 1)
+        string machineName = "TestMachine",
+        int rowCount = 2)
     {
         var report = new AgentReportRequest
         {
-            AgentId = agentId,
-            TimestampUtc = timestampUtc ?? DateTime.UtcNow,
-            Drives = new List<DriveReportDto>(),
-            Alerts = new List<AlertDto>()
+            MachineName = machineName,
+            Rows = new List<RawDriveRowRequest>()
         };
 
         var driveLetter = 'C';
-        for (int i = 0; i < driveCount; i++)
+        for (int i = 0; i < rowCount; i++)
         {
-            report.Drives.Add(new DriveReportDto
+            report.Rows.Add(new RawDriveRowRequest
             {
                 DriveLetter = $"{driveLetter}:",
                 TotalSpaceGb = 500,
-                FreeSpaceGb = 150,
-                UsedPercent = 70
+                UsedSpaceGb = 250,
+                FreeSpaceGb = 250,
+                PercentFree = 50,
+                Timestamp = DateTime.UtcNow
             });
             driveLetter++;
-        }
-
-        for (int i = 0; i < alertCount; i++)
-        {
-            report.Alerts.Add(new AlertDto
-            {
-                DriveLetter = "C:",
-                Level = "Warning",
-                Message = "Low disk space"
-            });
         }
 
         return report;
@@ -59,6 +50,27 @@ public static class TestDataFactory
             UsedSpaceGb = 250,
             FreeSpaceGb = 250,
             PercentFree = percentFree
+        };
+    }
+
+    public static RawDriveRow CreateRawDriveRow(
+        string machineName = "TestMachine",
+        string driveLetter = "C:",
+        double totalSpaceGb = 500,
+        double usedSpaceGb = 250,
+        double freeSpaceGb = 250,
+        double percentFree = 50,
+        DateTime? timestamp = null)
+    {
+        return new RawDriveRow
+        {
+            MachineName = machineName,
+            DriveLetter = driveLetter,
+            TotalSpaceGb = totalSpaceGb,
+            UsedSpaceGb = usedSpaceGb,
+            FreeSpaceGb = freeSpaceGb,
+            PercentFree = percentFree,
+            Timestamp = timestamp ?? DateTime.UtcNow
         };
     }
 

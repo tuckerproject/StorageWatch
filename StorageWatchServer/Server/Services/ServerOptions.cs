@@ -4,9 +4,9 @@ public class ServerOptions
 {
     public string ListenUrl { get; set; } = "http://localhost:5001";
 
-    public string DatabasePath { get; set; } = "Data/StorageWatchServer.db";
-
-    public string AgentReportDatabasePath { get; set; } = "Data/StorageWatchAgentReports.db";
+    public string DatabasePath { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "StorageWatch", "Server", "StorageWatchServer.db");
 
     public int OnlineTimeoutMinutes { get; set; } = 10;
 }
