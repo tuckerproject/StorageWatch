@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
+using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Server.Reporting;
 
@@ -11,10 +12,12 @@ namespace StorageWatchServer.Server.Reporting;
 public class RawRowIngestionService
 {
     private readonly ServerOptions _options;
+    private readonly RollingFileLogger? _logger;
 
-    public RawRowIngestionService(ServerOptions options)
+    public RawRowIngestionService(ServerOptions options, RollingFileLogger? logger = null)
     {
         _options = options;
+        _logger = logger;
     }
 
     private string GetConnectionString()
@@ -38,6 +41,8 @@ public class RawRowIngestionService
             throw new ArgumentException("Machine name must be provided and rows list must not be empty.");
         }
 
+        _logger?.Log($"[INGEST] Received report from {machineName} with {rows.Count} rows");
+
         await using var connection = new SqliteConnection(GetConnectionString());
         await connection.OpenAsync();
 
@@ -46,29 +51,40 @@ public class RawRowIngestionService
             await command.ExecuteNonQueryAsync();
         }
 
+        _logger?.Log($"[DB] Inserting {rows.Count} RawDriveRows for {machineName}");
+
         using var transaction = connection.BeginTransaction();
 
-        var insertSql = @"
-            INSERT INTO RawDriveRows
-                (MachineName, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, Timestamp)
-            VALUES
-                (@machineName, @driveLetter, @totalSpaceGb, @usedSpaceGb, @freeSpaceGb, @percentFree, @timestamp);
-        ";
-
-        foreach (var row in rows)
+        try
         {
-            await using var command = new SqliteCommand(insertSql, connection);
-            command.Transaction = transaction;
-            command.Parameters.AddWithValue("@machineName", machineName);
-            command.Parameters.AddWithValue("@driveLetter", row.DriveLetter ?? string.Empty);
-            command.Parameters.AddWithValue("@totalSpaceGb", row.TotalSpaceGb);
-            command.Parameters.AddWithValue("@usedSpaceGb", row.UsedSpaceGb);
-            command.Parameters.AddWithValue("@freeSpaceGb", row.FreeSpaceGb);
-            command.Parameters.AddWithValue("@percentFree", row.PercentFree);
-            command.Parameters.AddWithValue("@timestamp", row.Timestamp);
-            await command.ExecuteNonQueryAsync();
-        }
+            var insertSql = @"
+                INSERT INTO RawDriveRows
+                    (MachineName, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, Timestamp)
+                VALUES
+                    (@machineName, @driveLetter, @totalSpaceGb, @usedSpaceGb, @freeSpaceGb, @percentFree, @timestamp);
+            ";
 
-        await transaction.CommitAsync();
+            foreach (var row in rows)
+            {
+                await using var command = new SqliteCommand(insertSql, connection);
+                command.Transaction = transaction;
+                command.Parameters.AddWithValue("@machineName", machineName);
+                command.Parameters.AddWithValue("@driveLetter", row.DriveLetter ?? string.Empty);
+                command.Parameters.AddWithValue("@totalSpaceGb", row.TotalSpaceGb);
+                command.Parameters.AddWithValue("@usedSpaceGb", row.UsedSpaceGb);
+                command.Parameters.AddWithValue("@freeSpaceGb", row.FreeSpaceGb);
+                command.Parameters.AddWithValue("@percentFree", row.PercentFree);
+                command.Parameters.AddWithValue("@timestamp", row.Timestamp);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            _logger?.Log($"[DB] Insert committed successfully for {machineName}");
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Failed to insert RawDriveRows: {ex.Message}");
+            throw;
+        }
     }
 }

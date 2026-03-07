@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using StorageWatchServer.Config;
+using StorageWatchServer.Middleware;
 using StorageWatchServer.Models;
 using StorageWatchServer.Services.AutoUpdate;
+using StorageWatchServer.Services.Logging;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Reporting;
@@ -45,11 +47,12 @@ if (!File.Exists(configPath))
         {
             File.Copy(defaultConfigPath, configPath, overwrite: false);
             
-            // Only log in non-test mode
+            // Log config creation
             if (!isTestEnvironment)
             {
-                var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
-                tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
+                var logFilePath = LogDirectoryInitializer.GetLogFilePath("server.log");
+                var tempLogger = new RollingFileLogger(logFilePath);
+                tempLogger.Log("[STARTUP] Default ServerConfig.json created at: " + configPath);
             }
         }
         catch (IOException)
@@ -76,6 +79,17 @@ builder.Services.AddControllers();
 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("Server"));
 builder.Services.Configure<AutoUpdateOptions>(builder.Configuration.GetSection(AutoUpdateOptions.SectionKey));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<ServerOptions>>().Value);
+
+// Register RollingFileLogger for server logging (production mode only)
+RollingFileLogger? rollingLogger = null;
+if (!isTestEnvironment)
+{
+    var logFilePath = LogDirectoryInitializer.GetLogFilePath("server.log");
+    rollingLogger = new RollingFileLogger(logFilePath);
+    builder.Services.AddSingleton(rollingLogger);
+}
+// In test mode, do NOT register the logger — services will receive null
+
 builder.Services.AddSingleton<ServerSchema>();
 builder.Services.AddSingleton<ServerRepository>();
 builder.Services.AddSingleton<RawRowIngestionService>();
@@ -96,8 +110,21 @@ if (!string.IsNullOrWhiteSpace(serverOptions.ListenUrl))
 
 var app = builder.Build();
 
+// Use exception handler middleware
+app.UseExceptionHandlerMiddleware();
+
 // Log server startup
 var appLogger = app.Services.GetRequiredService<ILogger<Program>>();
+var runtimeRollingLogger = app.Services.GetService<RollingFileLogger>();
+
+if (runtimeRollingLogger != null)
+{
+    runtimeRollingLogger.Log("[STARTUP] StorageWatch Server starting...");
+    runtimeRollingLogger.Log($"[STARTUP] Config path: {configPath}");
+    runtimeRollingLogger.Log($"[STARTUP] Database path: {dbPath}");
+    runtimeRollingLogger.Log($"[STARTUP] Listen URL: {serverOptions.ListenUrl}");
+}
+
 appLogger.LogInformation("StorageWatch Server starting in server mode...");
 appLogger.LogInformation("Server listening on: {ListenUrl}", serverOptions.ListenUrl);
 appLogger.LogInformation("Database path: {DatabasePath}", serverOptions.DatabasePath);
@@ -108,10 +135,20 @@ try
 {
     await schema.InitializeDatabaseAsync();
     appLogger.LogInformation("Database initialized successfully");
+    
+    if (runtimeRollingLogger != null)
+    {
+        runtimeRollingLogger.Log("[STARTUP] Database initialized successfully");
+    }
 }
 catch (Exception ex)
 {
     appLogger.LogError(ex, "Failed to initialize database");
+    
+    if (runtimeRollingLogger != null)
+    {
+        runtimeRollingLogger.Log($"[ERROR] Failed to initialize database: {ex.Message}");
+    }
     throw;
 }
 
@@ -120,6 +157,10 @@ app.UseStaticFiles();
 app.MapControllers();
 app.MapRazorPages();
 
+if (runtimeRollingLogger != null)
+{
+    runtimeRollingLogger.Log("[STARTUP] StorageWatch Server ready to accept connections");
+}
 appLogger.LogInformation("StorageWatch Server ready to accept connections");
 
 app.Run();

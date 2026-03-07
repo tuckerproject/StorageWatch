@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Models;
+using StorageWatchServer.Services.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace StorageWatchServer.Dashboard;
@@ -9,11 +10,13 @@ public class SettingsModel : PageModel
 {
     private readonly ServerRepository _repository;
     private readonly ILogger<SettingsModel> _logger;
+    private readonly RollingFileLogger? _rollingLogger;
 
-    public SettingsModel(ServerRepository repository, ILogger<SettingsModel> logger)
+    public SettingsModel(ServerRepository repository, ILogger<SettingsModel> logger, RollingFileLogger? rollingLogger = null)
     {
         _repository = repository;
         _logger = logger;
+        _rollingLogger = rollingLogger;
     }
 
     public IReadOnlyList<SettingRecord> Settings { get; private set; } = Array.Empty<SettingRecord>();
@@ -30,6 +33,7 @@ public class SettingsModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading settings");
+            _rollingLogger?.Log($"[WEBHOST] Razor page failed: {ex.Message}");
             ErrorMessage = "An error occurred while loading settings.";
         }
     }

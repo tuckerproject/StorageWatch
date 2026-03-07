@@ -1,16 +1,19 @@
 using Microsoft.Data.Sqlite;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
+using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Server.Data;
 
 public class ServerRepository
 {
     private readonly ServerOptions _options;
+    private readonly RollingFileLogger? _logger;
 
-    public ServerRepository(ServerOptions options)
+    public ServerRepository(ServerOptions options, RollingFileLogger? logger = null)
     {
         _options = options;
+        _logger = logger;
     }
 
     private string GetConnectionString()
@@ -27,146 +30,194 @@ public class ServerRepository
 
     public async Task<int> UpsertMachineAsync(string machineName, DateTime lastSeenUtc)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var upsert = @"
-            INSERT INTO Machines (MachineName, LastSeenUtc, CreatedUtc)
-            VALUES (@name, @lastSeen, @created)
-            ON CONFLICT(MachineName) DO UPDATE SET LastSeenUtc = excluded.LastSeenUtc;
-        ";
-
-        await using (var command = new SqliteCommand(upsert, connection))
+        try
         {
-            command.Parameters.AddWithValue("@name", machineName);
-            command.Parameters.AddWithValue("@lastSeen", lastSeenUtc);
-            command.Parameters.AddWithValue("@created", lastSeenUtc);
-            await command.ExecuteNonQueryAsync();
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var upsert = @"
+                INSERT INTO Machines (MachineName, LastSeenUtc, CreatedUtc)
+                VALUES (@name, @lastSeen, @created)
+                ON CONFLICT(MachineName) DO UPDATE SET LastSeenUtc = excluded.LastSeenUtc;
+            ";
+
+            await using (var command = new SqliteCommand(upsert, connection))
+            {
+                command.Parameters.AddWithValue("@name", machineName);
+                command.Parameters.AddWithValue("@lastSeen", lastSeenUtc);
+                command.Parameters.AddWithValue("@created", lastSeenUtc);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var select = "SELECT Id FROM Machines WHERE MachineName = @name";
+            await using (var command = new SqliteCommand(select, connection))
+            {
+                command.Parameters.AddWithValue("@name", machineName);
+                var result = await command.ExecuteScalarAsync();
+                return Convert.ToInt32(result);
+            }
         }
-
-        var select = "SELECT Id FROM Machines WHERE MachineName = @name";
-        await using (var command = new SqliteCommand(select, connection))
+        catch (Exception ex)
         {
-            command.Parameters.AddWithValue("@name", machineName);
-            var result = await command.ExecuteScalarAsync();
-            return Convert.ToInt32(result);
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
         }
     }
 
     public async Task UpsertDriveAsync(int machineId, MachineDriveStatus drive)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
 
-        var upsert = @"
-            INSERT INTO MachineDrives
-                (MachineId, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, LastSeenUtc)
-            VALUES
-                (@machineId, @driveLetter, @total, @used, @free, @percent, @lastSeen)
-            ON CONFLICT(MachineId, DriveLetter) DO UPDATE SET
-                TotalSpaceGb = excluded.TotalSpaceGb,
-                UsedSpaceGb = excluded.UsedSpaceGb,
-                FreeSpaceGb = excluded.FreeSpaceGb,
-                PercentFree = excluded.PercentFree,
-                LastSeenUtc = excluded.LastSeenUtc;
-        ";
+            var upsert = @"
+                INSERT INTO MachineDrives
+                    (MachineId, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, LastSeenUtc)
+                VALUES
+                    (@machineId, @driveLetter, @total, @used, @free, @percent, @lastSeen)
+                ON CONFLICT(MachineId, DriveLetter) DO UPDATE SET
+                    TotalSpaceGb = excluded.TotalSpaceGb,
+                    UsedSpaceGb = excluded.UsedSpaceGb,
+                    FreeSpaceGb = excluded.FreeSpaceGb,
+                    PercentFree = excluded.PercentFree,
+                    LastSeenUtc = excluded.LastSeenUtc;
+            ";
 
-        await using var command = new SqliteCommand(upsert, connection);
-        command.Parameters.AddWithValue("@machineId", machineId);
-        command.Parameters.AddWithValue("@driveLetter", drive.DriveLetter);
-        command.Parameters.AddWithValue("@total", drive.TotalSpaceGb);
-        command.Parameters.AddWithValue("@used", drive.UsedSpaceGb);
-        command.Parameters.AddWithValue("@free", drive.FreeSpaceGb);
-        command.Parameters.AddWithValue("@percent", drive.PercentFree);
-        command.Parameters.AddWithValue("@lastSeen", drive.LastSeenUtc);
-        await command.ExecuteNonQueryAsync();
+            await using var command = new SqliteCommand(upsert, connection);
+            command.Parameters.AddWithValue("@machineId", machineId);
+            command.Parameters.AddWithValue("@driveLetter", drive.DriveLetter);
+            command.Parameters.AddWithValue("@total", drive.TotalSpaceGb);
+            command.Parameters.AddWithValue("@used", drive.UsedSpaceGb);
+            command.Parameters.AddWithValue("@free", drive.FreeSpaceGb);
+            command.Parameters.AddWithValue("@percent", drive.PercentFree);
+            command.Parameters.AddWithValue("@lastSeen", drive.LastSeenUtc);
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task InsertDiskHistoryAsync(int machineId, string driveLetter, DiskHistoryPoint point)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
 
-        var insert = @"
-            INSERT INTO DiskHistory
-                (MachineId, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, CollectionTimeUtc)
-            VALUES
-                (@machineId, @driveLetter, @total, @used, @free, @percent, @collectionTime);
-        ";
+            var insert = @"
+                INSERT INTO DiskHistory
+                    (MachineId, DriveLetter, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree, CollectionTimeUtc)
+                VALUES
+                    (@machineId, @driveLetter, @total, @used, @free, @percent, @collectionTime);
+            ";
 
-        await using var command = new SqliteCommand(insert, connection);
-        command.Parameters.AddWithValue("@machineId", machineId);
-        command.Parameters.AddWithValue("@driveLetter", driveLetter);
-        command.Parameters.AddWithValue("@total", point.TotalSpaceGb);
-        command.Parameters.AddWithValue("@used", point.UsedSpaceGb);
-        command.Parameters.AddWithValue("@free", point.FreeSpaceGb);
-        command.Parameters.AddWithValue("@percent", point.PercentFree);
-        command.Parameters.AddWithValue("@collectionTime", point.CollectionTimeUtc);
-        await command.ExecuteNonQueryAsync();
+            await using var command = new SqliteCommand(insert, connection);
+            command.Parameters.AddWithValue("@machineId", machineId);
+            command.Parameters.AddWithValue("@driveLetter", driveLetter);
+            command.Parameters.AddWithValue("@total", point.TotalSpaceGb);
+            command.Parameters.AddWithValue("@used", point.UsedSpaceGb);
+            command.Parameters.AddWithValue("@free", point.FreeSpaceGb);
+            command.Parameters.AddWithValue("@percent", point.PercentFree);
+            command.Parameters.AddWithValue("@collectionTime", point.CollectionTimeUtc);
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<MachineSummary>> GetMachinesAsync()
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var machineSql = "SELECT Id, MachineName, LastSeenUtc, CreatedUtc FROM Machines ORDER BY MachineName";
-        var machines = new List<MachineSummary>();
-
-        await using (var command = new SqliteCommand(machineSql, connection))
-        await using (var reader = await command.ExecuteReaderAsync())
+        try
         {
-            while (await reader.ReadAsync())
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var machineSql = "SELECT Id, MachineName, LastSeenUtc, CreatedUtc FROM Machines ORDER BY MachineName";
+            var machines = new List<MachineSummary>();
+
+            await using (var command = new SqliteCommand(machineSql, connection))
+            await using (var reader = await command.ExecuteReaderAsync())
             {
-                machines.Add(new MachineSummary
+                while (await reader.ReadAsync())
                 {
-                    Id = reader.GetInt32(0),
-                    MachineName = reader.GetString(1),
-                    LastSeenUtc = reader.GetDateTime(2)
-                });
+                    machines.Add(new MachineSummary
+                    {
+                        Id = reader.GetInt32(0),
+                        MachineName = reader.GetString(1),
+                        LastSeenUtc = reader.GetDateTime(2)
+                    });
+                }
             }
-        }
 
-        foreach (var machine in machines)
+            foreach (var machine in machines)
+            {
+                machine.Drives = await GetMachineDrivesAsync(connection, machine.Id);
+            }
+
+            return machines;
+        }
+        catch (Exception ex)
         {
-            machine.Drives = await GetMachineDrivesAsync(connection, machine.Id);
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
         }
-
-        return machines;
     }
 
     public async Task<MachineDetails?> GetMachineAsync(int machineId)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var machineSql = "SELECT Id, MachineName, LastSeenUtc, CreatedUtc FROM Machines WHERE Id = @id";
-        await using var command = new SqliteCommand(machineSql, connection);
-        command.Parameters.AddWithValue("@id", machineId);
-
-        await using var reader = await command.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        try
         {
-            return null;
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var machineSql = "SELECT Id, MachineName, LastSeenUtc, CreatedUtc FROM Machines WHERE Id = @id";
+            await using var command = new SqliteCommand(machineSql, connection);
+            command.Parameters.AddWithValue("@id", machineId);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+            {
+                return null;
+            }
+
+            var machine = new MachineDetails
+            {
+                Id = reader.GetInt32(0),
+                MachineName = reader.GetString(1),
+                LastSeenUtc = reader.GetDateTime(2),
+                CreatedUtc = reader.GetDateTime(3)
+            };
+
+            machine.Drives = await GetMachineDrivesAsync(connection, machine.Id);
+            return machine;
         }
-
-        var machine = new MachineDetails
+        catch (Exception ex)
         {
-            Id = reader.GetInt32(0),
-            MachineName = reader.GetString(1),
-            LastSeenUtc = reader.GetDateTime(2),
-            CreatedUtc = reader.GetDateTime(3)
-        };
-
-        machine.Drives = await GetMachineDrivesAsync(connection, machine.Id);
-        return machine;
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<MachineDriveStatus>> GetMachineDrivesAsync(int machineId)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-        return await GetMachineDrivesAsync(connection, machineId);
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+            return await GetMachineDrivesAsync(connection, machineId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     private static async Task<IReadOnlyList<MachineDriveStatus>> GetMachineDrivesAsync(SqliteConnection connection, int machineId)
@@ -201,92 +252,116 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<DiskHistoryPoint>> GetDiskHistoryAsync(int machineId, string driveLetter, DateTime startUtc)
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var historySql = @"
-            SELECT CollectionTimeUtc, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree
-            FROM DiskHistory
-            WHERE MachineId = @machineId AND DriveLetter = @driveLetter AND CollectionTimeUtc >= @startUtc
-            ORDER BY CollectionTimeUtc;
-        ";
-
-        var points = new List<DiskHistoryPoint>();
-        await using var command = new SqliteCommand(historySql, connection);
-        command.Parameters.AddWithValue("@machineId", machineId);
-        command.Parameters.AddWithValue("@driveLetter", driveLetter);
-        command.Parameters.AddWithValue("@startUtc", startUtc);
-
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        try
         {
-            points.Add(new DiskHistoryPoint
-            {
-                CollectionTimeUtc = reader.GetDateTime(0),
-                TotalSpaceGb = reader.GetDouble(1),
-                UsedSpaceGb = reader.GetDouble(2),
-                FreeSpaceGb = reader.GetDouble(3),
-                PercentFree = reader.GetDouble(4)
-            });
-        }
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
 
-        return points;
+            var historySql = @"
+                SELECT CollectionTimeUtc, TotalSpaceGb, UsedSpaceGb, FreeSpaceGb, PercentFree
+                FROM DiskHistory
+                WHERE MachineId = @machineId AND DriveLetter = @driveLetter AND CollectionTimeUtc >= @startUtc
+                ORDER BY CollectionTimeUtc;
+            ";
+
+            var points = new List<DiskHistoryPoint>();
+            await using var command = new SqliteCommand(historySql, connection);
+            command.Parameters.AddWithValue("@machineId", machineId);
+            command.Parameters.AddWithValue("@driveLetter", driveLetter);
+            command.Parameters.AddWithValue("@startUtc", startUtc);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                points.Add(new DiskHistoryPoint
+                {
+                    CollectionTimeUtc = reader.GetDateTime(0),
+                    TotalSpaceGb = reader.GetDouble(1),
+                    UsedSpaceGb = reader.GetDouble(2),
+                    FreeSpaceGb = reader.GetDouble(3),
+                    PercentFree = reader.GetDouble(4)
+                });
+            }
+
+            return points;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<AlertRecord>> GetAlertsAsync()
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var alertSql = @"
-            SELECT Alerts.Id, Alerts.MachineId, Machines.MachineName, Alerts.Severity, Alerts.Message,
-                   Alerts.CreatedUtc, Alerts.ResolvedUtc, Alerts.IsActive
-            FROM Alerts
-            INNER JOIN Machines ON Machines.Id = Alerts.MachineId
-            ORDER BY Alerts.IsActive DESC, Alerts.CreatedUtc DESC;
-        ";
-
-        var alerts = new List<AlertRecord>();
-        await using var command = new SqliteCommand(alertSql, connection);
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        try
         {
-            alerts.Add(new AlertRecord
-            {
-                Id = reader.GetInt32(0),
-                MachineId = reader.GetInt32(1),
-                MachineName = reader.GetString(2),
-                Severity = reader.GetString(3),
-                Message = reader.GetString(4),
-                CreatedUtc = reader.GetDateTime(5),
-                ResolvedUtc = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-                IsActive = reader.GetInt32(7) == 1
-            });
-        }
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
 
-        return alerts;
+            var alertSql = @"
+                SELECT Alerts.Id, Alerts.MachineId, Machines.MachineName, Alerts.Severity, Alerts.Message,
+                       Alerts.CreatedUtc, Alerts.ResolvedUtc, Alerts.IsActive
+                FROM Alerts
+                INNER JOIN Machines ON Machines.Id = Alerts.MachineId
+                ORDER BY Alerts.IsActive DESC, Alerts.CreatedUtc DESC;
+            ";
+
+            var alerts = new List<AlertRecord>();
+            await using var command = new SqliteCommand(alertSql, connection);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                alerts.Add(new AlertRecord
+                {
+                    Id = reader.GetInt32(0),
+                    MachineId = reader.GetInt32(1),
+                    MachineName = reader.GetString(2),
+                    Severity = reader.GetString(3),
+                    Message = reader.GetString(4),
+                    CreatedUtc = reader.GetDateTime(5),
+                    ResolvedUtc = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
+                    IsActive = reader.GetInt32(7) == 1
+                });
+            }
+
+            return alerts;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<SettingRecord>> GetSettingsAsync()
     {
-        await using var connection = new SqliteConnection(GetConnectionString());
-        await connection.OpenAsync();
-
-        var settingsSql = "SELECT Key, Value, Description FROM Settings ORDER BY Key";
-        var settings = new List<SettingRecord>();
-
-        await using var command = new SqliteCommand(settingsSql, connection);
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        try
         {
-            settings.Add(new SettingRecord
-            {
-                Key = reader.GetString(0),
-                Value = reader.GetString(1),
-                Description = reader.GetString(2)
-            });
-        }
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
 
-        return settings;
+            var settingsSql = "SELECT Key, Value, Description FROM Settings ORDER BY Key";
+            var settings = new List<SettingRecord>();
+
+            await using var command = new SqliteCommand(settingsSql, connection);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                settings.Add(new SettingRecord
+                {
+                    Key = reader.GetString(0),
+                    Value = reader.GetString(1),
+                    Description = reader.GetString(2)
+                });
+            }
+
+            return settings;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Log($"[ERROR] Database operation failed: {ex.Message}");
+            throw;
+        }
     }
 }

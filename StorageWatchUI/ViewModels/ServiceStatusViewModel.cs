@@ -1,6 +1,7 @@
 using StorageWatchUI.Models;
 using StorageWatchUI.Services;
 using StorageWatchUI.Communication;
+using StorageWatchUI.Services.Logging;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.ServiceProcess;
@@ -17,6 +18,7 @@ public class ServiceStatusViewModel : ViewModelBase
 {
     private readonly IServiceManager _serviceManager;
     private readonly ServiceCommunicationClient _communicationClient;
+    private readonly RollingFileLogger? _logger;
     private bool _isServiceInstalled;
     private string _serviceStatus = "Unknown";
     private string _serviceUptime = "N/A";
@@ -27,10 +29,13 @@ public class ServiceStatusViewModel : ViewModelBase
     private bool _canStop;
     private DispatcherTimer? _refreshTimer;
 
-    public ServiceStatusViewModel(IServiceManager serviceManager)
+    public ServiceStatusViewModel(IServiceManager serviceManager, RollingFileLogger? logger = null)
     {
         _serviceManager = serviceManager;
-        _communicationClient = new ServiceCommunicationClient();
+        _logger = logger;
+        _communicationClient = new ServiceCommunicationClient(logger);
+
+        _logger?.Log("[VIEWMODEL] Loading ServiceStatusViewModel...");
 
         RefreshCommand = new RelayCommand(async () => await LoadStatusAsync());
         StartServiceCommand = new RelayCommand(async () => await StartServiceAsync(), () => CanStart);
@@ -45,6 +50,8 @@ public class ServiceStatusViewModel : ViewModelBase
         };
         _refreshTimer.Tick += async (s, e) => await LoadStatusAsync();
         _refreshTimer.Start();
+
+        _logger?.Log("[VIEWMODEL] ServiceStatusViewModel initialized");
     }
 
     public ObservableCollection<LogEntry> RecentLogs { get; } = new();
@@ -117,6 +124,7 @@ public class ServiceStatusViewModel : ViewModelBase
 
     private async Task LoadStatusAsync()
     {
+        _logger?.Log("[VIEWMODEL] Loading service status...");
         IsServiceInstalled = _serviceManager.IsServiceInstalled();
 
         if (!IsServiceInstalled)
@@ -127,6 +135,7 @@ public class ServiceStatusViewModel : ViewModelBase
             LastError = string.Empty;
             CanStart = false;
             CanStop = false;
+            _logger?.Log("[VIEWMODEL] Service not installed");
             return;
         }
 
@@ -141,18 +150,21 @@ public class ServiceStatusViewModel : ViewModelBase
         {
             try
             {
+                _logger?.Log("[IPC] Requesting detailed status from Agent...");
                 var detailedStatus = await _communicationClient.GetStatusAsync();
                 if (detailedStatus != null)
                 {
                     ServiceUptime = FormatTimeSpan(detailedStatus.Uptime);
                     LastExecutionTime = detailedStatus.LastExecutionTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
                     LastError = detailedStatus.LastError ?? string.Empty;
+                    _logger?.Log("[IPC] Received detailed status from Agent");
                 }
             }
             catch (Exception ex)
             {
                 // IPC failed, service is running but not responding
                 LastError = $"Service not responding: {ex.Message}";
+                _logger?.Log($"[ERROR] Failed to get detailed status from Agent: {ex.Message}");
             }
         }
         else
@@ -170,22 +182,26 @@ public class ServiceStatusViewModel : ViewModelBase
 
         try
         {
+            _logger?.Log("[VIEWMODEL] Starting service...");
             var success = await _serviceManager.StartServiceAsync();
             if (success)
             {
                 MessageBox.Show("Service started successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.Log("[VIEWMODEL] Service started successfully.");
             }
             else
             {
                 MessageBox.Show("Failed to start service. Check permissions and try running as administrator.",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _logger?.Log("[ERROR] Failed to start service: Insufficient permissions?");
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Error starting service: {ex.Message}",
                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _logger?.Log($"[ERROR] Exception while starting service: {ex.Message}");
         }
         finally
         {
@@ -200,22 +216,26 @@ public class ServiceStatusViewModel : ViewModelBase
 
         try
         {
+            _logger?.Log("[VIEWMODEL] Stopping service...");
             var success = await _serviceManager.StopServiceAsync();
             if (success)
             {
                 MessageBox.Show("Service stopped successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.Log("[VIEWMODEL] Service stopped successfully.");
             }
             else
             {
                 MessageBox.Show("Failed to stop service. Check permissions and try running as administrator.",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _logger?.Log("[ERROR] Failed to stop service: Insufficient permissions?");
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Error stopping service: {ex.Message}",
                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _logger?.Log($"[ERROR] Exception while stopping service: {ex.Message}");
         }
         finally
         {
@@ -230,22 +250,26 @@ public class ServiceStatusViewModel : ViewModelBase
 
         try
         {
+            _logger?.Log("[VIEWMODEL] Restarting service...");
             var success = await _serviceManager.RestartServiceAsync();
             if (success)
             {
                 MessageBox.Show("Service restarted successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.Log("[VIEWMODEL] Service restarted successfully.");
             }
             else
             {
                 MessageBox.Show("Failed to restart service. Check permissions and try running as administrator.",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _logger?.Log("[ERROR] Failed to restart service: Insufficient permissions?");
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Error restarting service: {ex.Message}",
                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _logger?.Log($"[ERROR] Exception while restarting service: {ex.Message}");
         }
         finally
         {
@@ -270,6 +294,7 @@ public class ServiceStatusViewModel : ViewModelBase
                     var entry = ParseLogLine(line);
                     RecentLogs.Add(entry);
                 }
+                _logger?.Log($"[IPC] Loaded {logs.Count()} log entries from Agent");
             }
             else
             {
@@ -309,6 +334,7 @@ public class ServiceStatusViewModel : ViewModelBase
                 var entry = ParseLogLine(line);
                 RecentLogs.Add(entry);
             }
+            _logger?.Log($"[VIEWMODEL] Loaded {lines.Count()} log entries from file: {logPath}");
         }
         catch (Exception ex)
         {
@@ -319,13 +345,14 @@ public class ServiceStatusViewModel : ViewModelBase
                 Message = $"Error reading logs: {ex.Message}",
                 Level = LogLevel.Error
             });
+            _logger?.Log($"[ERROR] Exception while reading log file: {ex.Message}");
         }
     }
 
     private string GetLogFilePath()
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        return Path.Combine(programData, "StorageWatch", "Logs", "service.log");
+        return Path.Combine(programData, "StorageWatch", "Logs", "agent.log");
     }
 
     private LogEntry ParseLogLine(string line)

@@ -4,6 +4,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using StorageWatchUI.Models;
 using StorageWatchUI.Services;
+using StorageWatchUI.Services.Logging;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -15,17 +16,23 @@ namespace StorageWatchUI.ViewModels;
 public class TrendsViewModel : ViewModelBase
 {
     private readonly IDataProvider _dataProvider;
+    private readonly RollingFileLogger? _logger;
     private bool _isLoading;
     private string _statusMessage = string.Empty;
     private string? _selectedDrive;
     private int _selectedDaysBack = 7;
 
-    public TrendsViewModel(IDataProvider dataProvider)
+    public TrendsViewModel(IDataProvider dataProvider, RollingFileLogger? logger = null)
     {
         _dataProvider = dataProvider;
+        _logger = logger;
+
+        _logger?.Log("[VIEWMODEL] Loading TrendsViewModel...");
 
         RefreshCommand = new RelayCommand(async () => await LoadDataAsync());
         LoadDrivesCommand = new RelayCommand(async () => await LoadAvailableDrivesAsync());
+
+        _logger?.Log("[VIEWMODEL] TrendsViewModel initialized");
     }
 
     public ObservableCollection<string> AvailableDrives { get; } = new();
@@ -39,6 +46,7 @@ public class TrendsViewModel : ViewModelBase
         {
             if (SetProperty(ref _selectedDrive, value))
             {
+                _logger?.Log($"[UI] Selected drive for trends: {value}");
                 _ = LoadDataAsync();
             }
         }
@@ -51,6 +59,7 @@ public class TrendsViewModel : ViewModelBase
         {
             if (SetProperty(ref _selectedDaysBack, value))
             {
+                _logger?.Log($"[UI] Selected time period: {value} days");
                 _ = LoadDataAsync();
             }
         }
@@ -75,7 +84,10 @@ public class TrendsViewModel : ViewModelBase
     {
         try
         {
+            _logger?.Log("[DB] Querying available drives from Agent database");
             var drives = await _dataProvider.GetMonitoredDrivesAsync();
+            _logger?.Log($"[VIEWMODEL] Bound {drives.Count} available drives to UI");
+            
             AvailableDrives.Clear();
             foreach (var drive in drives)
             {
@@ -89,6 +101,7 @@ public class TrendsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _logger?.Log($"[ERROR] ViewModel load failed: {ex.Message}");
             StatusMessage = $"Error loading drives: {ex.Message}";
         }
     }

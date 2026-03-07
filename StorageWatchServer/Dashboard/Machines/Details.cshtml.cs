@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
+using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Dashboard.Machines;
 
@@ -11,12 +12,14 @@ public class DetailsModel : PageModel
     private readonly ServerRepository _repository;
     private readonly MachineStatusService _statusService;
     private readonly ILogger<DetailsModel> _logger;
+    private readonly RollingFileLogger? _rollingLogger;
 
-    public DetailsModel(ServerRepository repository, MachineStatusService statusService, ILogger<DetailsModel> logger)
+    public DetailsModel(ServerRepository repository, MachineStatusService statusService, ILogger<DetailsModel> logger, RollingFileLogger? rollingLogger = null)
     {
         _repository = repository;
         _statusService = statusService;
         _logger = logger;
+        _rollingLogger = rollingLogger;
     }
 
     public MachineDetails? Machine { get; private set; }
@@ -37,6 +40,7 @@ public class DetailsModel : PageModel
             if (Machine == null)
             {
                 _logger.LogWarning("Machine not found: ID={MachineId}", id);
+                _rollingLogger?.Log($"[WEBHOST] No machines found in database (ID={id})");
                 ErrorMessage = "Machine not found.";
                 return;
             }
@@ -72,6 +76,7 @@ public class DetailsModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading machine details: ID={MachineId}", id);
+            _rollingLogger?.Log($"[WEBHOST] Razor page failed: {ex.Message}");
             ErrorMessage = "An error occurred while loading machine details.";
         }
     }

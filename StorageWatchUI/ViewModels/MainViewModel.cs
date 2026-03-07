@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using StorageWatchUI.Services.Logging;
 
 namespace StorageWatchUI.ViewModels;
 
@@ -13,28 +14,34 @@ public class MainViewModel : ViewModelBase
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ServiceStatusViewModel _serviceStatusViewModel;
     private readonly UpdateViewModel _updateViewModel;
+    private readonly RollingFileLogger? _logger;
 
     public MainViewModel(
         DashboardViewModel dashboardViewModel,
         TrendsViewModel trendsViewModel,
         SettingsViewModel settingsViewModel,
         ServiceStatusViewModel serviceStatusViewModel,
-        UpdateViewModel updateViewModel)
+        UpdateViewModel updateViewModel,
+        RollingFileLogger? logger = null)
     {
         _dashboardViewModel = dashboardViewModel;
         _trendsViewModel = trendsViewModel;
         _settingsViewModel = settingsViewModel;
         _serviceStatusViewModel = serviceStatusViewModel;
         _updateViewModel = updateViewModel;
+        _logger = logger;
 
         // Start with Dashboard view
         CurrentViewModel = _dashboardViewModel;
+        _logger?.Log("[VIEWMODEL] Loading MainViewModel...");
 
         // Setup commands
         NavigateToDashboardCommand = new RelayCommand(NavigateToDashboard);
         NavigateToTrendsCommand = new RelayCommand(NavigateToTrends);
         NavigateToSettingsCommand = new RelayCommand(NavigateToSettings);
         NavigateToServiceStatusCommand = new RelayCommand(NavigateToServiceStatus);
+
+        _logger?.Log("[VIEWMODEL] MainViewModel initialized");
     }
 
     public ViewModelBase? CurrentViewModel
@@ -52,24 +59,28 @@ public class MainViewModel : ViewModelBase
 
     private void NavigateToDashboard()
     {
+        _logger?.Log("[UI] Switched to tab: Dashboard");
         CurrentViewModel = _dashboardViewModel;
         _dashboardViewModel.RefreshCommand.Execute(null);
     }
 
     private void NavigateToTrends()
     {
+        _logger?.Log("[UI] Switched to tab: Trends");
         CurrentViewModel = _trendsViewModel;
         _trendsViewModel.RefreshCommand.Execute(null);
     }
 
     private void NavigateToSettings()
     {
+        _logger?.Log("[UI] Switched to tab: Settings");
         CurrentViewModel = _settingsViewModel;
         _settingsViewModel.RefreshCommand.Execute(null);
     }
 
     private void NavigateToServiceStatus()
     {
+        _logger?.Log("[UI] Switched to tab: Service Status");
         CurrentViewModel = _serviceStatusViewModel;
         _serviceStatusViewModel.RefreshCommand.Execute(null);
     }

@@ -1,5 +1,6 @@
 using StorageWatchUI.Services;
 using StorageWatchUI.Communication;
+using StorageWatchUI.Services.Logging;
 using System.Windows;
 using System.Windows.Input;
 using System.Collections.ObjectModel;
@@ -13,20 +14,26 @@ public class SettingsViewModel : ViewModelBase
 {
     private readonly ConfigurationService _configService;
     private readonly ServiceCommunicationClient _communicationClient;
+    private readonly RollingFileLogger? _logger;
     private string _configurationJson = string.Empty;
     private bool _isLoading;
     private string _validationStatus = "Unknown";
     private bool _isConfigValid = true;
 
-    public SettingsViewModel(ConfigurationService configService)
+    public SettingsViewModel(ConfigurationService configService, RollingFileLogger? logger = null)
     {
         _configService = configService;
-        _communicationClient = new ServiceCommunicationClient();
+        _logger = logger;
+        _communicationClient = new ServiceCommunicationClient(logger);
+
+        _logger?.Log("[VIEWMODEL] Loading SettingsViewModel...");
 
         RefreshCommand = new RelayCommand(async () => await LoadConfigurationAsync());
         OpenConfigCommand = new RelayCommand(OpenConfiguration);
         TestAlertsCommand = new RelayCommand(async () => await TestAlertsAsync());
         ValidateConfigCommand = new RelayCommand(async () => await ValidateConfigurationAsync());
+
+        _logger?.Log("[VIEWMODEL] SettingsViewModel initialized");
     }
 
     public string ConfigurationJson
@@ -64,6 +71,7 @@ public class SettingsViewModel : ViewModelBase
 
     private async Task LoadConfigurationAsync()
     {
+        _logger?.Log("[VIEWMODEL] Loading configuration...");
         IsLoading = true;
 
         try
@@ -73,11 +81,13 @@ public class SettingsViewModel : ViewModelBase
             if (configData.HasValue)
             {
                 ConfigurationJson = configData.Value.Content;
+                _logger?.Log("[IPC] Loaded configuration from Agent via IPC");
             }
             else
             {
                 // Fallback to local reading
                 ConfigurationJson = await _configService.GetConfigurationAsJsonAsync();
+                _logger?.Log("[VIEWMODEL] Loaded configuration from local file");
             }
 
             // Load plugin status
@@ -88,6 +98,7 @@ public class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _logger?.Log($"[ERROR] ViewModel load failed: {ex.Message}");
             ConfigurationJson = $"Error loading configuration: {ex.Message}";
         }
         finally
@@ -98,6 +109,8 @@ public class SettingsViewModel : ViewModelBase
 
     private async Task ValidateConfigurationAsync()
     {
+        _logger?.Log("[VIEWMODEL] Validating configuration...");
+
         try
         {
             var validation = await _communicationClient.ValidateConfigAsync();

@@ -27,8 +27,9 @@ if (!File.Exists(configPath))
     if (File.Exists(defaultConfigPath))
     {
         File.Copy(defaultConfigPath, configPath, overwrite: false);
-        var tempLogger = new RollingFileLogger(Path.Combine(programData, "StorageWatch", "Logs", "service.log"));
-        tempLogger.Log("Default AgentConfig.json created at: " + configPath);
+        var logFilePath = LogDirectoryInitializer.GetLogFilePath("agent.log");
+        var tempLogger = new RollingFileLogger(logFilePath);
+        tempLogger.Log("[STARTUP] Default AgentConfig.json created at: " + configPath);
     }
 }
 
@@ -87,7 +88,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IValidateOptions<GroupMeOptions>, GroupMeOptionsValidator>();
 
         // Register the logger
-        var logFilePath = Path.Combine(programData, "StorageWatch", "Logs", "service.log");
+        var logFilePath = LogDirectoryInitializer.GetLogFilePath("agent.log");
         services.AddSingleton(new RollingFileLogger(logFilePath));
 
         // ====================================================================

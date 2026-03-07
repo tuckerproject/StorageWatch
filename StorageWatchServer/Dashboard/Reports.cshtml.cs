@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Data.Sqlite;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
+using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Dashboard;
 
@@ -9,15 +10,17 @@ public class ReportsModel : PageModel
 {
     private readonly ServerOptions _options;
     private readonly ILogger<ReportsModel> _logger;
+    private readonly RollingFileLogger? _rollingLogger;
 
     public int DefaultCount { get; } = 50;
 
     public List<MachineReportGroup> RecentReportsByMachine { get; set; } = new();
 
-    public ReportsModel(ServerOptions options, ILogger<ReportsModel> logger)
+    public ReportsModel(ServerOptions options, ILogger<ReportsModel> logger, RollingFileLogger? rollingLogger = null)
     {
         _options = options;
         _logger = logger;
+        _rollingLogger = rollingLogger;
     }
 
     public async Task OnGetAsync()
@@ -29,6 +32,7 @@ public class ReportsModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading recent reports");
+            _rollingLogger?.Log($"[WEBHOST] Razor page failed: {ex.Message}");
         }
     }
 

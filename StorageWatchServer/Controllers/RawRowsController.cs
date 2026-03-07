@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using StorageWatchServer.Server.Api;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Reporting;
+using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Controllers;
 
@@ -15,11 +16,13 @@ public class RawRowsController : ControllerBase
 {
     private readonly RawRowIngestionService _ingestionService;
     private readonly ILogger<RawRowsController> _logger;
+    private readonly RollingFileLogger? _rollingLogger;
 
-    public RawRowsController(RawRowIngestionService ingestionService, ILogger<RawRowsController> logger)
+    public RawRowsController(RawRowIngestionService ingestionService, ILogger<RawRowsController> logger, RollingFileLogger? rollingLogger = null)
     {
         _ingestionService = ingestionService;
         _logger = logger;
+        _rollingLogger = rollingLogger;
     }
 
     /// <summary>
@@ -32,21 +35,25 @@ public class RawRowsController : ControllerBase
         // Validate input
         if (request == null)
         {
+            _rollingLogger?.Log("[WEBHOST] Endpoint /api/agent/report failed: Request body is required");
             return BadRequest(new { error = "Request body is required." });
         }
 
         if (string.IsNullOrWhiteSpace(request.MachineName))
         {
+            _rollingLogger?.Log("[WEBHOST] Endpoint /api/agent/report failed: machineName is required");
             return BadRequest(new { error = "machineName is required." });
         }
 
         if (request.Rows == null)
         {
+            _rollingLogger?.Log("[WEBHOST] Endpoint /api/agent/report failed: rows must be a non-null array");
             return BadRequest(new { error = "rows must be a non-null array." });
         }
 
         if (request.Rows.Count == 0)
         {
+            _rollingLogger?.Log("[WEBHOST] Endpoint /api/agent/report failed: rows array must not be empty");
             return BadRequest(new { error = "rows array must not be empty." });
         }
 
@@ -55,6 +62,7 @@ public class RawRowsController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(row.DriveLetter))
             {
+                _rollingLogger?.Log("[WEBHOST] Endpoint /api/agent/report failed: All rows must have a driveLetter");
                 return BadRequest(new { error = "All rows must have a driveLetter." });
             }
         }
@@ -85,6 +93,7 @@ public class RawRowsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing batch report from machine '{MachineName}'", request.MachineName);
+            _rollingLogger?.Log($"[ERROR] Endpoint /api/agent/report failed: {ex.Message}");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred processing the report." });
         }

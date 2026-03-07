@@ -49,13 +49,10 @@ namespace StorageWatch.Services
             _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
-            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            var storageWatchDir = Path.Combine(programData, "StorageWatch");
-            var logDir = Path.Combine(storageWatchDir, "Logs");
-
-            // Create and initialize the logging system at the common application data directory
-            Directory.CreateDirectory(logDir);
-            _logger = new RollingFileLogger(Path.Combine(logDir, "service.log"));
+            // Create and initialize the logging system to the unified log directory
+            var logFilePath = LogDirectoryInitializer.GetLogFilePath("agent.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(logFilePath)!);
+            _logger = new RollingFileLogger(logFilePath);
 
             // Get current options snapshot
             var options = _optionsMonitor.CurrentValue;
@@ -65,6 +62,8 @@ namespace StorageWatch.Services
                 _logger.Log("[STARTUP] Config loaded from JSON");
 
             // Ensure database directory exists before initializing schema
+            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var storageWatchDir = Path.Combine(programData, "StorageWatch", "Agent");
             Directory.CreateDirectory(storageWatchDir);
             _logger.Log($"[STARTUP] Database directory ensured at {storageWatchDir}");
 

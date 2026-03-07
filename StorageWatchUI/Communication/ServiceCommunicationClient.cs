@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using StorageWatchUI.Services.Logging;
 
 namespace StorageWatchUI.Communication;
 
@@ -15,19 +16,31 @@ public class ServiceCommunicationClient
     private const string PipeName = "StorageWatchAgentPipe";
     private const int TimeoutMilliseconds = 5000;
     private const int MaxRetries = 3;
+    private readonly RollingFileLogger? _logger;
+
+    public ServiceCommunicationClient(RollingFileLogger? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Sends a request to the service and returns the response.
     /// </summary>
     public async Task<ServiceResponse> SendRequestAsync(ServiceRequest request, CancellationToken cancellationToken = default)
     {
+        _logger?.Log($"[IPC] Requesting {request.Command} from Agent...");
         Exception? lastException = null;
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
             try
             {
-                return await SendRequestInternalAsync(request, cancellationToken);
+                var response = await SendRequestInternalAsync(request, cancellationToken);
+                if (response.Success)
+                {
+                    _logger?.Log($"[IPC] Received response from Agent: {request.Command} succeeded");
+                }
+                return response;
             }
             catch (TimeoutException ex)
             {
@@ -40,6 +53,7 @@ public class ServiceCommunicationClient
             catch (Exception ex)
             {
                 // Don't retry on non-timeout errors
+                _logger?.Log($"[ERROR] IPC failure: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
@@ -48,6 +62,7 @@ public class ServiceCommunicationClient
             }
         }
 
+        _logger?.Log($"[ERROR] IPC failure: Failed to connect after {MaxRetries} attempts");
         return new ServiceResponse
         {
             Success = false,
@@ -77,6 +92,7 @@ public class ServiceCommunicationClient
         var responseJson = await reader.ReadLineAsync(cts.Token);
         if (string.IsNullOrWhiteSpace(responseJson))
         {
+            _logger?.Log("[ERROR] IPC failure: Received empty response from service");
             return new ServiceResponse
             {
                 Success = false,
@@ -111,6 +127,7 @@ public class ServiceCommunicationClient
     /// </summary>
     public async Task<List<string>?> GetLogsAsync(int count = 100, CancellationToken cancellationToken = default)
     {
+        _logger?.Log($"[IPC] Requesting {count} log entries from Agent...");
         var parameters = JsonSerializer.SerializeToElement(new { count });
         var request = new ServiceRequest
         {
@@ -123,7 +140,9 @@ public class ServiceCommunicationClient
         if (!response.Success || response.Data == null)
             return null;
 
-        return JsonSerializer.Deserialize<List<string>>(response.Data.Value.GetRawText());
+        var logs = JsonSerializer.Deserialize<List<string>>(response.Data.Value.GetRawText());
+        _logger?.Log($"[IPC] Received {logs?.Count ?? 0} log entries from Agent");
+        return logs;
     }
 
     /// <summary>
@@ -131,6 +150,7 @@ public class ServiceCommunicationClient
     /// </summary>
     public async Task<(string ConfigPath, string Content)?> GetConfigAsync(CancellationToken cancellationToken = default)
     {
+        _logger?.Log("[IPC] Requesting configuration from Agent...");
         var request = new ServiceRequest { Command = "GetConfig" };
         var response = await SendRequestAsync(request, cancellationToken);
 
@@ -141,6 +161,7 @@ public class ServiceCommunicationClient
         var configPath = data.GetProperty("ConfigPath").GetString() ?? string.Empty;
         var content = data.GetProperty("Content").GetString() ?? string.Empty;
 
+        _logger?.Log("[IPC] Received configuration from Agent");
         return (configPath, content);
     }
 
@@ -149,6 +170,7 @@ public class ServiceCommunicationClient
     /// </summary>
     public async Task<ConfigValidationResult?> ValidateConfigAsync(CancellationToken cancellationToken = default)
     {
+        _logger?.Log("[IPC] Requesting configuration validation from Agent...");
         var request = new ServiceRequest { Command = "ValidateConfig" };
         var response = await SendRequestAsync(request, cancellationToken);
 

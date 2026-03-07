@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using StorageWatchUI.Models;
+using StorageWatchUI.Services.Logging;
 using System.IO;
 
 namespace StorageWatchUI.Services;
@@ -10,11 +11,13 @@ namespace StorageWatchUI.Services;
 public class LocalDataProvider : IDataProvider
 {
     private readonly string _connectionString;
+    private readonly RollingFileLogger? _logger;
 
-    public LocalDataProvider(IPathProvider pathProvider)
+    public LocalDataProvider(IPathProvider pathProvider, RollingFileLogger? logger = null)
     {
         var dbPath = pathProvider.DatabasePath;
         _connectionString = $"Data Source={dbPath}";
+        _logger = logger;
     }
 
     public async Task<List<DiskInfo>> GetCurrentDiskStatusAsync()
@@ -23,10 +26,13 @@ public class LocalDataProvider : IDataProvider
 
         try
         {
-            if (!File.Exists(_connectionString.Replace("Data Source=", "").Split(';')[0]))
+            var dbPath = _connectionString.Replace("Data Source=", "").Split(';')[0];
+            if (!File.Exists(dbPath))
             {
                 return disks; // Database doesn't exist yet
             }
+
+            _logger?.Log("[DB] Querying local Agent database: GetCurrentDiskStatus");
 
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
@@ -71,9 +77,12 @@ public class LocalDataProvider : IDataProvider
 
                 disks.Add(disk);
             }
+
+            _logger?.Log($"[DB] Retrieved {disks.Count} rows from DiskSpaceLog");
         }
         catch (Exception ex)
         {
+            _logger?.Log($"[ERROR] Database read failed: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"Error fetching disk status: {ex}");
         }
 
@@ -86,10 +95,13 @@ public class LocalDataProvider : IDataProvider
 
         try
         {
-            if (!File.Exists(_connectionString.Replace("Data Source=", "").Split(';')[0]))
+            var dbPath = _connectionString.Replace("Data Source=", "").Split(';')[0];
+            if (!File.Exists(dbPath))
             {
                 return trends;
             }
+
+            _logger?.Log($"[DB] Querying local Agent database: GetTrendData for {driveName}");
 
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
@@ -125,9 +137,12 @@ public class LocalDataProvider : IDataProvider
                     TotalSpaceGb = reader.GetDouble(4)
                 });
             }
+
+            _logger?.Log($"[DB] Retrieved {trends.Count} rows from DiskSpaceLog for trend data");
         }
         catch (Exception ex)
         {
+            _logger?.Log($"[ERROR] Database read failed: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"Error fetching trend data: {ex}");
         }
 
@@ -140,10 +155,13 @@ public class LocalDataProvider : IDataProvider
 
         try
         {
-            if (!File.Exists(_connectionString.Replace("Data Source=", "").Split(';')[0]))
+            var dbPath = _connectionString.Replace("Data Source=", "").Split(';')[0];
+            if (!File.Exists(dbPath))
             {
                 return drives;
             }
+
+            _logger?.Log("[DB] Querying local Agent database: GetMonitoredDrives");
 
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
@@ -163,9 +181,12 @@ public class LocalDataProvider : IDataProvider
             {
                 drives.Add(reader.GetString(0));
             }
+
+            _logger?.Log($"[DB] Retrieved {drives.Count} monitored drives");
         }
         catch (Exception ex)
         {
+            _logger?.Log($"[ERROR] Database read failed: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"Error fetching monitored drives: {ex}");
         }
 
