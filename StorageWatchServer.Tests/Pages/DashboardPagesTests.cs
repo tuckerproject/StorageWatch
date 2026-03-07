@@ -17,6 +17,9 @@ public class DashboardPagesTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Set test environment flag before building the factory
+        AppContext.SetData("IsTestEnvironment", true);
+        
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {

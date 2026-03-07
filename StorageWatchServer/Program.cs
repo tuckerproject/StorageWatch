@@ -15,11 +15,25 @@ var builder = WebApplication.CreateBuilder(args);
 // Enable Windows Service hosting
 builder.Host.UseWindowsService();
 
-// Load and validate JSON configuration from ServerConfig.json
-var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-var serverDirectory = Path.Combine(programData, "StorageWatch", "Server");
-Directory.CreateDirectory(serverDirectory);
-var configPath = Path.Combine(serverDirectory, "ServerConfig.json");
+// Detect test environment and set base path accordingly
+var isTestEnvironment = AppContext.GetData("IsTestEnvironment") as bool? == true;
+string basePath;
+
+if (isTestEnvironment)
+{
+    // In test mode, use a unique temp directory for this test instance
+    basePath = Path.Combine(Path.GetTempPath(), "StorageWatchServerTests", Guid.NewGuid().ToString());
+}
+else
+{
+    // In production, use ProgramData
+    var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+    basePath = Path.Combine(programData, "StorageWatch", "Server");
+}
+
+Directory.CreateDirectory(basePath);
+var configPath = Path.Combine(basePath, "ServerConfig.json");
+var dbPath = Path.Combine(basePath, "StorageWatchServer.db");
 
 if (!File.Exists(configPath))
 {
@@ -30,9 +44,15 @@ if (!File.Exists(configPath))
         try
         {
             File.Copy(defaultConfigPath, configPath, overwrite: false);
-            var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
-            tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
-        } catch (IOException)
+            
+            // Only log in non-test mode
+            if (!isTestEnvironment)
+            {
+                var tempLogger = LoggerFactory.Create(x => x.AddConsole()).CreateLogger<Program>();
+                tempLogger.LogInformation("Default ServerConfig.json created at: {ConfigPath}", configPath);
+            }
+        }
+        catch (IOException)
         {
             // Another test host created it first — safe to ignore
         }
