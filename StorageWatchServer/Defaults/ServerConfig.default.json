@@ -1,15 +1,7 @@
 {
-  "StorageWatch": {
-    "Server": {
-      "Port": 5000
-    },
-    "Database": {
-      "ConnectionString": "Data Source=StorageWatch.db;Version=3;"
-    },
-    "CentralServer": {
-      "Enabled": true,
-      "ServerId": "central-server",
-      "ApiKey": "your-optional-api-key"
-    }
+  "Server": {
+    "ListenUrl": "http://localhost:5001",
+    "DatabasePath": "C:\\ProgramData\\StorageWatch\\Server\\StorageWatchServer.db",
+    "OnlineTimeoutMinutes": 10
   }
 }
