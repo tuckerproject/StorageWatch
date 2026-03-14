@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using StorageWatch.Shared.Update.Models;
 using StorageWatchUI.Config;
-using StorageWatchUI.Models;
 using StorageWatchUI.Services.AutoUpdate;
 using StorageWatchUI.Tests.Utilities;
 using System;

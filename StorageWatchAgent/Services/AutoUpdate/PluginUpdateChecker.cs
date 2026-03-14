@@ -1,5 +1,5 @@
 using StorageWatch.Config.Options;
-using StorageWatch.Models;
+using StorageWatch.Shared.Update.Models;
 using StorageWatch.Services.Alerting.Plugins;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -68,10 +68,10 @@ namespace StorageWatch.Services.AutoUpdate
                 var updates = new List<PluginUpdateInfo>();
                 foreach (var plugin in manifest.Plugins)
                 {
-                    if (string.IsNullOrWhiteSpace(plugin.Name))
+                    if (string.IsNullOrWhiteSpace(plugin.Id))
                         continue;
 
-                    var metadata = registry?.GetPlugin(plugin.Name);
+                    var metadata = registry?.GetPlugin(plugin.Id);
                     if (metadata == null)
                     {
                         updates.Add(plugin);
@@ -80,13 +80,13 @@ namespace StorageWatch.Services.AutoUpdate
 
                     if (!Version.TryParse(metadata.Version, out var currentVersion))
                     {
-                        _logger.LogWarning("[AUTOUPDATE] Plugin '{PluginName}' has invalid local version '{Version}'.", plugin.Name, metadata.Version);
+                        _logger.LogWarning("[AUTOUPDATE] Plugin '{PluginName}' has invalid local version '{Version}'.", plugin.Id, metadata.Version);
                         continue;
                     }
 
                     if (!Version.TryParse(plugin.Version, out var manifestVersion))
                     {
-                        _logger.LogWarning("[AUTOUPDATE] Plugin '{PluginName}' has invalid manifest version '{Version}'.", plugin.Name, plugin.Version);
+                        _logger.LogWarning("[AUTOUPDATE] Plugin '{PluginName}' has invalid manifest version '{Version}'.", plugin.Id, plugin.Version);
                         continue;
                     }
 

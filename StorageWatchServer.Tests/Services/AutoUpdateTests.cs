@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
+using StorageWatch.Shared.Update.Models;
 using StorageWatchServer.Config;
-using StorageWatchServer.Models;
 using StorageWatchServer.Services.AutoUpdate;
 using System;
 using System.IO;

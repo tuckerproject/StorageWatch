@@ -1,5 +1,5 @@
 using StorageWatch.Config.Options;
-using StorageWatch.Models;
+using StorageWatch.Shared.Update.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
@@ -65,21 +65,31 @@ namespace StorageWatch.Services.AutoUpdate
 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
                 var manifest = ParseManifest(json);
-                if (manifest?.Service == null)
+                if (manifest == null)
                 {
                     return new ComponentUpdateCheckResult
                     {
                         IsUpdateAvailable = false,
-                        ErrorMessage = "Manifest could not be parsed or is missing service info."
+                        ErrorMessage = "Manifest could not be parsed."
                     };
                 }
 
-                if (!Version.TryParse(manifest.Service.Version, out var manifestVersion))
+                var component = manifest.Agent;
+                if (component == null)
                 {
                     return new ComponentUpdateCheckResult
                     {
                         IsUpdateAvailable = false,
-                        ErrorMessage = "Manifest service version is invalid."
+                        ErrorMessage = "Manifest could not be parsed or is missing agent info."
+                    };
+                }
+
+                if (!Version.TryParse(component.Version, out var manifestVersion))
+                {
+                    return new ComponentUpdateCheckResult
+                    {
+                        IsUpdateAvailable = false,
+                        ErrorMessage = "Manifest agent version is invalid."
                     };
                 }
 
@@ -87,7 +97,7 @@ namespace StorageWatch.Services.AutoUpdate
                 return new ComponentUpdateCheckResult
                 {
                     IsUpdateAvailable = updateAvailable,
-                    Component = updateAvailable ? manifest.Service : null
+                    Component = updateAvailable ? component : null
                 };
             }
             catch (Exception ex)

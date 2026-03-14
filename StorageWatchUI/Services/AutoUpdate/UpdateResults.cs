@@ -1,4 +1,4 @@
-using StorageWatchUI.Models;
+using StorageWatch.Shared.Update.Models;
 
 namespace StorageWatchUI.Services.AutoUpdate
 {

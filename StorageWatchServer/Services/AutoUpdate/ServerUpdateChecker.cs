@@ -1,5 +1,5 @@
 using StorageWatchServer.Config;
-using StorageWatchServer.Models;
+using StorageWatch.Shared.Update.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;

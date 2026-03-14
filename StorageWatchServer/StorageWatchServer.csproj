@@ -12,6 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Models\" />
     <Folder Include="Server\Reporting\Data\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StorageWatch.Shared.Update\StorageWatch.Shared.Update.csproj" />
   </ItemGroup>
 </Project>

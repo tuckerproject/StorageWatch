@@ -1,4 +1,4 @@
-using StorageWatchServer.Models;
+using StorageWatch.Shared.Update.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Http;

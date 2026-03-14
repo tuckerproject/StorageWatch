@@ -125,23 +125,23 @@ namespace StorageWatch.Services.AutoUpdate
 
             foreach (var plugin in result.Updates)
             {
-                _logger.Log($"[AUTOUPDATE] Plugin update available: {plugin.Name} {plugin.Version}");
+                _logger.Log($"[AUTOUPDATE] Plugin update available: {plugin.Id} {plugin.Version}");
 
                 var download = await _pluginUpdateDownloader.DownloadAsync(plugin, stoppingToken);
                 if (!download.Success || string.IsNullOrWhiteSpace(download.FilePath))
                 {
-                    _logger.Log($"[AUTOUPDATE] Plugin download failed ({plugin.Name}): {download.ErrorMessage}");
+                    _logger.Log($"[AUTOUPDATE] Plugin download failed ({plugin.Id}): {download.ErrorMessage}");
                     continue;
                 }
 
                 var install = await _pluginUpdateInstaller.InstallAsync(download.FilePath, stoppingToken);
                 if (!install.Success)
                 {
-                    _logger.Log($"[AUTOUPDATE] Plugin install failed ({plugin.Name}): {install.ErrorMessage}");
+                    _logger.Log($"[AUTOUPDATE] Plugin install failed ({plugin.Id}): {install.ErrorMessage}");
                     continue;
                 }
 
-                _logger.Log($"[AUTOUPDATE] Plugin update installed: {plugin.Name}");
+                _logger.Log($"[AUTOUPDATE] Plugin update installed: {plugin.Id}");
             }
         }
     }

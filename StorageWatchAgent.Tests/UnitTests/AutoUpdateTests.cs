@@ -1,6 +1,6 @@
 using FluentAssertions;
 using StorageWatch.Config.Options;
-using StorageWatch.Models;
+using StorageWatch.Shared.Update.Models;
 using StorageWatch.Services.Alerting.Plugins;
 using StorageWatch.Services.AutoUpdate;
 using StorageWatch.Services.Logging;
@@ -26,12 +26,12 @@ namespace StorageWatch.Tests.UnitTests
             var json = "{\"version\":\"1.0.0\",\"service\":{\"version\":\"1.2.3\",\"downloadUrl\":\"https://example.com/update.zip\",\"sha256\":\"abc123\"},\"plugins\":[{\"name\":\"GroupMe\",\"version\":\"2.0.0\",\"downloadUrl\":\"https://example.com/plugin.zip\",\"sha256\":\"def\"}]}";
             var manifest = ServiceUpdateChecker.ParseManifest(json);
             manifest.Should().NotBeNull();
-            manifest!.Service.Should().NotBeNull();
-            manifest.Service!.Version.Should().Be("1.2.3");
-            manifest.Service.DownloadUrl.Should().Be("https://example.com/update.zip");
-            manifest.Service.Sha256.Should().Be("abc123");
+            manifest!.Agent.Should().NotBeNull();
+            manifest.Agent.Version.Should().Be("1.2.3");
+            manifest.Agent.DownloadUrl.Should().Be("https://example.com/update.zip");
+            manifest.Agent.Sha256.Should().Be("abc123");
             manifest.Plugins.Should().HaveCount(1);
-            manifest.Plugins[0].Name.Should().Be("GroupMe");
+            manifest.Plugins[0].Id.Should().Be("GroupMe");
         }
 
         [Fact]
@@ -202,7 +202,7 @@ namespace StorageWatch.Tests.UnitTests
             var result = await checker.CheckForUpdatesAsync(CancellationToken.None);
 
             result.Updates.Should().ContainSingle();
-            result.Updates[0].Name.Should().Be("TestPlugin");
+            result.Updates[0].Id.Should().Be("TestPlugin");
         }
 
         [Fact]
@@ -211,7 +211,7 @@ namespace StorageWatch.Tests.UnitTests
             var content = Encoding.UTF8.GetBytes("plugin update payload");
             var plugin = new PluginUpdateInfo
             {
-                Name = "TestPlugin",
+                Id = "TestPlugin",
                 Version = "1.0.1",
                 DownloadUrl = "https://example.com/plugin.zip",
                 Sha256 = "deadbeef"
@@ -344,7 +344,7 @@ namespace StorageWatch.Tests.UnitTests
             var serviceChecker = new FakeServiceUpdateChecker(new ComponentUpdateCheckResult { IsUpdateAvailable = true, Component = component });
             var serviceDownloader = new FakeServiceUpdateDownloader(new UpdateDownloadResult { Success = true, FilePath = "path.zip" });
             var serviceInstaller = new FakeServiceUpdateInstaller(new UpdateInstallResult { Success = true });
-            var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = new List<PluginUpdateInfo> { new PluginUpdateInfo { Name = "TestPlugin", Version = "2.0.0", DownloadUrl = "url", Sha256 = "hash" } } });
+            var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = new List<PluginUpdateInfo> { new PluginUpdateInfo { Id = "TestPlugin", Version = "2.0.0", DownloadUrl = "url", Sha256 = "hash" } } });
             var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = true, FilePath = "plugin.zip" });
             var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
             var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });

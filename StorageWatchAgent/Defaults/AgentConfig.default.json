@@ -41,8 +41,7 @@
     },
     "AutoUpdate": {
       "Enabled": true,
-      "ManifestUrl": "",
-      "CheckIntervalMinutes": 60
+      "ManifestUrl": "https://github.com/tuckerproject/StorageWatch/releases/download/manifest/manifest.json"
     },
     "SqlReporting": {
       "Enabled": true,

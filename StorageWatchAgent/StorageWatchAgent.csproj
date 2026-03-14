@@ -26,4 +26,8 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StorageWatch.Shared.Update\StorageWatch.Shared.Update.csproj" />
+  </ItemGroup>
 </Project>

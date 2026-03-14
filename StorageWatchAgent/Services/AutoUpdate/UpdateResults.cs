@@ -1,3 +1,4 @@
+using StorageWatch.Shared.Update.Models;
 using System;
 using System.Collections.Generic;
 
@@ -6,13 +7,13 @@ namespace StorageWatch.Services.AutoUpdate
     public class ComponentUpdateCheckResult
     {
         public bool IsUpdateAvailable { get; set; }
-        public StorageWatch.Models.ComponentUpdateInfo? Component { get; set; }
+        public ComponentUpdateInfo? Component { get; set; }
         public string? ErrorMessage { get; set; }
     }
 
     public class PluginUpdateCheckResult
     {
-        public IReadOnlyList<StorageWatch.Models.PluginUpdateInfo> Updates { get; set; } = Array.Empty<StorageWatch.Models.PluginUpdateInfo>();
+        public IReadOnlyList<PluginUpdateInfo> Updates { get; set; } = Array.Empty<PluginUpdateInfo>();
         public string? ErrorMessage { get; set; }
     }
 
@@ -25,7 +26,7 @@ namespace StorageWatch.Services.AutoUpdate
 
     public class PluginDownloadResult : UpdateDownloadResult
     {
-        public StorageWatch.Models.PluginUpdateInfo? Plugin { get; set; }
+        public PluginUpdateInfo? Plugin { get; set; }
     }
 
     public class UpdateInstallResult

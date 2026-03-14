@@ -23,6 +23,7 @@
     <File Path="InstallerNSIS/Docs/QUICK-START.md" />
     <File Path="InstallerNSIS/Docs/README.md" />
   </Folder>
+  <Project Path="StorageWatch.Shared.Update/StorageWatch.Shared.Update.csproj" />
   <Project Path="StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj" />
   <Project Path="StorageWatchAgent/StorageWatchAgent.csproj" />
   <Project Path="StorageWatchServer.Tests/StorageWatchServer.Tests.csproj" />

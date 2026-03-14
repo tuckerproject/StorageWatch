@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using StorageWatchServer.Config;
 using StorageWatchServer.Middleware;
-using StorageWatchServer.Models;
+using StorageWatch.Shared.Update;
 using StorageWatchServer.Services.AutoUpdate;
 using StorageWatchServer.Services.Logging;
 using StorageWatchServer.Server.Api;
