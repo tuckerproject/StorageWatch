@@ -32,9 +32,12 @@ public class ServiceCommunicationServer : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            NamedPipeServerStream? pipeServer = null;
+            var handedOffToClientHandler = false;
+
             try
             {
-                await using var pipeServer = new NamedPipeServerStream(
+                pipeServer = new NamedPipeServerStream(
                     PipeName,
                     PipeDirection.InOut,
                     NamedPipeServerStream.MaxAllowedServerInstances,
@@ -43,8 +46,14 @@ public class ServiceCommunicationServer : BackgroundService
 
                 await pipeServer.WaitForConnectionAsync(stoppingToken);
 
+                handedOffToClientHandler = true;
+
                 // Handle the connection in a separate task to allow new connections
-                _ = Task.Run(async () => await HandleClientAsync(pipeServer, stoppingToken), stoppingToken);
+                _ = Task.Run(async () =>
+                {
+                    await using var ownedPipeServer = pipeServer;
+                    await HandleClientAsync(ownedPipeServer, stoppingToken);
+                }, CancellationToken.None);
             }
             catch (OperationCanceledException)
             {
@@ -56,6 +65,13 @@ public class ServiceCommunicationServer : BackgroundService
                 _logger.Log($"[IPC ERROR] Named Pipe server error: {ex.Message}");
                 await Task.Delay(1000, stoppingToken);
             }
+            finally
+            {
+                if (!handedOffToClientHandler && pipeServer is not null)
+                {
+                    await pipeServer.DisposeAsync();
+                }
+            }
         }
 
         _logger.Log("[IPC] Named Pipe server stopped");
@@ -65,12 +81,23 @@ public class ServiceCommunicationServer : BackgroundService
     {
         try
         {
-            using var reader = new StreamReader(pipeServer, Encoding.UTF8, leaveOpen: true);
-            using var writer = new StreamWriter(pipeServer, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-
             try
             {
-                var requestJson = await reader.ReadLineAsync(cancellationToken);
+                var buffer = new byte[4096];
+                using var requestStream = new MemoryStream();
+
+                int bytesRead;
+                while ((bytesRead = await pipeServer.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+                {
+                    requestStream.Write(buffer, 0, bytesRead);
+
+                    if (pipeServer.IsMessageComplete)
+                    {
+                        break;
+                    }
+                }
+
+                var requestJson = Encoding.UTF8.GetString(requestStream.ToArray());
                 if (string.IsNullOrWhiteSpace(requestJson))
                 {
                     _logger.Log("[IPC] Received empty request");
@@ -83,14 +110,16 @@ public class ServiceCommunicationServer : BackgroundService
                 if (request == null)
                 {
                     _logger.Log("[IPC ERROR] Failed to deserialize request");
-                    await SendErrorResponse(writer, "Invalid request format");
+                    await SendErrorResponse(pipeServer, "Invalid request format", cancellationToken);
                     return;
                 }
 
                 var response = await ProcessRequestAsync(request, cancellationToken);
                 var responseJson = JsonSerializer.Serialize(response);
 
-                await writer.WriteLineAsync(responseJson);
+                var responseBytes = Encoding.UTF8.GetBytes(responseJson);
+                await pipeServer.WriteAsync(responseBytes, 0, responseBytes.Length, cancellationToken);
+                await pipeServer.FlushAsync(cancellationToken);
                 _logger.Log($"[IPC] Sent response for {request.Command}");
             }
             catch (IOException ex) when (!pipeServer.IsConnected)
@@ -275,7 +304,7 @@ public class ServiceCommunicationServer : BackgroundService
         };
     }
 
-    private async Task SendErrorResponse(StreamWriter writer, string error)
+    private async Task SendErrorResponse(NamedPipeServerStream pipeServer, string error, CancellationToken cancellationToken)
     {
         var response = new ServiceResponse
         {
@@ -283,7 +312,9 @@ public class ServiceCommunicationServer : BackgroundService
             ErrorMessage = error
         };
         var json = JsonSerializer.Serialize(response);
-        await writer.WriteLineAsync(json);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        await pipeServer.WriteAsync(bytes, 0, bytes.Length, cancellationToken);
+        await pipeServer.FlushAsync(cancellationToken);
     }
 
     private async Task<List<string>> ReadLastLinesAsync(string filePath, int lineCount, CancellationToken cancellationToken)

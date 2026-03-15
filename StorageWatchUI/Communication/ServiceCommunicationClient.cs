@@ -82,14 +82,28 @@ public class ServiceCommunicationClient
         cts.CancelAfter(TimeoutMilliseconds);
 
         await pipeClient.ConnectAsync(cts.Token);
-
-        using var writer = new StreamWriter(pipeClient, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-        using var reader = new StreamReader(pipeClient, Encoding.UTF8, leaveOpen: true);
+        pipeClient.ReadMode = PipeTransmissionMode.Message;
 
         var requestJson = JsonSerializer.Serialize(request);
-        await writer.WriteLineAsync(requestJson.AsMemory(), cts.Token);
+        var requestBytes = Encoding.UTF8.GetBytes(requestJson);
+        await pipeClient.WriteAsync(requestBytes, 0, requestBytes.Length, cts.Token);
+        await pipeClient.FlushAsync(cts.Token);
 
-        var responseJson = await reader.ReadLineAsync(cts.Token);
+        var buffer = new byte[4096];
+        using var responseStream = new MemoryStream();
+
+        int bytesRead;
+        while ((bytesRead = await pipeClient.ReadAsync(buffer, 0, buffer.Length, cts.Token)) > 0)
+        {
+            responseStream.Write(buffer, 0, bytesRead);
+
+            if (pipeClient.IsMessageComplete)
+            {
+                break;
+            }
+        }
+
+        var responseJson = Encoding.UTF8.GetString(responseStream.ToArray());
         if (string.IsNullOrWhiteSpace(responseJson))
         {
             _logger?.Log("[ERROR] IPC failure: Received empty response from service");
