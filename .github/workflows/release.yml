@@ -1,0 +1,365 @@
+name: Release CD
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "v*-rc*"
+      - "v*-beta*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 3.0.0 or v3.0.0-rc.1)"
+        required: true
+        type: string
+      channel:
+        description: "Release channel"
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - prerelease
+      dry-run:
+        description: "Run packaging only (skip GitHub Release publish)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      channel: ${{ steps.meta.outputs.channel }}
+      dry_run: ${{ steps.meta.outputs.dry_run }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          $eventName = "${{ github.event_name }}"
+          $refName = "${{ github.ref_name }}"
+
+          if ($eventName -eq "workflow_dispatch") {
+            $rawVersion = "${{ github.event.inputs.version }}"
+            $channel = "${{ github.event.inputs.channel }}"
+            $dryRun = "${{ github.event.inputs['dry-run'] }}"
+          }
+          else {
+            $rawVersion = $refName
+            if ($refName -match '-(rc|beta)') {
+              $channel = "prerelease"
+            }
+            else {
+              $channel = "stable"
+            }
+            $dryRun = "false"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($rawVersion)) {
+            throw "Version is required."
+          }
+
+          $normalizedVersion = $rawVersion.Trim()
+          if ($normalizedVersion.StartsWith("v")) {
+            $normalizedVersion = $normalizedVersion.Substring(1)
+          }
+
+          $tagName = if ($rawVersion.StartsWith("v")) { $rawVersion } else { "v$normalizedVersion" }
+          $isPrerelease = if ($channel -eq "prerelease") { "true" } else { "false" }
+
+          "version=$normalizedVersion" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          "dry_run=$dryRun" >> $env:GITHUB_OUTPUT
+          "is_prerelease=$isPrerelease" >> $env:GITHUB_OUTPUT
+          "tag_name=$tagName" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test StorageWatchAgent.Tests
+        run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Test StorageWatchServer.Tests
+        run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Test StorageWatchUI.Tests
+        run: dotnet test StorageWatchUI.Tests/StorageWatchUI.Tests.csproj --configuration Release --no-build --verbosity normal
+
+  package-components:
+    runs-on: windows-latest
+    needs: validate
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Package Agent
+        run: |
+          ./build/packaging/package-agent.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -Configuration "Release" `
+            -StageToPayload $true `
+            -Force
+
+      - name: Package Server
+        run: |
+          ./build/packaging/package-server.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -Configuration "Release" `
+            -StageToPayload $true `
+            -Force
+
+      - name: Package UI
+        run: |
+          ./build/packaging/package-ui.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -Configuration "Release" `
+            -StageToPayload $true `
+            -Force
+
+      - name: Package Plugins
+        run: |
+          ./build/packaging/package-plugins.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -Configuration "Release" `
+            -PluginSourcePaths @("$env:GITHUB_WORKSPACE/InstallerNSIS/Payload/Plugins") `
+            -StageToPayload $true `
+            -Force
+
+      - name: Upload packaged components
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-components
+          path: |
+            artifacts/**
+            InstallerNSIS/Payload/**
+          retention-days: 14
+
+  package-installer:
+    runs-on: windows-latest
+    needs: package-components
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download packaged components
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-components
+          path: ${{ github.workspace }}
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Build installer
+        run: |
+          ./build/packaging/package-installer.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -PayloadRoot "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload" `
+            -NsisScriptPath "$env:GITHUB_WORKSPACE/InstallerNSIS/StorageWatchInstaller.nsi" `
+            -NsisExePath "makensis" `
+            -ValidatePayload $true `
+            -Force
+
+      - name: Upload package + installer bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-with-installer
+          path: |
+            artifacts/**
+            InstallerNSIS/Payload/**
+          retention-days: 14
+
+  hash-assets:
+    runs-on: windows-latest
+    needs: package-installer
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download package + installer bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-with-installer
+          path: ${{ github.workspace }}
+
+      - name: Compute SHA-256 hashes
+        run: |
+          $zipFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE/artifacts/packages" -Recurse -Filter *.zip -File | Select-Object -ExpandProperty FullName
+          $installerFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE/artifacts/installer" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
+
+          $inputs = @()
+          $inputs += $zipFiles
+          $inputs += $installerFiles
+
+          if ($inputs.Count -eq 0) {
+            throw "No ZIP or installer assets found for hashing."
+          }
+
+          ./build/packaging/compute-hashes.ps1 `
+            -InputPaths $inputs `
+            -Algorithm "SHA256" `
+            -OutputFile "$env:GITHUB_WORKSPACE/artifacts/hashes/hashes.json" `
+            -Format "json" `
+            -BasePath "$env:GITHUB_WORKSPACE/artifacts" `
+            -IncludeFileSize $true `
+            -FailOnMissing $true
+
+          ./build/packaging/compute-hashes.ps1 `
+            -InputPaths $inputs `
+            -Algorithm "SHA256" `
+            -OutputFile "$env:GITHUB_WORKSPACE/artifacts/hashes/SHA256SUMS.txt" `
+            -Format "txt" `
+            -BasePath "$env:GITHUB_WORKSPACE/artifacts" `
+            -IncludeFileSize $false `
+            -FailOnMissing $true
+
+      - name: Upload hashed bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-with-hashes
+          path: artifacts/**
+          retention-days: 14
+
+  generate-manifest:
+    runs-on: windows-latest
+    needs:
+      - validate
+      - hash-assets
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download hashed bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-with-hashes
+          path: ${{ github.workspace }}
+
+      - name: Generate manifest.json
+        run: |
+          $agentZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/agent" -Filter *.zip -File | Select-Object -First 1).FullName
+          $serverZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/server" -Filter *.zip -File | Select-Object -First 1).FullName
+          $uiZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/ui" -Filter *.zip -File | Select-Object -First 1).FullName
+
+          if (-not $agentZip -or -not $serverZip -or -not $uiZip) {
+            throw "One or more component ZIPs were not found (agent/server/ui)."
+          }
+
+          $pluginsMetadata = "$env:GITHUB_WORKSPACE/artifacts/packages/plugins/plugins.metadata.json"
+          $baseDownloadUrl = "https://github.com/${{ github.repository }}/releases/download/${{ needs.validate.outputs.tag_name }}"
+          $releaseNotesUrl = "https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag_name }}"
+
+          ./build/packaging/generate-manifest.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -BaseDownloadUrl $baseDownloadUrl `
+            -HashesFile "$env:GITHUB_WORKSPACE/artifacts/hashes/hashes.json" `
+            -AgentPackagePath $agentZip `
+            -ServerPackagePath $serverZip `
+            -UiPackagePath $uiZip `
+            -PluginsMetadataFile $pluginsMetadata `
+            -ReleaseNotesUrl $releaseNotesUrl `
+            -ManifestVersion 1 `
+            -EmitChannelSpecificPath $true
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: artifacts/**
+          retention-days: 14
+
+  publish-release:
+    runs-on: windows-latest
+    needs:
+      - validate
+      - generate-manifest
+    if: ${{ needs.validate.outputs.dry_run != 'true' }}
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: ${{ github.workspace }}
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: StorageWatch ${{ needs.validate.outputs.tag_name }}
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            artifacts/installer/*.exe
+            artifacts/packages/**/*.zip
+            artifacts/hashes/hashes.json
+            artifacts/hashes/SHA256SUMS.txt
+            artifacts/manifest/**/*.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
