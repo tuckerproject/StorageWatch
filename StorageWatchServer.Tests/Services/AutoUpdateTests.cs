@@ -34,7 +34,9 @@ namespace StorageWatchServer.Tests.Services
         [Fact]
         public async Task ServerUpdateChecker_CheckForUpdateAsync_ReturnsUpdateWhenNewerVersion()
         {
-            var manifestJson = "{\"version\":\"1.0.0\",\"server\":{\"version\":\"2.0.0\",\"downloadUrl\":\"https://example.com/update.zip\",\"sha256\":\"abc\"}}";
+            var currentVersion = typeof(ServerUpdateChecker).Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            var newerVersion = new Version(currentVersion.Major + 1, 0, 0, 0);
+            var manifestJson = $"{{\"version\":\"1.0.0\",\"server\":{{\"version\":\"{newerVersion}\",\"downloadUrl\":\"https://example.com/update.zip\",\"sha256\":\"abc\"}}}}";
             var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(manifestJson)
@@ -53,7 +55,7 @@ namespace StorageWatchServer.Tests.Services
 
             Assert.True(result.IsUpdateAvailable);
             Assert.NotNull(result.Component);
-            Assert.Equal("2.0.0", result.Component!.Version);
+            Assert.Equal(newerVersion.ToString(), result.Component!.Version);
         }
 
         [Fact]
