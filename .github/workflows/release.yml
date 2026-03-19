@@ -276,7 +276,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: packaged-with-hashes
-          path: artifacts/hashes/**
+          path: artifacts/hashes/
           retention-days: 14
 
   generate-manifest:
