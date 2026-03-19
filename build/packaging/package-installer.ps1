@@ -44,6 +44,7 @@ function Ensure-Directory([string]$Path) {
     }
 }
 
+# Resolve paths
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedPayloadRoot = if ([System.IO.Path]::IsPathRooted($PayloadRoot)) { $PayloadRoot } else { Join-Path $resolvedRepoRoot $PayloadRoot }
 $resolvedNsisScriptPath = if ([System.IO.Path]::IsPathRooted($NsisScriptPath)) { $NsisScriptPath } else { Join-Path $resolvedRepoRoot $NsisScriptPath }
@@ -59,6 +60,7 @@ if ([string]::IsNullOrWhiteSpace($InstallerFileName)) {
 $resolvedInstallerOutputDir = if ([System.IO.Path]::IsPathRooted($InstallerOutputDir)) { $InstallerOutputDir } else { Join-Path $resolvedRepoRoot $InstallerOutputDir }
 $resolvedInstallerPath = Join-Path $resolvedInstallerOutputDir $InstallerFileName
 
+# Validate required paths
 if (-not (Test-Path -LiteralPath $resolvedNsisScriptPath)) {
     throw "NSIS script not found: $resolvedNsisScriptPath"
 }
@@ -67,6 +69,7 @@ if (-not (Test-Path -LiteralPath $resolvedPayloadRoot)) {
     throw "Payload root not found: $resolvedPayloadRoot"
 }
 
+# Validate payload structure
 if ($ValidatePayload) {
     $required = @('Agent', 'Server', 'UI')
     foreach ($dir in $required) {
@@ -83,6 +86,7 @@ if ((Test-Path -LiteralPath $resolvedInstallerPath) -and (-not $Force)) {
     throw "Installer already exists: $resolvedInstallerPath. Use -Force to overwrite."
 }
 
+# --- WhatIf / ShouldProcess block ---
 if (-not $PSCmdlet.ShouldProcess("NSIS installer build", "Build installer")) {
     Write-Host "[WhatIf] Would build NSIS installer from '$resolvedNsisScriptPath'."
     Write-Host "[WhatIf] Would use payload root '$resolvedPayloadRoot'."
@@ -90,10 +94,24 @@ if (-not $PSCmdlet.ShouldProcess("NSIS installer build", "Build installer")) {
     return
 }
 
+# --- NSIS auto-detection ---
+if (-not (Get-Command $NsisExePath -ErrorAction SilentlyContinue)) {
+    $defaultNsis = "C:\Program Files (x86)\NSIS\makensis.exe"
+    if (Test-Path -LiteralPath $defaultNsis) {
+        Write-Host "makensis not found on PATH. Using default NSIS path: $defaultNsis"
+        $NsisExePath = $defaultNsis
+    }
+    else {
+        throw "makensis.exe not found. Provide -NsisExePath or ensure NSIS is installed."
+    }
+}
+
+# Remove existing installer if overwriting
 if (Test-Path -LiteralPath $resolvedInstallerPath) {
     Remove-Item -LiteralPath $resolvedInstallerPath -Force
 }
 
+# Prepare NSIS working directory
 $nsisWorkingDir = Split-Path -Parent $resolvedNsisScriptPath
 $generatedInstallerName = 'StorageWatchInstaller.exe'
 $generatedInstallerPath = Join-Path $nsisWorkingDir $generatedInstallerName
@@ -102,6 +120,7 @@ if (Test-Path -LiteralPath $generatedInstallerPath) {
     Remove-Item -LiteralPath $generatedInstallerPath -Force
 }
 
+# Build NSIS arguments
 $nsisArgs = @(
     "/DVERSION=$Version",
     "/DCHANNEL=$Channel",
@@ -109,6 +128,7 @@ $nsisArgs = @(
     $resolvedNsisScriptPath
 )
 
+# Execute NSIS
 Push-Location $nsisWorkingDir
 try {
     & $NsisExePath @nsisArgs
@@ -120,12 +140,15 @@ finally {
     Pop-Location
 }
 
+# Validate output
 if (-not (Test-Path -LiteralPath $generatedInstallerPath)) {
     throw "NSIS completed but installer was not found at: $generatedInstallerPath"
 }
 
+# Move installer to final output location
 Move-Item -LiteralPath $generatedInstallerPath -Destination $resolvedInstallerPath -Force
 
+# Output metadata
 [pscustomobject]@{
     Version       = $Version
     Channel       = $Channel
