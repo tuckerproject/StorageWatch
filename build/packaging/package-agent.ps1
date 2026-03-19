@@ -108,7 +108,7 @@ if ((Test-Path -LiteralPath $packagePath) -and (-not $Force)) {
     throw "Package already exists: $packagePath. Use -Force to overwrite."
 }
 
-if ($WhatIf) {
+if (-not $PSCmdlet.ShouldProcess("Agent publish", "Publish Agent")) {
     Write-Host "[WhatIf] Would publish Agent from '$resolvedProjectPath' to '$resolvedPublishDir'."
     Write-Host "[WhatIf] Would create update package '$packagePath'."
     if ($StageToPayload) {

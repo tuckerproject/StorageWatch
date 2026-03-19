@@ -48,9 +48,6 @@ param(
     [string]$PayloadComponentDir = '',
 
     [Parameter()]
-    [switch]$WhatIf,
-
-    [Parameter()]
     [switch]$Force
 )
 
@@ -111,7 +108,7 @@ if ((Test-Path -LiteralPath $packagePath) -and (-not $Force)) {
     throw "Package already exists: $packagePath. Use -Force to overwrite."
 }
 
-if ($WhatIf) {
+if (-not $PSCmdlet.ShouldProcess("Action description", "Action name")) {
     Write-Host "[WhatIf] Would publish Server from '$resolvedProjectPath' to '$resolvedPublishDir'."
     Write-Host "[WhatIf] Would create update package '$packagePath'."
     if ($StageToPayload) {

@@ -32,9 +32,6 @@ param(
     [bool]$ValidatePayload = $true,
 
     [Parameter()]
-    [switch]$WhatIf,
-
-    [Parameter()]
     [switch]$Force
 )
 

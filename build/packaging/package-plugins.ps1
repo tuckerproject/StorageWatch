@@ -51,9 +51,6 @@ param(
     [string]$PluginMetadataOutputFile = '',
 
     [Parameter()]
-    [switch]$WhatIf,
-
-    [Parameter()]
     [switch]$Force
 )
 
@@ -132,7 +129,7 @@ if ($plugins.Count -eq 0) {
 Ensure-Directory -Path $resolvedOutputRoot
 Ensure-Directory -Path $resolvedPackageOutputDir
 
-if ($WhatIf) {
+if (-not $PSCmdlet.ShouldProcess("Action description", "Action name")) {
     Write-Host "[WhatIf] Would package $($plugins.Count) plugin DLL(s) to '$resolvedPackageOutputDir'."
     if ($StageToPayload) {
         Write-Host "[WhatIf] Would stage plugin DLL(s) to '$resolvedPayloadPluginsDir'."
