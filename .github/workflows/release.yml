@@ -172,7 +172,7 @@ jobs:
         with:
           name: packaged-components
           path: |
-            artifacts/**
+            artifacts/packages/**
             InstallerNSIS/Payload/**
           retention-days: 14
 
@@ -211,13 +211,11 @@ jobs:
             -ValidatePayload $true `
             -Force
 
-      - name: Upload package + installer bundle
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: packaged-with-installer
-          path: |
-            artifacts/**
-            InstallerNSIS/Payload/**
+          path: artifacts/installer/**
           retention-days: 14
 
   hash-assets:
@@ -237,7 +235,7 @@ jobs:
           name: packaged-components
           path: ${{ github.workspace }}
 
-      - name: Download package + installer bundle
+      - name: Download installer
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-installer
@@ -245,8 +243,8 @@ jobs:
 
       - name: Compute SHA-256 hashes
         run: |
-          $zipFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE/artifacts/packages" -Recurse -Filter *.zip -File | Select-Object -ExpandProperty FullName
-          $installerFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE/artifacts/installer" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
+          $zipFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages" -Recurse -Filter *.zip -File | Select-Object -ExpandProperty FullName
+          $installerFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/installer" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
 
           $inputs = @()
           $inputs += $zipFiles
@@ -274,11 +272,11 @@ jobs:
             -IncludeFileSize $false `
             -FailOnMissing $true
 
-      - name: Upload hashed bundle
+      - name: Upload hashes
         uses: actions/upload-artifact@v4
         with:
           name: packaged-with-hashes
-          path: artifacts/**
+          path: artifacts/hashes/**
           retention-days: 14
 
   generate-manifest:
@@ -300,7 +298,13 @@ jobs:
           name: packaged-components
           path: ${{ github.workspace }}
 
-      - name: Download hashed bundle
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-with-installer
+          path: ${{ github.workspace }}
+
+      - name: Download hashes
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-hashes
