@@ -83,7 +83,7 @@ if ((Test-Path -LiteralPath $resolvedInstallerPath) -and (-not $Force)) {
     throw "Installer already exists: $resolvedInstallerPath. Use -Force to overwrite."
 }
 
-if ($WhatIf) {
+if (-not $PSCmdlet.ShouldProcess("NSIS installer build", "Build installer")) {
     Write-Host "[WhatIf] Would build NSIS installer from '$resolvedNsisScriptPath'."
     Write-Host "[WhatIf] Would use payload root '$resolvedPayloadRoot'."
     Write-Host "[WhatIf] Would output installer to '$resolvedInstallerPath'."
