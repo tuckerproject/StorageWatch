@@ -48,9 +48,6 @@ param(
     [string]$PayloadComponentDir = '',
 
     [Parameter()]
-    [switch]$WhatIf,
-
-    [Parameter()]
     [switch]$Force
 )
 
