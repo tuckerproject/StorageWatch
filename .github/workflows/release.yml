@@ -308,7 +308,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-hashes
-          path: ${{ github.workspace }}
+          path: ${{ github.workspace }}/artifacts/hashes
 
       - name: Generate manifest.json
         run: |
