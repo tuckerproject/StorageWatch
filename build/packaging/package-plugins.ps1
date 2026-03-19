@@ -94,7 +94,7 @@ $resolvedMetadataOutputFile = if ([System.IO.Path]::IsPathRooted($PluginMetadata
 $allMissing = $true
 foreach ($source in $PluginSourcePaths) {
     $candidate = if ([System.IO.Path]::IsPathRooted($source)) { $source } else { Join-Path $resolvedRepoRoot $source }
-    if (Test-Path -LiteralPath $candidate)) {
+    if (Test-Path -LiteralPath $candidate) {
         $allMissing = $false
         break
     }
