@@ -207,7 +207,7 @@ jobs:
             -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
             -PayloadRoot "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload" `
             -NsisScriptPath "$env:GITHUB_WORKSPACE/InstallerNSIS/StorageWatchInstaller.nsi" `
-            -NsisExePath "makensis" `
+            -NsisExePath "C:\Program Files (x86)\NSIS\makensis.exe" `
             -ValidatePayload $true `
             -Force
 
@@ -230,6 +230,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download packaged components
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-components
+          path: ${{ github.workspace }}
 
       - name: Download package + installer bundle
         uses: actions/download-artifact@v4
@@ -287,6 +293,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download packaged components
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-components
+          path: ${{ github.workspace }}
 
       - name: Download hashed bundle
         uses: actions/download-artifact@v4
