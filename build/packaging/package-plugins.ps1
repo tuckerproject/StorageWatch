@@ -90,6 +90,22 @@ $resolvedPackageOutputDir = if ([System.IO.Path]::IsPathRooted($PackageOutputDir
 $resolvedPayloadPluginsDir = if ([System.IO.Path]::IsPathRooted($PayloadPluginsDir)) { $PayloadPluginsDir } else { Join-Path $resolvedRepoRoot $PayloadPluginsDir }
 $resolvedMetadataOutputFile = if ([System.IO.Path]::IsPathRooted($PluginMetadataOutputFile)) { $PluginMetadataOutputFile } else { Join-Path $resolvedRepoRoot $PluginMetadataOutputFile }
 
+# --- Skip plugin packaging entirely if no plugin source paths exist ---
+$allMissing = $true
+foreach ($source in $PluginSourcePaths) {
+    $candidate = if ([System.IO.Path]::IsPathRooted($source)) { $source } else { Join-Path $resolvedRepoRoot $source }
+    if (Test-Path -LiteralPath $candidate)) {
+        $allMissing = $false
+        break
+    }
+}
+
+if ($allMissing) {
+    Write-Host "No plugin source directories found. Skipping plugin packaging."
+    return
+}
+# --- End skip block ---
+
 $resolvedPluginSources = @()
 foreach ($source in $PluginSourcePaths) {
     $candidate = if ([System.IO.Path]::IsPathRooted($source)) { $source } else { Join-Path $resolvedRepoRoot $source }
