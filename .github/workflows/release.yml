@@ -95,7 +95,7 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /p:Version=${{ needs.validate.outputs.version }}
 
       - name: Test StorageWatchAgent.Tests
         run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration Release --no-build --verbosity normal
