@@ -159,10 +159,12 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHttpClient<IServiceUpdateChecker, ServiceUpdateChecker>();
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
-        services.AddSingleton<IServiceRestartHandler, ServiceRestartHandler>();
+        services.AddSingleton<IServiceRestartHandler, ScmServiceRestartHandler>();
         services.AddSingleton<IServiceUpdateInstaller, ServiceUpdateInstaller>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
         services.AddHttpClient<IPluginUpdateChecker, PluginUpdateChecker>();
+        services.AddHttpClient<IPluginUpdateDownloader, PluginUpdateDownloader>();
+        services.AddSingleton<IPluginUpdateInstaller, PluginUpdateInstaller>();
         services.AddHostedService<ServiceAutoUpdateWorker>();
 
         // ====================================================================

@@ -33,6 +33,13 @@ namespace StorageWatch.Services.AutoUpdate
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("[AUTOUPDATE] Service auto-update worker stopping. Waiting for in-flight operations to complete.");
+            await base.StopAsync(cancellationToken);
+            _logger.LogInformation("[AUTOUPDATE] Service auto-update worker stopped.");
+        }
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var options = _optionsMonitor.CurrentValue;
@@ -49,11 +56,17 @@ namespace StorageWatch.Services.AutoUpdate
             {
                 while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
+                    if (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
                     await RunUpdateCycleAsync(stoppingToken);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                _logger.LogInformation("[AUTOUPDATE] Service auto-update timer canceled due to shutdown.");
             }
         }
 
@@ -61,6 +74,8 @@ namespace StorageWatch.Services.AutoUpdate
         {
             try
             {
+                stoppingToken.ThrowIfCancellationRequested();
+
                 var result = await _updateChecker.CheckForUpdateAsync(stoppingToken);
                 if (!result.IsUpdateAvailable || result.Component == null)
                 {
@@ -73,6 +88,8 @@ namespace StorageWatch.Services.AutoUpdate
 
                 _logger.LogInformation("[AUTOUPDATE] Service update available: {Version}", result.Component.Version);
 
+                stoppingToken.ThrowIfCancellationRequested();
+
                 var download = await _updateDownloader.DownloadAsync(result.Component, stoppingToken);
                 if (!download.Success || string.IsNullOrWhiteSpace(download.FilePath))
                 {
@@ -80,7 +97,12 @@ namespace StorageWatch.Services.AutoUpdate
                     return;
                 }
 
-                var install = await _updateInstaller.InstallAsync(download.FilePath, stoppingToken);
+                stoppingToken.ThrowIfCancellationRequested();
+
+                _logger.LogInformation("[AUTOUPDATE] Applying service update package.");
+
+                // Do not interrupt installation once file apply begins; this prevents partial update application.
+                var install = await _updateInstaller.InstallAsync(download.FilePath, CancellationToken.None);
                 if (!install.Success)
                 {
                     _logger.LogWarning("[AUTOUPDATE] Service install failed: {Error}", install.ErrorMessage);
@@ -88,6 +110,10 @@ namespace StorageWatch.Services.AutoUpdate
                 }
 
                 _logger.LogInformation("[AUTOUPDATE] Service update installed. Restart triggered.");
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("[AUTOUPDATE] Service update cycle canceled due to shutdown.");
             }
             catch (Exception ex)
             {
