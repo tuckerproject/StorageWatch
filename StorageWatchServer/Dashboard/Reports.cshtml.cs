@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Data.Sqlite;
+using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
 using StorageWatchServer.Services.Logging;
@@ -11,16 +12,22 @@ public class ReportsModel : PageModel
     private readonly ServerOptions _options;
     private readonly ILogger<ReportsModel> _logger;
     private readonly RollingFileLogger? _rollingLogger;
+    private readonly ServerDatabaseShutdownCoordinator _databaseShutdownCoordinator;
 
     public int DefaultCount { get; } = 50;
 
     public List<MachineReportGroup> RecentReportsByMachine { get; set; } = new();
 
-    public ReportsModel(ServerOptions options, ILogger<ReportsModel> logger, RollingFileLogger? rollingLogger = null)
+    public ReportsModel(
+        ServerOptions options,
+        ILogger<ReportsModel> logger,
+        RollingFileLogger? rollingLogger = null,
+        ServerDatabaseShutdownCoordinator? databaseShutdownCoordinator = null)
     {
         _options = options;
         _logger = logger;
         _rollingLogger = rollingLogger;
+        _databaseShutdownCoordinator = databaseShutdownCoordinator ?? new ServerDatabaseShutdownCoordinator();
     }
 
     public async Task OnGetAsync()
@@ -38,6 +45,8 @@ public class ReportsModel : PageModel
 
     private async Task LoadRecentReportsAsync()
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         var connectionString = GetConnectionString();
 
         await using var connection = new SqliteConnection(connectionString);

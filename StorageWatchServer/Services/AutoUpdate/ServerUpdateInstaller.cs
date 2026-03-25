@@ -45,10 +45,15 @@ namespace StorageWatchServer.Services.AutoUpdate
             }
 
             var stagingDirectory = Path.Combine(Path.GetTempPath(), "StorageWatchUpdate", Guid.NewGuid().ToString("N"));
+            var backupDirectory = Path.Combine(Path.GetTempPath(), "StorageWatchBackup", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(stagingDirectory);
+            Directory.CreateDirectory(backupDirectory);
 
             try
             {
+                _logger.LogInformation("[AUTOUPDATE] Creating backup before server installation.");
+                CopyDirectory(_targetDirectory, backupDirectory, cancellationToken);
+
                 ZipFile.ExtractToDirectory(zipPath, stagingDirectory, true);
 
                 foreach (var file in Directory.GetFiles(stagingDirectory, "*", SearchOption.AllDirectories))
@@ -70,7 +75,18 @@ namespace StorageWatchServer.Services.AutoUpdate
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[AUTOUPDATE] Server install failed");
+                _logger.LogError(ex, "[AUTOUPDATE] Server install failed. Starting rollback.");
+
+                try
+                {
+                    RestoreBackup(backupDirectory, _targetDirectory, cancellationToken);
+                    _logger.LogInformation("[AUTOUPDATE] Server rollback completed successfully.");
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx, "[AUTOUPDATE] Server rollback failed.");
+                }
+
                 return Task.FromResult(new UpdateInstallResult
                 {
                     Success = false,
@@ -87,6 +103,61 @@ namespace StorageWatchServer.Services.AutoUpdate
                 catch
                 {
                 }
+
+                try
+                {
+                    if (Directory.Exists(backupDirectory))
+                        Directory.Delete(backupDirectory, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void RestoreBackup(string backupDirectory, string targetDirectory, CancellationToken cancellationToken)
+        {
+            if (Directory.Exists(targetDirectory))
+            {
+                foreach (var entry in Directory.GetFileSystemEntries(targetDirectory))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (Directory.Exists(entry))
+                    {
+                        Directory.Delete(entry, true);
+                    }
+                    else
+                    {
+                        File.Delete(entry);
+                    }
+                }
+            }
+
+            CopyDirectory(backupDirectory, targetDirectory, cancellationToken);
+        }
+
+        private static void CopyDirectory(string sourceDirectory, string destinationDirectory, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(destinationDirectory);
+
+            foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relativePath = Path.GetRelativePath(sourceDirectory, directory);
+                Directory.CreateDirectory(Path.Combine(destinationDirectory, relativePath));
+            }
+
+            foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relativePath = Path.GetRelativePath(sourceDirectory, file);
+                var destinationFile = Path.Combine(destinationDirectory, relativePath);
+                var destinationDir = Path.GetDirectoryName(destinationFile);
+                if (!string.IsNullOrWhiteSpace(destinationDir))
+                    Directory.CreateDirectory(destinationDir);
+
+                File.Copy(file, destinationFile, true);
             }
         }
     }

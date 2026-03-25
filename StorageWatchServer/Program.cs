@@ -92,6 +92,8 @@ if (!isTestEnvironment)
 
 builder.Services.AddSingleton<ServerSchema>();
 builder.Services.AddSingleton<ServerRepository>();
+builder.Services.AddSingleton<ServerDatabaseShutdownCoordinator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ServerDatabaseShutdownCoordinator>());
 builder.Services.AddSingleton<RawRowIngestionService>();
 builder.Services.AddSingleton<MachineStatusService>();
 

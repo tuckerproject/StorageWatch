@@ -9,11 +9,16 @@ public class ServerRepository
 {
     private readonly ServerOptions _options;
     private readonly RollingFileLogger? _logger;
+    private readonly ServerDatabaseShutdownCoordinator _databaseShutdownCoordinator;
 
-    public ServerRepository(ServerOptions options, RollingFileLogger? logger = null)
+    public ServerRepository(
+        ServerOptions options,
+        RollingFileLogger? logger = null,
+        ServerDatabaseShutdownCoordinator? databaseShutdownCoordinator = null)
     {
         _options = options;
         _logger = logger;
+        _databaseShutdownCoordinator = databaseShutdownCoordinator ?? new ServerDatabaseShutdownCoordinator();
     }
 
     private string GetConnectionString()
@@ -30,6 +35,8 @@ public class ServerRepository
 
     public async Task<int> UpsertMachineAsync(string machineName, DateTime lastSeenUtc)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -66,6 +73,8 @@ public class ServerRepository
 
     public async Task UpsertDriveAsync(int machineId, MachineDriveStatus drive)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -103,6 +112,8 @@ public class ServerRepository
 
     public async Task InsertDiskHistoryAsync(int machineId, string driveLetter, DiskHistoryPoint point)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -134,6 +145,8 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<MachineSummary>> GetMachinesAsync()
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -172,6 +185,8 @@ public class ServerRepository
 
     public async Task<MachineDetails?> GetMachineAsync(int machineId)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -207,6 +222,8 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<MachineDriveStatus>> GetMachineDrivesAsync(int machineId)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -252,6 +269,8 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<DiskHistoryPoint>> GetDiskHistoryAsync(int machineId, string driveLetter, DateTime startUtc)
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -294,6 +313,8 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<AlertRecord>> GetAlertsAsync()
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());
@@ -336,6 +357,8 @@ public class ServerRepository
 
     public async Task<IReadOnlyList<SettingRecord>> GetSettingsAsync()
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString());

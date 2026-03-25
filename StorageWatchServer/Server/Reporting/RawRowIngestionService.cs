@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Models;
 using StorageWatchServer.Server.Services;
 using StorageWatchServer.Services.Logging;
@@ -13,11 +14,16 @@ public class RawRowIngestionService
 {
     private readonly ServerOptions _options;
     private readonly RollingFileLogger? _logger;
+    private readonly ServerDatabaseShutdownCoordinator _databaseShutdownCoordinator;
 
-    public RawRowIngestionService(ServerOptions options, RollingFileLogger? logger = null)
+    public RawRowIngestionService(
+        ServerOptions options,
+        RollingFileLogger? logger = null,
+        ServerDatabaseShutdownCoordinator? databaseShutdownCoordinator = null)
     {
         _options = options;
         _logger = logger;
+        _databaseShutdownCoordinator = databaseShutdownCoordinator ?? new ServerDatabaseShutdownCoordinator();
     }
 
     private string GetConnectionString()
@@ -41,6 +47,8 @@ public class RawRowIngestionService
             throw new ArgumentException("Machine name must be provided and rows list must not be empty.");
         }
 
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         _logger?.Log($"[INGEST] Received report from {machineName} with {rows.Count} rows");
 
         await using var connection = new SqliteConnection(GetConnectionString());
@@ -53,7 +61,7 @@ public class RawRowIngestionService
 
         _logger?.Log($"[DB] Inserting {rows.Count} RawDriveRows for {machineName}");
 
-        using var transaction = connection.BeginTransaction();
+        await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
         try
         {
@@ -83,6 +91,7 @@ public class RawRowIngestionService
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync();
             _logger?.Log($"[ERROR] Failed to insert RawDriveRows: {ex.Message}");
             throw;
         }

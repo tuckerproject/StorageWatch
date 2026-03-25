@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -111,6 +112,36 @@ namespace StorageWatchServer.Tests.Services
         }
 
         [Fact]
+        public async Task ServerUpdateInstaller_RestoresBackup_WhenInstallFails()
+        {
+            var tempSource = TestDirectoryFactory.CreateTempDirectory();
+            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
+            var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+
+            var existingFile = Path.Combine(tempTarget, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(existingFile)!);
+            await File.WriteAllTextAsync(existingFile, "original");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+
+            var logger = new TestLogger<ServerUpdateInstaller>();
+            var restartHandler = new ThrowingRestartHandler();
+            var installer = new ServerUpdateInstaller(logger, restartHandler, tempTarget);
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("Restart failed", result.ErrorMessage, StringComparison.Ordinal);
+            Assert.True(File.Exists(existingFile));
+            var contents = await File.ReadAllTextAsync(existingFile);
+            Assert.Equal("original", contents);
+        }
+
+        [Fact]
         public async Task ServerAutoUpdateWorker_UsesTimerTicksToRunUpdateCycle()
         {
             var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions
@@ -154,6 +185,28 @@ namespace StorageWatchServer.Tests.Services
             Assert.Equal(0, checker.CallCount);
         }
 
+        [Fact]
+        public void ServerRestartHandler_BuildRestartHelperScript_UsesScmRestartFlow()
+        {
+            var method = typeof(ServerRestartHandler).GetMethod("BuildRestartHelperScript", BindingFlags.NonPublic | BindingFlags.Static);
+
+            Assert.NotNull(method);
+
+            var script = Assert.IsType<string>(method!.Invoke(null, new object[]
+            {
+                "StorageWatchServer",
+                TimeSpan.FromSeconds(30),
+                @"C:\Logs\server-restart.log"
+            }));
+
+            Assert.Contains("Wait-ForState", script, StringComparison.Ordinal);
+            Assert.Contains("sc.exe stop", script, StringComparison.Ordinal);
+            Assert.Contains("sc.exe start", script, StringComparison.Ordinal);
+            Assert.Contains("STOPPED", script, StringComparison.Ordinal);
+            Assert.Contains("RUNNING", script, StringComparison.Ordinal);
+            Assert.Contains("server-restart.log", script, StringComparison.Ordinal);
+        }
+
         private sealed class FakeHttpMessageHandler : HttpMessageHandler
         {
             private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
@@ -176,6 +229,14 @@ namespace StorageWatchServer.Tests.Services
             public void RequestRestart()
             {
                 RestartRequested = true;
+            }
+        }
+
+        private sealed class ThrowingRestartHandler : IServerRestartHandler
+        {
+            public void RequestRestart()
+            {
+                throw new InvalidOperationException("Restart failed");
             }
         }
 

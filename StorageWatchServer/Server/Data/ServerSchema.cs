@@ -8,15 +8,22 @@ public class ServerSchema
 {
     private readonly ServerOptions _options;
     private readonly RollingFileLogger? _logger;
+    private readonly ServerDatabaseShutdownCoordinator _databaseShutdownCoordinator;
 
-    public ServerSchema(ServerOptions options, RollingFileLogger? logger = null)
+    public ServerSchema(
+        ServerOptions options,
+        RollingFileLogger? logger = null,
+        ServerDatabaseShutdownCoordinator? databaseShutdownCoordinator = null)
     {
         _options = options;
         _logger = logger;
+        _databaseShutdownCoordinator = databaseShutdownCoordinator ?? new ServerDatabaseShutdownCoordinator();
     }
 
     public async Task InitializeDatabaseAsync()
     {
+        await using var operation = await _databaseShutdownCoordinator.BeginOperationAsync();
+
         string connectionString;
         if (_options.DatabasePath.Contains("mode=memory") || _options.DatabasePath.StartsWith("file:"))
         {
@@ -63,7 +70,7 @@ public class ServerSchema
                 await command.ExecuteNonQueryAsync();
             }
 
-            // Create index for efficient queries by machine name and timestamp
+            // Create index for efficient queries on machine name and timestamp
             var createRawDriveRowsIndex = @"
                 CREATE INDEX IF NOT EXISTS idx_RawDriveRows_Machine_Time
                 ON RawDriveRows(MachineName, Timestamp DESC);
