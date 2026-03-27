@@ -54,7 +54,19 @@ Section -StorageWatchAgent SecService
     Call StopServiceIfRunning
 
     SetOutPath "$INSTDIR\Agent"
-    File /r "${PAYLOAD_DIR}\Agent\*"
+    DetailPrint "[INSTALL] Agent copy mode: keeping newer existing files (ifnewer)."
+    SetOverwrite ifnewer
+    File /r /x "appsettings.json" "${PAYLOAD_DIR}\Agent\*"
+    SetOverwrite on
+
+    IfFileExists "$INSTDIR\Agent\appsettings.json" AgentAppSettingsExists
+    DetailPrint "[INSTALL] Agent appsettings.json not found. Deploying default appsettings.json."
+    SetOutPath "$INSTDIR\Agent"
+    File "${PAYLOAD_DIR}\Agent\appsettings.json"
+    Goto AgentAppSettingsDone
+AgentAppSettingsExists:
+    DetailPrint "[INSTALL] Agent appsettings.json exists. Preserving existing file."
+AgentAppSettingsDone:
 
     Call CreateAgentProgramData
     Call InstallService
@@ -65,7 +77,19 @@ Section -StorageWatchCentralServer SecServer
     Call StopServerIfRunning
 
     SetOutPath "$INSTDIR\Server"
-    File /r "${PAYLOAD_DIR}\Server\*"
+    DetailPrint "[INSTALL] Server copy mode: keeping newer existing files (ifnewer)."
+    SetOverwrite ifnewer
+    File /r /x "appsettings.json" "${PAYLOAD_DIR}\Server\*"
+    SetOverwrite on
+
+    IfFileExists "$INSTDIR\Server\appsettings.json" ServerAppSettingsExists
+    DetailPrint "[INSTALL] Server appsettings.json not found. Deploying default appsettings.json."
+    SetOutPath "$INSTDIR\Server"
+    File "${PAYLOAD_DIR}\Server\appsettings.json"
+    Goto ServerAppSettingsDone
+ServerAppSettingsExists:
+    DetailPrint "[INSTALL] Server appsettings.json exists. Preserving existing file."
+ServerAppSettingsDone:
 
     Call CreateServerProgramData
     Call InstallServerService
@@ -74,7 +98,19 @@ SectionEnd
 Section -StorageWatchUI SecUI
     SetShellVarContext all
     SetOutPath "$INSTDIR\UI"
-    File /r "${PAYLOAD_DIR}\UI\*"
+    DetailPrint "[INSTALL] UI copy mode: keeping newer existing files (ifnewer)."
+    SetOverwrite ifnewer
+    File /r /x "appsettings.json" "${PAYLOAD_DIR}\UI\*"
+    SetOverwrite on
+
+    IfFileExists "$INSTDIR\UI\appsettings.json" UiAppSettingsExists
+    DetailPrint "[INSTALL] UI appsettings.json not found. Deploying default appsettings.json."
+    SetOutPath "$INSTDIR\UI"
+    File "${PAYLOAD_DIR}\UI\appsettings.json"
+    Goto UiAppSettingsDone
+UiAppSettingsExists:
+    DetailPrint "[INSTALL] UI appsettings.json exists. Preserving existing file."
+UiAppSettingsDone:
 
     CreateDirectory "$SMPROGRAMS\${STARTMENU_FOLDER}"
     CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Dashboard.lnk" "$INSTDIR\UI\StorageWatchUI.exe"
@@ -99,7 +135,10 @@ Section -ProgramData SecProgramData
 
     ; Copy plugins
     SetOutPath "$APPDATA\${APP_NAME}\Plugins"
+    DetailPrint "[INSTALL] Plugin copy mode: keeping newer existing files (ifnewer)."
+    SetOverwrite ifnewer
     File /nonfatal /r "${PAYLOAD_DIR}\Plugins\*.dll"
+    SetOverwrite on
 SectionEnd
 
 Section -PostInstall
@@ -107,6 +146,7 @@ Section -PostInstall
     SetShellVarContext all
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "InstallDir" "$INSTDIR"
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "Role" "$SelectedRole"
+    Call WriteVersionMetadata
     
     ${If} $SelectedRole == "Agent"
         Call StartService
@@ -372,14 +412,17 @@ Function un.PromptDeletePlugins
     donePlugins:
 FunctionEnd
 
-Function CheckForUpdates
-    DetailPrint "CheckForUpdates placeholder"
-FunctionEnd
+Function WriteVersionMetadata
+    ClearErrors
+    ${GetFileVersion} "$EXEPATH" $0
+    ${If} ${Errors}
+        StrCpy $0 "unknown"
+        DetailPrint "[INSTALL] Could not determine installer version from '$EXEPATH'. Writing 'unknown'."
+    ${EndIf}
 
-Function DownloadUpdates
-    DetailPrint "DownloadUpdates placeholder"
-FunctionEnd
+    FileOpen $1 "$INSTDIR\version.txt" w
+    FileWrite $1 "StorageWatchVersion=$0$\r$\n"
+    FileClose $1
 
-Function ApplyUpdates
-    DetailPrint "ApplyUpdates placeholder"
+    DetailPrint "[INSTALL] Wrote version metadata to '$INSTDIR\version.txt': $0"
 FunctionEnd
