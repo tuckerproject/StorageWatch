@@ -88,5 +88,32 @@ namespace StorageWatchUI.Tests.ViewModels
             viewModel.NewVersion.Should().Be("2.0.0");
             viewModel.ReleaseNotes.Should().Be("Bug fixes and improvements");
         }
+
+        [Fact]
+        public void UpdateDialogViewModel_RemindMeLaterCommand_IsNotNull()
+        {
+            // Arrange
+            var viewModel = new UpdateDialogViewModel();
+
+            // Assert
+            viewModel.RemindMeLaterCommand.Should().NotBeNull();
+            viewModel.RemindMeLaterCommand.CanExecute(null).Should().BeTrue();
+        }
+
+        [Fact]
+        public void UpdateDialogViewModel_RemindMeLaterCommand_RaisesRemindMeLaterRequestedEvent()
+        {
+            // Arrange
+            var viewModel = new UpdateDialogViewModel();
+            var eventRaised = false;
+
+            viewModel.RemindMeLaterRequested += (s, e) => eventRaised = true;
+
+            // Act
+            viewModel.RemindMeLaterCommand.Execute(null);
+
+            // Assert
+            eventRaised.Should().BeTrue();
+        }
     }
 }

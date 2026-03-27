@@ -1,5 +1,7 @@
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using StorageWatchUI.Config;
 using StorageWatchUI.Services.AutoUpdate;
 using StorageWatchUI.Views;
 using System.Windows;
@@ -9,6 +11,7 @@ namespace StorageWatchUI.ViewModels;
 public class UpdateViewModel : ViewModelBase
 {
     private bool _isUpdateAvailable;
+    private string _currentVersion = string.Empty;
     private string _latestVersion = string.Empty;
     private string _releaseNotes = string.Empty;
     private bool _isUpdateInProgress;
@@ -18,10 +21,14 @@ public class UpdateViewModel : ViewModelBase
     private bool _isBannerVisible;
     private readonly IUiAutoUpdateWorker _autoUpdateWorker;
     private readonly IUiRestartHandler _restartHandler;
+    private readonly IUiUpdateUserSettingsStore _userSettingsStore;
+    private readonly IOptionsMonitor<AutoUpdateOptions> _autoUpdateOptions;
     private readonly ILogger<UpdateViewModel> _logger;
     private CancellationTokenSource? _updateCts;
     private UpdateProgressViewModel? _progressViewModel;
     private UpdateProgressDialog? _progressDialog;
+    private string? _skippedVersion;
+    private DateTimeOffset? _snoozeUntilUtc;
 
     public UpdateViewModel(
         IUiUpdateChecker updateChecker,
@@ -29,16 +36,23 @@ public class UpdateViewModel : ViewModelBase
         IUiUpdateInstaller updateInstaller,
         IUiRestartHandler restartHandler,
         IUiAutoUpdateWorker autoUpdateWorker,
+        IUiUpdateUserSettingsStore userSettingsStore,
+        IOptionsMonitor<AutoUpdateOptions> autoUpdateOptions,
         ILogger<UpdateViewModel> logger)
     {
         _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
         _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
+        _userSettingsStore = userSettingsStore ?? throw new ArgumentNullException(nameof(userSettingsStore));
+        _autoUpdateOptions = autoUpdateOptions ?? throw new ArgumentNullException(nameof(autoUpdateOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _autoUpdateWorker.UpdateCheckCompleted += OnUpdateCheckCompleted;
         _autoUpdateWorker.UpdateProgressChanged += OnUpdateProgressChanged;
         _autoUpdateWorker.UpdateInstallCompleted += OnUpdateInstallCompleted;
         _autoUpdateWorker.RestartPromptRequested += OnRestartPromptRequested;
+
+        CurrentVersion = GetCurrentVersion();
+        _skippedVersion = _userSettingsStore.GetSkippedVersion();
 
         CheckForUpdatesCommand = new RelayCommand(CheckForUpdatesAsync);
         BeginUpdateCommand = new RelayCommand(BeginUpdateAsync);
@@ -52,6 +66,12 @@ public class UpdateViewModel : ViewModelBase
     {
         get => _isUpdateAvailable;
         set => SetProperty(ref _isUpdateAvailable, value);
+    }
+
+    public string CurrentVersion
+    {
+        get => _currentVersion;
+        set => SetProperty(ref _currentVersion, value);
     }
 
     public string LatestVersion
@@ -136,7 +156,7 @@ public class UpdateViewModel : ViewModelBase
 
         var dialogVm = new UpdateDialogViewModel
         {
-            CurrentVersion = GetCurrentVersion(),
+            CurrentVersion = CurrentVersion,
             NewVersion = LatestVersion,
             ReleaseNotes = ReleaseNotes
         };
@@ -147,6 +167,18 @@ public class UpdateViewModel : ViewModelBase
         {
             dialog.Close();
             await PerformUpdateAsync();
+        };
+
+        dialogVm.SkipThisVersionRequested += (s, e) =>
+        {
+            SkipThisVersion();
+            dialog.Close();
+        };
+
+        dialogVm.RemindMeLaterRequested += (s, e) =>
+        {
+            RemindMeLater();
+            dialog.Close();
         };
 
         dialogVm.CancelRequested += (s, e) => dialog.Close();
@@ -208,8 +240,32 @@ public class UpdateViewModel : ViewModelBase
     {
         RunOnUiThread(() =>
         {
+            if (_snoozeUntilUtc.HasValue && DateTimeOffset.UtcNow >= _snoozeUntilUtc.Value)
+            {
+                _snoozeUntilUtc = null;
+            }
+
             if (result.IsUpdateAvailable && result.Component != null)
             {
+                if (!string.IsNullOrWhiteSpace(_skippedVersion) &&
+                    string.Equals(result.Component.Version, _skippedVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    IsUpdateAvailable = false;
+                    IsBannerVisible = false;
+                    UpdateStatus = "No updates available";
+                    _logger.LogInformation("[AUTOUPDATE] Suppressing skipped UI version: {Version}", _skippedVersion);
+                    return;
+                }
+
+                if (_snoozeUntilUtc.HasValue && DateTimeOffset.UtcNow < _snoozeUntilUtc.Value)
+                {
+                    IsUpdateAvailable = false;
+                    IsBannerVisible = false;
+                    UpdateStatus = "Update reminder snoozed.";
+                    _logger.LogInformation("[AUTOUPDATE] Update notifications snoozed until {SnoozeUntilUtc}.", _snoozeUntilUtc.Value);
+                    return;
+                }
+
                 IsUpdateAvailable = true;
                 LatestVersion = result.Component.Version;
                 ReleaseNotes = string.IsNullOrWhiteSpace(result.Component.ReleaseNotesUrl)
@@ -285,7 +341,25 @@ public class UpdateViewModel : ViewModelBase
 
     private void ShowRestartPrompt()
     {
+        if (Application.Current?.Dispatcher?.CheckAccess() != true)
+        {
+            Application.Current?.Dispatcher?.Invoke(ShowRestartPrompt);
+            return;
+        }
+
         var restartDialog = new RestartPromptDialog();
+
+        var owner = Application.Current?.MainWindow;
+        if (owner is { IsLoaded: true, IsVisible: true } && owner.WindowState != WindowState.Minimized)
+        {
+            restartDialog.Owner = owner;
+            restartDialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+        else
+        {
+            restartDialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
         if (restartDialog.ShowDialog() == true)
         {
             RestartNow();
@@ -330,7 +404,26 @@ public class UpdateViewModel : ViewModelBase
 
     private void RemindMeLater()
     {
+        var intervalMinutes = Math.Max(1, _autoUpdateOptions.CurrentValue.CheckIntervalMinutes);
+        _snoozeUntilUtc = DateTimeOffset.UtcNow.AddMinutes(intervalMinutes);
+        IsUpdateAvailable = false;
         IsBannerVisible = false;
+        UpdateStatus = "Update reminder snoozed until the next check.";
+        _logger.LogInformation("[AUTOUPDATE] Remind me later selected. Snoozed for {Minutes} minutes.", intervalMinutes);
+    }
+
+    private void SkipThisVersion()
+    {
+        if (string.IsNullOrWhiteSpace(LatestVersion))
+            return;
+
+        _skippedVersion = LatestVersion;
+        _userSettingsStore.SetSkippedVersion(_skippedVersion);
+
+        IsUpdateAvailable = false;
+        IsBannerVisible = false;
+        UpdateStatus = $"Version {_skippedVersion} skipped.";
+        _logger.LogInformation("[AUTOUPDATE] Skipped UI version: {Version}", _skippedVersion);
     }
 
     private static void RunOnUiThread(Action action)

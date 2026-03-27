@@ -4,54 +4,48 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Installing Update" Height="250" Width="450"
+        Title="Installing Update" Height="260" Width="460"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="White"
+        Background="{DynamicResource BackgroundColor}"
         WindowStyle="ToolWindow">
     <Grid Margin="20">
         <StackPanel VerticalAlignment="Center">
             <!-- Title -->
-            <TextBlock Text="StorageWatch Update in Progress" 
-                       FontSize="16" 
-                       FontWeight="Bold" 
-                       Foreground="#FF333333"
-                       Margin="0,0,0,20"/>
+            <TextBlock Text="Installing StorageWatch update"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource PrimaryText}"
+                       Margin="0,0,0,14"/>
 
             <!-- Status Text -->
-            <TextBlock Text="{Binding StatusText}" 
-                       FontSize="13" 
-                       Foreground="#FF666666"
-                       Margin="0,0,0,15"/>
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SecondaryText}"
+                       Margin="0,0,0,12"/>
 
             <!-- Progress Bar -->
-            <ProgressBar Height="25" 
-                         Value="{Binding Progress}" 
+            <ProgressBar Height="22"
+                         Value="{Binding Progress}"
                          IsIndeterminate="{Binding IsIndeterminate}"
-                         Background="#FFE0E0E0"
-                         Foreground="#FF4CAF50"
-                         Margin="0,0,0,20"/>
+                         Margin="0,0,0,10"/>
 
             <!-- Progress Percentage (when determinate) -->
-            <TextBlock Foreground="#FF999999"
+            <TextBlock Text="{Binding Progress, StringFormat=Progress: {0:N0}%}"
+                       Foreground="{DynamicResource SecondaryText}"
                        FontSize="11"
                        TextAlignment="Center"
-                       Margin="0,0,0,15">
-                <Run Text="{Binding Progress, StringFormat=N0}"/>
-                <Run Text="%"/>
-            </TextBlock>
+                       Margin="0,0,0,18"/>
 
             <!-- Cancel Button -->
-            <Button Content="Cancel" 
+            <Button Content="Cancel"
                     Command="{Binding CancelCommand}"
-                    Width="100" 
-                    Padding="10,8"
+                    Width="100"
                     HorizontalAlignment="Center"
                     Background="Transparent"
-                    Foreground="#FF333333"
+                    Foreground="{DynamicResource PrimaryText}"
                     BorderThickness="1"
-                    BorderBrush="#FFCCCCCC"
-                    Cursor="Hand"/>
+                    BorderBrush="{DynamicResource BorderBrush}"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -4,54 +4,44 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Restart Required" Height="250" Width="450"
+        Title="Restart StorageWatch"
+        Width="460"
+        Height="260"
+        MinWidth="420"
+        MinHeight="240"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="White"
-        WindowStyle="ToolWindow">
+        Background="{DynamicResource BackgroundColor}"
+        WindowStyle="ToolWindow"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
     <Grid Margin="20">
         <StackPanel VerticalAlignment="Center">
-            <!-- Icon/Title -->
-            <TextBlock Text="✓" 
-                       FontSize="48" 
-                       Foreground="#FF4CAF50"
+            <TextBlock Text="Update installed"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource PrimaryText}"
                        TextAlignment="Center"
-                       Margin="0,0,0,20"/>
+                       Margin="0,0,0,12"/>
 
-            <!-- Title -->
-            <TextBlock Text="Update Installed" 
-                       FontSize="18" 
-                       FontWeight="Bold" 
-                       Foreground="#FF333333"
+            <TextBlock Text="Restart StorageWatch now to finish applying this update."
+                       FontSize="13"
+                       Foreground="{DynamicResource SecondaryText}"
                        TextAlignment="Center"
-                       Margin="0,0,0,10"/>
+                       TextWrapping="Wrap"
+                       Margin="12,0,12,24"/>
 
-            <!-- Message -->
-            <TextBlock Text="StorageWatch must restart to complete the update." 
-                       FontSize="13" 
-                       Foreground="#FF666666"
-                       TextAlignment="Center"
-                       Margin="0,0,0,30"/>
-
-            <!-- Buttons -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,0">
-                <Button Content="Restart Later" 
-                        Width="120" 
-                        Padding="10,8"
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="Restart later"
+                        Width="130"
                         Margin="0,0,10,0"
                         Background="Transparent"
-                        Foreground="#FF333333"
+                        Foreground="{DynamicResource PrimaryText}"
                         BorderThickness="1"
-                        BorderBrush="#FFCCCCCC"
-                        Cursor="Hand"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         Click="RestartLaterButton_Click"/>
-                <Button Content="Restart Now" 
-                        Width="120" 
-                        Padding="10,8"
-                        Background="#FF4CAF50"
-                        Foreground="White"
-                        BorderThickness="0"
-                        Cursor="Hand"
+                <Button Content="Restart now"
+                        Width="130"
                         Click="RestartNowButton_Click"/>
             </StackPanel>
         </StackPanel>

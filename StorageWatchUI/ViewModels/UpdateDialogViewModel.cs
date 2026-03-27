@@ -15,6 +15,8 @@ public class UpdateDialogViewModel : ViewModelBase
     {
         UpdateCommand = new RelayCommand(OnUpdate);
         CancelCommand = new RelayCommand(OnCancel);
+        SkipThisVersionCommand = new RelayCommand(OnSkipThisVersion);
+        RemindMeLaterCommand = new RelayCommand(OnRemindMeLater);
     }
 
     public string CurrentVersion
@@ -37,9 +39,13 @@ public class UpdateDialogViewModel : ViewModelBase
 
     public ICommand UpdateCommand { get; }
     public ICommand CancelCommand { get; }
+    public ICommand SkipThisVersionCommand { get; }
+    public ICommand RemindMeLaterCommand { get; }
 
     public event EventHandler? UpdateRequested;
     public event EventHandler? CancelRequested;
+    public event EventHandler? SkipThisVersionRequested;
+    public event EventHandler? RemindMeLaterRequested;
 
     private void OnUpdate()
     {
@@ -49,5 +55,15 @@ public class UpdateDialogViewModel : ViewModelBase
     private void OnCancel()
     {
         CancelRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnSkipThisVersion()
+    {
+        SkipThisVersionRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnRemindMeLater()
+    {
+        RemindMeLaterRequested?.Invoke(this, EventArgs.Empty);
     }
 }

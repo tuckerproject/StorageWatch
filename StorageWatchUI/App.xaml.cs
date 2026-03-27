@@ -115,6 +115,7 @@ public partial class App : Application
         services.AddSingleton<IUiRestartPrompter, UiRestartPrompter>();
         services.AddSingleton<IUiRestartHandler, UiRestartHandler>();
         services.AddSingleton<IUiUpdateInstaller, UiUpdateInstaller>();
+        services.AddSingleton<IUiUpdateUserSettingsStore, UiUpdateUserSettingsStore>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
         services.AddSingleton<IUiAutoUpdateWorker, UiAutoUpdateWorker>();
 

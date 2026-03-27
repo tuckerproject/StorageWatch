@@ -4,52 +4,48 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             Height="60" Background="#FFF0F0F0" BorderBrush="#FFCCCCCC" BorderThickness="0,0,0,1">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
+             Height="72"
+             Background="{DynamicResource CardBackground}">
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Update Message -->
-        <TextBlock Grid.Column="0" 
-                   Text="A new version of StorageWatch is available." 
-                   VerticalAlignment="Center" 
-                   Margin="15,0,0,0"
-                   Foreground="#FF333333"
-                   FontSize="14"/>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Update available for StorageWatch"
+                           Foreground="{DynamicResource PrimaryText}"
+                           FontSize="14"
+                           FontWeight="SemiBold"/>
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource SecondaryText}"
+                           FontSize="12">
+                    <Run Text="Current: "/>
+                    <Run Text="{Binding CurrentVersion}"/>
+                    <Run Text="   •   Available: "/>
+                    <Run Text="{Binding LatestVersion}"/>
+                </TextBlock>
+            </StackPanel>
 
-        <!-- Version Info -->
-        <TextBlock Grid.Column="1" 
-                   Text="{Binding LatestVersion, StringFormat='Version {0}'}" 
-                   VerticalAlignment="Center" 
-                   Margin="10,0,0,0"
-                   Foreground="#FF666666"
-                   FontSize="12"/>
+            <Button Grid.Column="1"
+                    Content="Install update"
+                    Command="{Binding BeginUpdateCommand}"
+                    Margin="12,0,8,0"
+                    MinWidth="120"
+                    VerticalAlignment="Center"/>
 
-        <!-- Update Now Button -->
-        <Button Grid.Column="2" 
-                Content="Update Now" 
-                Command="{Binding BeginUpdateCommand}"
-                Margin="10,10,5,10"
-                Padding="12,5"
-                Background="#FF4CAF50"
-                Foreground="White"
-                BorderThickness="0"
-                Cursor="Hand"/>
-
-        <!-- Remind Later Button -->
-        <Button Grid.Column="3" 
-                Content="Remind Me Later" 
-                Command="{Binding RemindMeLaterCommand}"
-                Margin="0,10,15,10"
-                Padding="12,5"
-                Background="Transparent"
-                Foreground="#FF333333"
-                BorderThickness="1"
-                BorderBrush="#FFCCCCCC"
-                Cursor="Hand"/>
-    </Grid>
+            <Button Grid.Column="2"
+                    Content="Later"
+                    Command="{Binding RemindMeLaterCommand}"
+                    Margin="0"
+                    MinWidth="90"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    Foreground="{DynamicResource PrimaryText}"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource BorderBrush}"/>
+        </Grid>
+    </Border>
 </UserControl>

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using StorageWatchUI.Config;
 using StorageWatchUI.Models;
 using StorageWatchUI.Services.AutoUpdate;
 using StorageWatchUI.ViewModels;
@@ -19,10 +21,18 @@ namespace StorageWatchUI.Tests.ViewModels
             Mock<IUiUpdateInstaller>? installer = null,
             Mock<IUiRestartHandler>? restartHandler = null,
             Mock<IUiAutoUpdateWorker>? worker = null,
+            Mock<IUiUpdateUserSettingsStore>? userSettingsStore = null,
+            Mock<IOptionsMonitor<AutoUpdateOptions>>? autoUpdateOptions = null,
             Mock<ILogger<UpdateViewModel>>? logger = null)
         {
             var workerMock = worker ?? new Mock<IUiAutoUpdateWorker>();
             workerMock.SetupGet(w => w.IsCycleActive).Returns(false);
+
+            var settingsMock = userSettingsStore ?? new Mock<IUiUpdateUserSettingsStore>();
+            settingsMock.Setup(s => s.GetSkippedVersion()).Returns((string?)null);
+
+            var optionsMock = autoUpdateOptions ?? new Mock<IOptionsMonitor<AutoUpdateOptions>>();
+            optionsMock.SetupGet(o => o.CurrentValue).Returns(new AutoUpdateOptions { CheckIntervalMinutes = 60 });
 
             return new UpdateViewModel(
                 (checker ?? new Mock<IUiUpdateChecker>()).Object,
@@ -30,6 +40,8 @@ namespace StorageWatchUI.Tests.ViewModels
                 (installer ?? new Mock<IUiUpdateInstaller>()).Object,
                 (restartHandler ?? new Mock<IUiRestartHandler>()).Object,
                 workerMock.Object,
+                settingsMock.Object,
+                optionsMock.Object,
                 (logger ?? new Mock<ILogger<UpdateViewModel>>()).Object);
         }
 

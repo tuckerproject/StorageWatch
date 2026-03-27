@@ -1,6 +1,9 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using StorageWatch.Shared.Update.Models;
+using StorageWatchUI.Config;
 using StorageWatchUI.Models;
 using StorageWatchUI.Services.AutoUpdate;
 using StorageWatchUI.ViewModels;
@@ -18,6 +21,8 @@ namespace StorageWatchUI.Tests.ViewModels
             Mock<IUiUpdateInstaller>? installer = null,
             Mock<IUiRestartHandler>? restartHandler = null,
             Mock<IUiAutoUpdateWorker>? worker = null,
+            Mock<IUiUpdateUserSettingsStore>? userSettingsStore = null,
+            Mock<IOptionsMonitor<AutoUpdateOptions>>? autoUpdateOptions = null,
             Mock<ILogger<UpdateViewModel>>? logger = null)
         {
             if (worker == null)
@@ -26,12 +31,26 @@ namespace StorageWatchUI.Tests.ViewModels
                 worker.SetupGet(w => w.IsCycleActive).Returns(false);
             }
 
+            if (userSettingsStore == null)
+            {
+                userSettingsStore = new Mock<IUiUpdateUserSettingsStore>();
+                userSettingsStore.Setup(s => s.GetSkippedVersion()).Returns((string?)null);
+            }
+
+            if (autoUpdateOptions == null)
+            {
+                autoUpdateOptions = new Mock<IOptionsMonitor<AutoUpdateOptions>>();
+                autoUpdateOptions.SetupGet(o => o.CurrentValue).Returns(new AutoUpdateOptions { CheckIntervalMinutes = 60 });
+            }
+
             return new UpdateViewModel(
                 (checker ?? new Mock<IUiUpdateChecker>()).Object,
                 (downloader ?? new Mock<IUiUpdateDownloader>()).Object,
                 (installer ?? new Mock<IUiUpdateInstaller>()).Object,
                 (restartHandler ?? new Mock<IUiRestartHandler>()).Object,
                 worker.Object,
+                userSettingsStore.Object,
+                autoUpdateOptions.Object,
                 (logger ?? new Mock<ILogger<UpdateViewModel>>()).Object);
         }
 
@@ -157,6 +176,68 @@ namespace StorageWatchUI.Tests.ViewModels
 
             checkerMock.Verify(c => c.CheckForUpdateAsync(It.IsAny<CancellationToken>()), Times.Never);
             viewModel.UpdateStatus.Should().Be("Update check already in progress.");
+        }
+
+        [Fact]
+        public async Task UpdateViewModel_SuppressesSkippedVersion_FromUpdateCheckResult()
+        {
+            var skippedVersion = "2.1.0";
+            var workerMock = new Mock<IUiAutoUpdateWorker>();
+            workerMock.SetupGet(w => w.IsCycleActive).Returns(false);
+            workerMock.Setup(w => w.TryRunUpdateCycleAsync(It.IsAny<CancellationToken>())).Returns(Task.FromResult(true));
+
+            var settingsMock = new Mock<IUiUpdateUserSettingsStore>();
+            settingsMock.Setup(s => s.GetSkippedVersion()).Returns(skippedVersion);
+
+            var viewModel = CreateViewModel(worker: workerMock, userSettingsStore: settingsMock);
+
+            viewModel.CheckForUpdatesCommand.Execute(null);
+
+            workerMock.Raise(
+                w => w.UpdateCheckCompleted += null,
+                workerMock.Object,
+                new ComponentUpdateCheckResult
+                {
+                    IsUpdateAvailable = true,
+                    Component = new ComponentUpdateInfo { Version = skippedVersion }
+                });
+
+            await Task.Delay(50);
+
+            viewModel.IsBannerVisible.Should().BeFalse();
+            viewModel.IsUpdateAvailable.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task UpdateViewModel_RemindMeLater_SuppressesNotificationsUntilSnoozeExpires()
+        {
+            var workerMock = new Mock<IUiAutoUpdateWorker>();
+            workerMock.SetupGet(w => w.IsCycleActive).Returns(false);
+
+            var optionsMock = new Mock<IOptionsMonitor<AutoUpdateOptions>>();
+            optionsMock.SetupGet(o => o.CurrentValue).Returns(new AutoUpdateOptions { CheckIntervalMinutes = 60 });
+
+            var viewModel = CreateViewModel(worker: workerMock, autoUpdateOptions: optionsMock);
+            viewModel.LatestVersion = "2.2.0";
+            viewModel.IsUpdateAvailable = true;
+            viewModel.IsBannerVisible = true;
+
+            viewModel.RemindMeLaterCommand.Execute(null);
+
+            workerMock.Raise(
+                w => w.UpdateCheckCompleted += null,
+                workerMock.Object,
+                new ComponentUpdateCheckResult
+                {
+                    IsUpdateAvailable = true,
+                    Component = new ComponentUpdateInfo { Version = "2.2.0" }
+                });
+
+            await Task.Delay(50);
+
+            viewModel.IsBannerVisible.Should().BeFalse();
+            viewModel.IsUpdateAvailable.Should().BeFalse();
+            viewModel.UpdateStatus.Should().Contain("snoozed");
         }
     }
 }
