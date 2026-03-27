@@ -13,22 +13,31 @@ namespace StorageWatchUI.Tests.ViewModels
 {
     public class UpdateUxFlowTests
     {
+        private static UpdateViewModel CreateViewModel(
+            Mock<IUiUpdateChecker>? checker = null,
+            Mock<IUiUpdateDownloader>? downloader = null,
+            Mock<IUiUpdateInstaller>? installer = null,
+            Mock<IUiRestartHandler>? restartHandler = null,
+            Mock<IUiAutoUpdateWorker>? worker = null,
+            Mock<ILogger<UpdateViewModel>>? logger = null)
+        {
+            var workerMock = worker ?? new Mock<IUiAutoUpdateWorker>();
+            workerMock.SetupGet(w => w.IsCycleActive).Returns(false);
+
+            return new UpdateViewModel(
+                (checker ?? new Mock<IUiUpdateChecker>()).Object,
+                (downloader ?? new Mock<IUiUpdateDownloader>()).Object,
+                (installer ?? new Mock<IUiUpdateInstaller>()).Object,
+                (restartHandler ?? new Mock<IUiRestartHandler>()).Object,
+                workerMock.Object,
+                (logger ?? new Mock<ILogger<UpdateViewModel>>()).Object);
+        }
+
         [Fact]
         public void UpdateUxFlow_Banner_AppearsWhenUpdateAvailable()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-
-            var viewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object);
+            var viewModel = CreateViewModel();
 
             // Simulate update available
             viewModel.IsUpdateAvailable = true;
@@ -47,22 +56,9 @@ namespace StorageWatchUI.Tests.ViewModels
         public void UpdateUxFlow_Banner_CanBeDismissed()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-
-            var viewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object)
-            {
-                IsBannerVisible = true,
-                IsUpdateAvailable = true
-            };
+            var viewModel = CreateViewModel();
+            viewModel.IsBannerVisible = true;
+            viewModel.IsUpdateAvailable = true;
 
             // Act
             viewModel.DismissBannerCommand.Execute(null);
@@ -150,18 +146,7 @@ namespace StorageWatchUI.Tests.ViewModels
         public void UpdateUxFlow_UpdateViewModel_HasAllRequiredCommands()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-
-            var viewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object);
+            var viewModel = CreateViewModel();
 
             // Assert - All commands exist
             viewModel.CheckForUpdatesCommand.Should().NotBeNull();
@@ -176,17 +161,7 @@ namespace StorageWatchUI.Tests.ViewModels
         public void UpdateUxFlow_MainViewModel_ExposesUpdateViewModel()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-            var updateViewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object);
+            var updateViewModel = CreateViewModel();
 
             // We'll just verify that UpdateViewModel property exists and is accessible
             // The MainViewModel integration tests should verify the property binding in UI context
@@ -201,46 +176,21 @@ namespace StorageWatchUI.Tests.ViewModels
         public void UpdateUxFlow_RestartPrompt_AllowsUserChoice()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-
-            var viewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object)
-            {
-                IsRestartRequired = true
-            };
+            var restartHandlerMock = new Mock<IUiRestartHandler>();
+            var viewModel = CreateViewModel(restartHandler: restartHandlerMock);
+            viewModel.IsRestartRequired = true;
 
             // Act & Assert
             viewModel.RestartNowCommand.CanExecute(null).Should().BeTrue();
-            mockRestartHandler.Verify(h => h.RequestRestart(), Times.Never); // Not called yet
+            restartHandlerMock.Verify(h => h.RequestRestart(), Times.Never); // Not called yet
         }
 
         [Fact]
         public void UpdateUxFlow_CancelUpdate_CancelsOperation()
         {
             // Arrange
-            var mockChecker = new Mock<IUiUpdateChecker>();
-            var mockDownloader = new Mock<IUiUpdateDownloader>();
-            var mockInstaller = new Mock<IUiUpdateInstaller>();
-            var mockRestartHandler = new Mock<IUiRestartHandler>();
-            var mockLogger = new Mock<ILogger<UpdateViewModel>>();
-
-            var viewModel = new UpdateViewModel(
-                mockChecker.Object,
-                mockDownloader.Object,
-                mockInstaller.Object,
-                mockRestartHandler.Object,
-                mockLogger.Object)
-            {
-                IsUpdateInProgress = true
-            };
+            var viewModel = CreateViewModel();
+            viewModel.IsUpdateInProgress = true;
 
             var originalStatus = viewModel.UpdateStatus;
 

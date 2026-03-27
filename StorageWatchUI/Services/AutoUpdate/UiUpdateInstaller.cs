@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,7 +10,7 @@ namespace StorageWatchUI.Services.AutoUpdate
 {
     public interface IUiUpdateInstaller
     {
-        Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken);
+        Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null);
     }
 
     public class UiUpdateInstaller : IUiUpdateInstaller
@@ -39,7 +40,7 @@ namespace StorageWatchUI.Services.AutoUpdate
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
         }
 
-        public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken)
+        public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null)
         {
             if (string.IsNullOrWhiteSpace(zipPath))
                 throw new ArgumentException("Zip path is required.", nameof(zipPath));
@@ -60,7 +61,11 @@ namespace StorageWatchUI.Services.AutoUpdate
             {
                 ZipFile.ExtractToDirectory(zipPath, stagingDirectory, true);
 
-                foreach (var file in Directory.GetFiles(stagingDirectory, "*", SearchOption.AllDirectories))
+                var files = Directory.GetFiles(stagingDirectory, "*", SearchOption.AllDirectories);
+                var totalFiles = files.Length;
+                var copiedFiles = 0;
+
+                foreach (var file in files)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
@@ -71,10 +76,16 @@ namespace StorageWatchUI.Services.AutoUpdate
                         Directory.CreateDirectory(destinationDir);
 
                     File.Copy(file, destinationPath, true);
+
+                    copiedFiles++;
+                    if (totalFiles > 0)
+                        progress?.Report((double)copiedFiles / totalFiles);
                 }
 
-                _logger.LogInformation("[AUTOUPDATE] UI update applied. Prompting for restart.");
-                if (_restartPrompter.PromptForRestart())
+                progress?.Report(1.0);
+
+                _logger.LogInformation("[AUTOUPDATE] UI update applied.");
+                if (promptForRestart && _restartPrompter.PromptForRestart())
                 {
                     _restartHandler.RequestRestart();
                 }

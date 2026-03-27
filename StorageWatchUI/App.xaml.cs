@@ -57,10 +57,6 @@ public partial class App : Application
             var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             _logger.Log("[STARTUP] Main window displayed");
-
-            // Trigger initial update check in the UI
-            var updateViewModel = ServiceProvider.GetRequiredService<UpdateViewModel>();
-            updateViewModel.CheckForUpdatesCommand.Execute(null);
         }
         catch (Exception ex)
         {

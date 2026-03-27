@@ -131,6 +131,42 @@ namespace StorageWatchUI.Tests.Services
 
             await worker.RunAsync(CancellationToken.None);
 
+            checker.CallCount.Should().Be(2);
+        }
+
+        [Fact]
+        public async Task UiAutoUpdateWorker_TryRunUpdateCycleAsync_SkipsWhenCycleAlreadyActive()
+        {
+            var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions
+            {
+                Enabled = true,
+                CheckIntervalMinutes = 1
+            });
+
+            var blocker = new SemaphoreSlim(0, 1);
+            var checker = new BlockingFakeUiUpdateChecker(blocker);
+            var downloader = new FakeUiUpdateDownloader(new UpdateDownloadResult { Success = false });
+            var installer = new FakeUiUpdateInstaller(new UpdateInstallResult { Success = true });
+            var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
+            var logger = new TestLogger<UiAutoUpdateWorker>();
+
+            var worker = new TestUiAutoUpdateWorker(autoUpdateMonitor, checker, downloader, installer, timerFactory, logger);
+
+            // Start first cycle but keep it blocked inside the checker
+            var firstCycle = worker.TryRunUpdateCycleAsync(CancellationToken.None);
+
+            // Give the first cycle time to acquire the lock and enter the checker
+            await Task.Delay(50);
+
+            // Second call should be skipped because the first is still active
+            var skipped = await worker.TryRunUpdateCycleAsync(CancellationToken.None);
+
+            // Unblock the first cycle
+            blocker.Release();
+            var firstRan = await firstCycle;
+
+            firstRan.Should().BeTrue();
+            skipped.Should().BeFalse();
             checker.CallCount.Should().Be(1);
         }
 
@@ -189,6 +225,24 @@ namespace StorageWatchUI.Tests.Services
             }
         }
 
+        private sealed class BlockingFakeUiUpdateChecker : IUiUpdateChecker
+        {
+            private readonly SemaphoreSlim _gate;
+            public int CallCount { get; private set; }
+
+            public BlockingFakeUiUpdateChecker(SemaphoreSlim gate)
+            {
+                _gate = gate;
+            }
+
+            public async Task<ComponentUpdateCheckResult> CheckForUpdateAsync(CancellationToken cancellationToken)
+            {
+                CallCount++;
+                await _gate.WaitAsync(cancellationToken);
+                return new ComponentUpdateCheckResult { IsUpdateAvailable = false };
+            }
+        }
+
         private sealed class FakeUiUpdateDownloader : IUiUpdateDownloader
         {
             private readonly UpdateDownloadResult _result;
@@ -198,7 +252,7 @@ namespace StorageWatchUI.Tests.Services
                 _result = result;
             }
 
-            public Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken)
+            public Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken, IProgress<double>? progress = null)
             {
                 return Task.FromResult(_result);
             }
@@ -213,7 +267,7 @@ namespace StorageWatchUI.Tests.Services
                 _result = result;
             }
 
-            public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken)
+            public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null)
             {
                 return Task.FromResult(_result);
             }

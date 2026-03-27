@@ -10,7 +10,7 @@ namespace StorageWatchUI.Services.AutoUpdate
 {
     public interface IUiUpdateDownloader
     {
-        Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken);
+        Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken, IProgress<double>? progress = null);
     }
 
     public class UiUpdateDownloader : IUiUpdateDownloader
@@ -24,7 +24,7 @@ namespace StorageWatchUI.Services.AutoUpdate
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken)
+        public async Task<UpdateDownloadResult> DownloadAsync(ComponentUpdateInfo component, CancellationToken cancellationToken, IProgress<double>? progress = null)
         {
             if (component == null)
                 throw new ArgumentNullException(nameof(component));
@@ -43,7 +43,8 @@ namespace StorageWatchUI.Services.AutoUpdate
 
             try
             {
-                var response = await _httpClient.GetAsync(component.DownloadUrl, cancellationToken);
+                using var request = new HttpRequestMessage(HttpMethod.Get, component.DownloadUrl);
+                var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new UpdateDownloadResult
@@ -53,11 +54,26 @@ namespace StorageWatchUI.Services.AutoUpdate
                     };
                 }
 
+                var contentLength = response.Content.Headers.ContentLength;
                 await using (var stream = await response.Content.ReadAsStreamAsync(cancellationToken))
                 await using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    await stream.CopyToAsync(fileStream, cancellationToken);
+                    var buffer = new byte[81920];
+                    long totalRead = 0;
+                    int read;
+                    while ((read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        totalRead += read;
+
+                        if (contentLength.HasValue && contentLength.Value > 0)
+                        {
+                            progress?.Report((double)totalRead / contentLength.Value);
+                        }
+                    }
                 }
+
+                progress?.Report(1.0);
 
                 var hashValid = await UpdateDownloadHelper.VerifySha256Async(filePath, component.Sha256, cancellationToken);
                 if (!hashValid)

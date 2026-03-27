@@ -6,9 +6,6 @@ using System.Windows;
 
 namespace StorageWatchUI.ViewModels;
 
-/// <summary>
-/// Main ViewModel for managing update state and user interactions.
-/// </summary>
 public class UpdateViewModel : ViewModelBase
 {
     private bool _isUpdateAvailable;
@@ -19,25 +16,29 @@ public class UpdateViewModel : ViewModelBase
     private string _updateStatus = string.Empty;
     private double _updateProgress;
     private bool _isBannerVisible;
-    private readonly IUiUpdateChecker _updateChecker;
-    private readonly IUiUpdateDownloader _updateDownloader;
-    private readonly IUiUpdateInstaller _updateInstaller;
+    private readonly IUiAutoUpdateWorker _autoUpdateWorker;
     private readonly IUiRestartHandler _restartHandler;
     private readonly ILogger<UpdateViewModel> _logger;
     private CancellationTokenSource? _updateCts;
+    private UpdateProgressViewModel? _progressViewModel;
+    private UpdateProgressDialog? _progressDialog;
 
     public UpdateViewModel(
         IUiUpdateChecker updateChecker,
         IUiUpdateDownloader updateDownloader,
         IUiUpdateInstaller updateInstaller,
         IUiRestartHandler restartHandler,
+        IUiAutoUpdateWorker autoUpdateWorker,
         ILogger<UpdateViewModel> logger)
     {
-        _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
-        _updateDownloader = updateDownloader ?? throw new ArgumentNullException(nameof(updateDownloader));
-        _updateInstaller = updateInstaller ?? throw new ArgumentNullException(nameof(updateInstaller));
+        _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
         _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _autoUpdateWorker.UpdateCheckCompleted += OnUpdateCheckCompleted;
+        _autoUpdateWorker.UpdateProgressChanged += OnUpdateProgressChanged;
+        _autoUpdateWorker.UpdateInstallCompleted += OnUpdateInstallCompleted;
+        _autoUpdateWorker.RestartPromptRequested += OnRestartPromptRequested;
 
         CheckForUpdatesCommand = new RelayCommand(CheckForUpdatesAsync);
         BeginUpdateCommand = new RelayCommand(BeginUpdateAsync);
@@ -104,27 +105,18 @@ public class UpdateViewModel : ViewModelBase
 
     private async void CheckForUpdatesAsync()
     {
+        if (_autoUpdateWorker.IsCycleActive)
+        {
+            _logger.LogInformation("[AUTOUPDATE] Skipping manual check — background update cycle is already active.");
+            UpdateStatus = "Update check already in progress.";
+            return;
+        }
+
         try
         {
             UpdateStatus = "Checking for updates...";
             _updateCts = new CancellationTokenSource();
-            
-            var result = await _updateChecker.CheckForUpdateAsync(_updateCts.Token);
-            
-            if (result.IsUpdateAvailable && result.Component != null)
-            {
-                IsUpdateAvailable = true;
-                LatestVersion = result.Component.Version;
-                IsBannerVisible = true;
-                _logger.LogInformation($"Update available: {LatestVersion}");
-            }
-            else
-            {
-                IsUpdateAvailable = false;
-                IsBannerVisible = false;
-                UpdateStatus = "No updates available";
-                _logger.LogInformation("No updates available");
-            }
+            await _autoUpdateWorker.TryRunUpdateCycleAsync(_updateCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -142,103 +134,153 @@ public class UpdateViewModel : ViewModelBase
         if (!IsUpdateAvailable)
             return;
 
-        // Show update dialog
-        var dialogVm = new UpdateDialogViewModel();
-        var currentVersion = GetCurrentVersion();
-        dialogVm.CurrentVersion = currentVersion;
-        dialogVm.NewVersion = LatestVersion;
-        dialogVm.ReleaseNotes = ReleaseNotes;
+        var dialogVm = new UpdateDialogViewModel
+        {
+            CurrentVersion = GetCurrentVersion(),
+            NewVersion = LatestVersion,
+            ReleaseNotes = ReleaseNotes
+        };
 
         var dialog = new UpdateDialog(dialogVm);
-        
-        // Handle dialog result
+
         dialogVm.UpdateRequested += async (s, e) =>
         {
             dialog.Close();
             await PerformUpdateAsync();
         };
 
-        dialogVm.CancelRequested += (s, e) =>
-        {
-            dialog.Close();
-        };
+        dialogVm.CancelRequested += (s, e) => dialog.Close();
 
         dialog.ShowDialog();
     }
 
     private async Task PerformUpdateAsync()
     {
+        if (_autoUpdateWorker.IsCycleActive)
+        {
+            _logger.LogInformation("[AUTOUPDATE] Skipping manual install — background update cycle is already active.");
+            UpdateStatus = "Update already in progress.";
+            return;
+        }
+
         try
         {
             IsUpdateInProgress = true;
             UpdateProgress = 0;
             _updateCts = new CancellationTokenSource();
 
-            // Show progress dialog
-            var progressVm = new UpdateProgressViewModel();
-            var progressDialog = new UpdateProgressDialog(progressVm);
-            
-            progressVm.CancelRequested += (s, e) =>
+            _progressViewModel = new UpdateProgressViewModel
             {
-                CancelUpdate();
-                progressDialog.Close();
+                StatusText = "Preparing update...",
+                IsIndeterminate = true,
+                Progress = 0
             };
 
-            // Check again to get fresh component info
-            var checkResult = await _updateChecker.CheckForUpdateAsync(_updateCts.Token);
-            if (checkResult.Component == null)
-                throw new InvalidOperationException("Update component information unavailable");
+            _progressDialog = new UpdateProgressDialog(_progressViewModel);
+            _progressViewModel.CancelRequested += (s, e) => CancelUpdate();
+            _progressDialog.Show();
 
-            // Download
-            progressVm.StatusText = "Downloading update...";
-            progressVm.IsIndeterminate = true;
-            progressDialog.Show();
-
-            var downloadResult = await _updateDownloader.DownloadAsync(
-                checkResult.Component,
-                _updateCts.Token);
-
-            if (!downloadResult.Success || string.IsNullOrWhiteSpace(downloadResult.FilePath))
-                throw new InvalidOperationException(downloadResult.ErrorMessage ?? "Download failed");
-
-            // Verify
-            progressVm.StatusText = "Verifying integrity...";
-            progressVm.IsIndeterminate = true;
-            progressVm.Progress = 50;
-
-            // Install
-            progressVm.StatusText = "Installing update...";
-            progressVm.Progress = 75;
-            
-            var installResult = await _updateInstaller.InstallAsync(
-                downloadResult.FilePath,
-                _updateCts.Token);
-
-            if (!installResult.Success)
-                throw new InvalidOperationException(installResult.ErrorMessage ?? "Installation failed");
-
-            progressVm.StatusText = "Update installed successfully";
-            progressVm.Progress = 100;
-            progressDialog.Close();
-
-            IsRestartRequired = true;
-            ShowRestartPrompt();
-            
-            _logger.LogInformation("Update installed successfully");
+            var started = await _autoUpdateWorker.TryInstallAvailableUpdateAsync(_updateCts.Token);
+            if (!started)
+            {
+                IsUpdateInProgress = false;
+                CloseProgressDialog();
+            }
         }
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Update cancelled");
             UpdateStatus = "Update cancelled";
             IsUpdateInProgress = false;
+            CloseProgressDialog();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during update");
             UpdateStatus = $"Error: {ex.Message}";
             IsUpdateInProgress = false;
+            CloseProgressDialog();
             MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void OnUpdateCheckCompleted(object? sender, ComponentUpdateCheckResult result)
+    {
+        RunOnUiThread(() =>
+        {
+            if (result.IsUpdateAvailable && result.Component != null)
+            {
+                IsUpdateAvailable = true;
+                LatestVersion = result.Component.Version;
+                ReleaseNotes = string.IsNullOrWhiteSpace(result.Component.ReleaseNotesUrl)
+                    ? "Update details are available in the release notes."
+                    : result.Component.ReleaseNotesUrl;
+                IsBannerVisible = true;
+                UpdateStatus = "Update available";
+                _logger.LogInformation("Update available: {Version}", LatestVersion);
+            }
+            else
+            {
+                IsUpdateAvailable = false;
+                IsBannerVisible = false;
+                UpdateStatus = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    ? "No updates available"
+                    : $"Update check failed: {result.ErrorMessage}";
+                if (string.IsNullOrWhiteSpace(result.ErrorMessage))
+                    _logger.LogInformation("No updates available");
+                else
+                    _logger.LogWarning("UI update check failed: {Error}", result.ErrorMessage);
+            }
+        });
+    }
+
+    private void OnUpdateProgressChanged(object? sender, UiUpdateProgressInfo progress)
+    {
+        RunOnUiThread(() =>
+        {
+            IsUpdateInProgress = true;
+            UpdateStatus = progress.Status;
+            UpdateProgress = progress.ProgressPercent;
+
+            if (_progressViewModel != null)
+            {
+                _progressViewModel.StatusText = progress.Status;
+                _progressViewModel.Progress = progress.ProgressPercent;
+                _progressViewModel.IsIndeterminate = progress.IsIndeterminate;
+            }
+        });
+    }
+
+    private void OnUpdateInstallCompleted(object? sender, UpdateInstallResult result)
+    {
+        RunOnUiThread(() =>
+        {
+            IsUpdateInProgress = false;
+
+            if (result.Success)
+            {
+                IsUpdateAvailable = false;
+                IsBannerVisible = false;
+                UpdateStatus = "Update installed successfully";
+                UpdateProgress = 100;
+            }
+            else
+            {
+                UpdateStatus = $"Update failed: {result.ErrorMessage}";
+                MessageBox.Show($"Update failed: {result.ErrorMessage}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+            CloseProgressDialog();
+        });
+    }
+
+    private void OnRestartPromptRequested(object? sender, EventArgs e)
+    {
+        RunOnUiThread(() =>
+        {
+            IsRestartRequired = true;
+            ShowRestartPrompt();
+        });
     }
 
     private void ShowRestartPrompt()
@@ -250,11 +292,22 @@ public class UpdateViewModel : ViewModelBase
         }
     }
 
+    private void CloseProgressDialog()
+    {
+        if (_progressDialog == null)
+            return;
+
+        _progressDialog.Close();
+        _progressDialog = null;
+        _progressViewModel = null;
+    }
+
     private void CancelUpdate()
     {
         _updateCts?.Cancel();
         IsUpdateInProgress = false;
         UpdateStatus = "Update cancelled";
+        CloseProgressDialog();
     }
 
     private void RestartNow()
@@ -278,6 +331,17 @@ public class UpdateViewModel : ViewModelBase
     private void RemindMeLater()
     {
         IsBannerVisible = false;
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        if (Application.Current?.Dispatcher?.CheckAccess() == true)
+        {
+            action();
+            return;
+        }
+
+        Application.Current?.Dispatcher?.Invoke(action);
     }
 
     private static string GetCurrentVersion()
