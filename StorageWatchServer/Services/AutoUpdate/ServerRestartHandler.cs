@@ -61,7 +61,7 @@ namespace StorageWatchServer.Services.AutoUpdate
                 _logger.LogInformation("Preparing SCM restart for server service '{ServiceName}'. Detailed helper output will be written to '{HelperLogPath}'.", _serviceName, _helperLogPath);
                 _logger.LogInformation("Launching SCM restart helper for server service '{ServiceName}'.", _serviceName);
 
-                var helperProcess = Process.Start(new ProcessStartInfo
+                var helperProcess = StartHelperProcess(new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
                     Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
@@ -85,6 +85,11 @@ namespace StorageWatchServer.Services.AutoUpdate
             {
                 _logger.LogError(ex, "SCM restart flow failed for server service '{ServiceName}'.", _serviceName);
             }
+        }
+
+        protected virtual Process? StartHelperProcess(ProcessStartInfo processStartInfo)
+        {
+            return Process.Start(processStartInfo);
         }
 
         private static string BuildRestartHelperScript(string serviceName, TimeSpan timeout, string helperLogPath)

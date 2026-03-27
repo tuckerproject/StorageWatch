@@ -45,7 +45,7 @@ namespace StorageWatch.Services.AutoUpdate
             try
             {
                 var helperScript = BuildRestartHelperScript(_serviceName, RestartTimeout);
-                var helperProcess = Process.Start(new ProcessStartInfo
+                var helperProcess = StartHelperProcess(new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
                     Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{helperScript}\"",
@@ -67,6 +67,11 @@ namespace StorageWatch.Services.AutoUpdate
             {
                 _logger.Log($"[AUTOUPDATE] Service restart failed for '{_serviceName}': {ex}");
             }
+        }
+
+        protected virtual Process? StartHelperProcess(ProcessStartInfo processStartInfo)
+        {
+            return Process.Start(processStartInfo);
         }
 
         private static string BuildRestartHelperScript(string serviceName, TimeSpan timeout)

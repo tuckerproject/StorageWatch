@@ -15,6 +15,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Xunit;
 
 namespace StorageWatch.Tests.UnitTests
 {
@@ -363,6 +364,93 @@ namespace StorageWatch.Tests.UnitTests
             pluginInstaller.CallCount.Should().Be(1);
         }
 
+        [Fact]
+        public async Task ServiceUpdateInstaller_RestoresBackupAndCleansTempDirectories_WhenRestartFails()
+        {
+            var tempSource = TestHelpers.CreateTempDirectory();
+            var tempTarget = TestHelpers.CreateTempDirectory();
+            var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
+
+            var existingFile = Path.Combine(tempTarget, "app", "test.txt");
+            var existingOnlyFile = Path.Combine(tempTarget, "app", "existing-only.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(existingFile)!);
+            await File.WriteAllTextAsync(existingFile, "original");
+            await File.WriteAllTextAsync(existingOnlyFile, "keep-me");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            var newFile = Path.Combine(tempSource, "app", "new.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+            await File.WriteAllTextAsync(newFile, "new-file");
+
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+
+            var beforeStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
+            var beforeBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
+
+            var logger = new TestLogger<ServiceUpdateInstaller>();
+            var installer = new ServiceUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            result.ErrorMessage.Should().Contain("Restart failed");
+
+            File.Exists(existingFile).Should().BeTrue();
+            (await File.ReadAllTextAsync(existingFile)).Should().Be("original");
+            File.Exists(existingOnlyFile).Should().BeTrue();
+            (await File.ReadAllTextAsync(existingOnlyFile)).Should().Be("keep-me");
+            File.Exists(Path.Combine(tempTarget, "app", "new.txt")).Should().BeFalse();
+
+            var afterStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
+            var afterBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
+            afterStagingDirectories.Should().BeEquivalentTo(beforeStagingDirectories);
+            afterBackupDirectories.Should().BeEquivalentTo(beforeBackupDirectories);
+        }
+
+        [Fact]
+        public async Task ServiceUpdateInstaller_RequestsRestart_OnlyAfterSuccessfulInstall()
+        {
+            var tempSource = TestHelpers.CreateTempDirectory();
+            var tempTarget = TestHelpers.CreateTempDirectory();
+            var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+
+            var restartCalledAfterCopy = false;
+            var expectedTargetFile = Path.Combine(tempTarget, "app", "test.txt");
+            var restartHandler = new AssertiveRestartHandler(() =>
+            {
+                restartCalledAfterCopy = File.Exists(expectedTargetFile);
+            });
+
+            var installer = new ServiceUpdateInstaller(new TestLogger<ServiceUpdateInstaller>(), restartHandler, tempTarget);
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
+            restartHandler.RequestCount.Should().Be(1);
+            restartCalledAfterCopy.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task ServiceUpdateInstaller_DoesNotRequestRestart_WhenInstallFails()
+        {
+            var tempTarget = TestHelpers.CreateTempDirectory();
+            var missingZipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "missing-update.zip");
+            var restartHandler = new AssertiveRestartHandler();
+
+            var installer = new ServiceUpdateInstaller(new TestLogger<ServiceUpdateInstaller>(), restartHandler, tempTarget);
+
+            var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            restartHandler.RequestCount.Should().Be(0);
+        }
+
         private sealed class FakeHttpMessageHandler : HttpMessageHandler
         {
             private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
@@ -385,6 +473,32 @@ namespace StorageWatch.Tests.UnitTests
             public void RequestRestart()
             {
                 RestartRequested = true;
+            }
+        }
+
+        private sealed class ThrowingRestartHandler : IServiceRestartHandler
+        {
+            public void RequestRestart()
+            {
+                throw new InvalidOperationException("Restart failed");
+            }
+        }
+
+        private sealed class AssertiveRestartHandler : IServiceRestartHandler
+        {
+            private readonly Action? _onRequest;
+
+            public AssertiveRestartHandler(Action? onRequest = null)
+            {
+                _onRequest = onRequest;
+            }
+
+            public int RequestCount { get; private set; }
+
+            public void RequestRestart()
+            {
+                RequestCount++;
+                _onRequest?.Invoke();
             }
         }
 
@@ -552,6 +666,14 @@ namespace StorageWatch.Tests.UnitTests
             {
                 return ExecuteAsync(token);
             }
+        }
+
+        private static HashSet<string> SnapshotTempChildDirectories(string folderName)
+        {
+            var root = Path.Combine(Path.GetTempPath(), folderName);
+            return new HashSet<string>(
+                Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
         }
     }
 }

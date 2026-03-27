@@ -113,6 +113,57 @@ namespace StorageWatchUI.Tests.Services
         }
 
         [Fact]
+        public async Task UiUpdateInstaller_RequestsRestart_OnlyAfterSuccessfulInstall()
+        {
+            var tempSource = TestDirectoryFactory.CreateTempDirectory();
+            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
+            var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+
+            var restartCalledAfterCopy = false;
+            var expectedTargetFile = Path.Combine(tempTarget, "app", "test.txt");
+            var restartHandler = new AssertiveUiRestartHandler(() =>
+            {
+                restartCalledAfterCopy = File.Exists(expectedTargetFile);
+            });
+
+            var installer = new UiUpdateInstaller(
+                new TestLogger<UiUpdateInstaller>(),
+                new FakeRestartPrompter(true),
+                restartHandler,
+                tempTarget);
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
+            restartHandler.RequestCount.Should().Be(1);
+            restartCalledAfterCopy.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task UiUpdateInstaller_DoesNotRequestRestart_WhenInstallFails()
+        {
+            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
+            var missingZipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "missing-update.zip");
+            var restartHandler = new AssertiveUiRestartHandler();
+
+            var installer = new UiUpdateInstaller(
+                new TestLogger<UiUpdateInstaller>(),
+                new FakeRestartPrompter(true),
+                restartHandler,
+                tempTarget);
+
+            var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            restartHandler.RequestCount.Should().Be(0);
+        }
+
+        [Fact]
         public async Task UiAutoUpdateWorker_UsesTimerTicksToRunUpdateCycle()
         {
             var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions
@@ -204,6 +255,24 @@ namespace StorageWatchUI.Tests.Services
             public void RequestRestart()
             {
                 RestartRequested = true;
+            }
+        }
+
+        private sealed class AssertiveUiRestartHandler : IUiRestartHandler
+        {
+            private readonly Action? _onRequest;
+
+            public AssertiveUiRestartHandler(Action? onRequest = null)
+            {
+                _onRequest = onRequest;
+            }
+
+            public int RequestCount { get; private set; }
+
+            public void RequestRestart()
+            {
+                RequestCount++;
+                _onRequest?.Invoke();
             }
         }
 
