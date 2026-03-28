@@ -239,7 +239,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-installer
-          path: ${{ github.workspace }}
+          path: artifacts/installer
 
       - name: Compute SHA-256 hashes
         run: |
@@ -302,7 +302,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-installer
-          path: ${{ github.workspace }}
+          path: artifacts/installer
 
       - name: Download hashes
         uses: actions/download-artifact@v4
@@ -373,7 +373,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-installer
-          path: ${{ github.workspace }}
+          path: artifacts/installer
 
       - name: Download hashes
         uses: actions/download-artifact@v4
