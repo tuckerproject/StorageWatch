@@ -370,6 +370,9 @@ namespace StorageWatch.Tests.UnitTests
             var tempSource = TestHelpers.CreateTempDirectory();
             var tempTarget = TestHelpers.CreateTempDirectory();
             var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
+            var isolatedTempRoot = TestHelpers.CreateTempDirectory();
+            var updateTempRoot = Path.Combine(isolatedTempRoot, "StorageWatchUpdate");
+            var backupTempRoot = Path.Combine(isolatedTempRoot, "StorageWatchBackup");
 
             var existingFile = Path.Combine(tempTarget, "app", "test.txt");
             var existingOnlyFile = Path.Combine(tempTarget, "app", "existing-only.txt");
@@ -385,27 +388,41 @@ namespace StorageWatch.Tests.UnitTests
 
             ZipFile.CreateFromDirectory(tempSource, zipPath);
 
-            var beforeStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
-            var beforeBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
+            var originalTemp = Environment.GetEnvironmentVariable("TEMP");
+            var originalTmp = Environment.GetEnvironmentVariable("TMP");
+            var originalTmpDir = Environment.GetEnvironmentVariable("TMPDIR");
 
-            var logger = new TestLogger<ServiceUpdateInstaller>();
-            var installer = new ServiceUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
+            try
+            {
+                Environment.SetEnvironmentVariable("TEMP", isolatedTempRoot);
+                Environment.SetEnvironmentVariable("TMP", isolatedTempRoot);
+                Environment.SetEnvironmentVariable("TMPDIR", isolatedTempRoot);
 
-            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+                var logger = new TestLogger<ServiceUpdateInstaller>();
+                var installer = new ServiceUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
 
-            result.Success.Should().BeFalse();
-            result.ErrorMessage.Should().Contain("Restart failed");
+                var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
-            File.Exists(existingFile).Should().BeTrue();
-            (await File.ReadAllTextAsync(existingFile)).Should().Be("original");
-            File.Exists(existingOnlyFile).Should().BeTrue();
-            (await File.ReadAllTextAsync(existingOnlyFile)).Should().Be("keep-me");
-            File.Exists(Path.Combine(tempTarget, "app", "new.txt")).Should().BeFalse();
+                result.Success.Should().BeFalse();
+                result.ErrorMessage.Should().Contain("Restart failed");
 
-            var afterStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
-            var afterBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
-            afterStagingDirectories.Should().BeEquivalentTo(beforeStagingDirectories);
-            afterBackupDirectories.Should().BeEquivalentTo(beforeBackupDirectories);
+                File.Exists(existingFile).Should().BeTrue();
+                (await File.ReadAllTextAsync(existingFile)).Should().Be("original");
+                File.Exists(existingOnlyFile).Should().BeTrue();
+                (await File.ReadAllTextAsync(existingOnlyFile)).Should().Be("keep-me");
+                File.Exists(Path.Combine(tempTarget, "app", "new.txt")).Should().BeFalse();
+
+                Directory.Exists(updateTempRoot).Should().BeTrue();
+                Directory.Exists(backupTempRoot).Should().BeTrue();
+                Directory.GetDirectories(updateTempRoot).Should().BeEmpty();
+                Directory.GetDirectories(backupTempRoot).Should().BeEmpty();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("TEMP", originalTemp);
+                Environment.SetEnvironmentVariable("TMP", originalTmp);
+                Environment.SetEnvironmentVariable("TMPDIR", originalTmpDir);
+            }
         }
 
         [Fact]
