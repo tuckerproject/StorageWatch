@@ -398,6 +398,8 @@ namespace StorageWatch.Tests.UnitTests
                 Environment.SetEnvironmentVariable("TMP", isolatedTempRoot);
                 Environment.SetEnvironmentVariable("TMPDIR", isolatedTempRoot);
 
+                var beforeStaging = Directory.Exists(updateTempRoot) ? Directory.GetDirectories(updateTempRoot) : Array.Empty<string>();
+
                 var logger = new TestLogger<ServiceUpdateInstaller>();
                 var installer = new ServiceUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
 
@@ -412,9 +414,10 @@ namespace StorageWatch.Tests.UnitTests
                 (await File.ReadAllTextAsync(existingOnlyFile)).Should().Be("keep-me");
                 File.Exists(Path.Combine(tempTarget, "app", "new.txt")).Should().BeFalse();
 
+                var afterStaging = Directory.Exists(updateTempRoot) ? Directory.GetDirectories(updateTempRoot) : Array.Empty<string>();
                 Directory.Exists(updateTempRoot).Should().BeTrue();
                 Directory.Exists(backupTempRoot).Should().BeTrue();
-                Directory.GetDirectories(updateTempRoot).Should().BeEmpty();
+                afterStaging.Should().BeEquivalentTo(beforeStaging);
                 Directory.GetDirectories(backupTempRoot).Should().BeEmpty();
             }
             finally
