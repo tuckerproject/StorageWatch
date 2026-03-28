@@ -361,6 +361,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+  
+      # Download ALL artifacts needed for publishing
+      - name: Download packaged components
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-components
+          path: ${{ github.workspace }}
+  
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-with-installer
+          path: ${{ github.workspace }}
+
+      - name: Download hashes
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-with-hashes
+          path: ${{ github.workspace }}
 
       - name: Download release bundle
         uses: actions/download-artifact@v4
@@ -368,6 +387,7 @@ jobs:
           name: release-bundle
           path: ${{ github.workspace }}
 
+      # Publish the GitHub Release with all assets
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
