@@ -280,7 +280,7 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
-            serviceChecker.CallCount.Should().Be(1);
+            serviceChecker.CallCount.Should().Be(2);
         }
 
         [Fact]
@@ -302,7 +302,7 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
-            serviceChecker.CallCount.Should().Be(1);
+            serviceChecker.CallCount.Should().Be(2);
         }
 
         [Fact]
@@ -357,11 +357,11 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
-            serviceChecker.CallCount.Should().Be(1);
-            serviceDownloader.CallCount.Should().Be(1);
-            serviceInstaller.CallCount.Should().Be(1);
-            pluginDownloader.CallCount.Should().Be(1);
-            pluginInstaller.CallCount.Should().Be(1);
+            serviceChecker.CallCount.Should().Be(2);
+            serviceDownloader.CallCount.Should().Be(2);
+            serviceInstaller.CallCount.Should().Be(2);
+            pluginDownloader.CallCount.Should().Be(2);
+            pluginInstaller.CallCount.Should().Be(2);
         }
 
         [Fact]
