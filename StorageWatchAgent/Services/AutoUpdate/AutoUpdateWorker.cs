@@ -60,6 +60,9 @@ namespace StorageWatch.Services.AutoUpdate
 
             try
             {
+                // Perform immediate update check on startup
+                await RunUpdateCycleAsync(stoppingToken);
+
                 while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
                     if (stoppingToken.IsCancellationRequested)
