@@ -410,6 +410,6 @@ jobs:
         with:
           tag_name: manifest
           name: StorageWatch manifest
-          files: artifacts/manifest/manifest.json
+          files: artifacts/manifest/**/*.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
