@@ -379,13 +379,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packaged-with-hashes
-          path: ${{ github.workspace }}
+          path: artifacts/hashes
 
       - name: Download release bundle
         uses: actions/download-artifact@v4
         with:
           name: release-bundle
-          path: ${{ github.workspace }}
+          path: artifacts/manifest
 
       # Publish the GitHub Release with all assets
       - name: Create GitHub Release and upload assets
