@@ -159,13 +159,22 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHttpClient<IServiceUpdateChecker, ServiceUpdateChecker>();
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
-        services.AddSingleton<IServiceRestartHandler, ScmServiceRestartHandler>();
+
+        if (options.Mode == StorageWatchMode.Agent)
+        {
+            services.AddSingleton<IServiceRestartHandler, NoOpServiceRestartHandler>();
+        }
+        else
+        {
+            services.AddSingleton<IServiceRestartHandler, ScmServiceRestartHandler>();
+        }
+
         services.AddSingleton<IServiceUpdateInstaller, ServiceUpdateInstaller>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
         services.AddHttpClient<IPluginUpdateChecker, PluginUpdateChecker>();
         services.AddHttpClient<IPluginUpdateDownloader, PluginUpdateDownloader>();
         services.AddSingleton<IPluginUpdateInstaller, PluginUpdateInstaller>();
-        services.AddHostedService<ServiceAutoUpdateWorker>();
+        services.AddHostedService<AutoUpdateWorker>();
 
         // ====================================================================
         // End Auto-Update Services

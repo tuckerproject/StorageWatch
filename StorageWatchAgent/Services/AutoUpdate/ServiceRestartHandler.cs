@@ -11,6 +11,21 @@ namespace StorageWatch.Services.AutoUpdate
         void RequestRestart();
     }
 
+    public class NoOpServiceRestartHandler : IServiceRestartHandler
+    {
+        private readonly RollingFileLogger _logger;
+
+        public NoOpServiceRestartHandler(RollingFileLogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        public void RequestRestart()
+        {
+            _logger.Log("[AUTOUPDATE] Restart requested but skipped for current mode.");
+        }
+    }
+
     public class ScmServiceRestartHandler : IServiceRestartHandler
     {
         private const string DefaultServiceName = "StorageWatchAgent";

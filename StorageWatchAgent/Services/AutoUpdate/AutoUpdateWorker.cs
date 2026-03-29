@@ -47,7 +47,7 @@ namespace StorageWatch.Services.AutoUpdate
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // Auto-update runs in both Standalone and Agent modes
+            // Auto-update runs in both Agent and Server modes
             var autoUpdateOptions = _autoUpdateOptionsMonitor.CurrentValue;
             if (!autoUpdateOptions.Enabled)
             {
@@ -58,9 +58,21 @@ namespace StorageWatch.Services.AutoUpdate
             var interval = TimeSpan.FromMinutes(Math.Max(1, autoUpdateOptions.CheckIntervalMinutes));
             await using var timer = _timerFactory.Create(interval);
 
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            try
             {
-                await RunUpdateCycleAsync(stoppingToken);
+                while (await timer.WaitForNextTickAsync(stoppingToken))
+                {
+                    if (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    await RunUpdateCycleAsync(stoppingToken);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.Log("[AUTOUPDATE] Auto-update timer canceled due to shutdown.");
             }
         }
 
@@ -68,8 +80,13 @@ namespace StorageWatch.Services.AutoUpdate
         {
             try
             {
+                stoppingToken.ThrowIfCancellationRequested();
                 await RunServiceUpdateAsync(stoppingToken);
                 await RunPluginUpdatesAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.Log("[AUTOUPDATE] Update cycle canceled due to shutdown.");
             }
             catch (Exception ex)
             {
@@ -79,6 +96,8 @@ namespace StorageWatch.Services.AutoUpdate
 
         private async Task RunServiceUpdateAsync(CancellationToken stoppingToken)
         {
+            stoppingToken.ThrowIfCancellationRequested();
+
             var result = await _serviceUpdateChecker.CheckForUpdateAsync(stoppingToken);
             if (!result.IsUpdateAvailable || result.Component == null)
             {
@@ -91,6 +110,8 @@ namespace StorageWatch.Services.AutoUpdate
 
             _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
 
+            stoppingToken.ThrowIfCancellationRequested();
+
             var download = await _serviceUpdateDownloader.DownloadAsync(result.Component, stoppingToken);
             if (!download.Success || string.IsNullOrWhiteSpace(download.FilePath))
             {
@@ -98,14 +119,17 @@ namespace StorageWatch.Services.AutoUpdate
                 return;
             }
 
-            var install = await _serviceUpdateInstaller.InstallAsync(download.FilePath, stoppingToken);
+            stoppingToken.ThrowIfCancellationRequested();
+
+            // Do not interrupt installation once file apply begins; this prevents partial update application.
+            var install = await _serviceUpdateInstaller.InstallAsync(download.FilePath, CancellationToken.None);
             if (!install.Success)
             {
                 _logger.Log($"[AUTOUPDATE] Service install failed: {install.ErrorMessage}");
                 return;
             }
 
-            _logger.Log("[AUTOUPDATE] Service update installed. Restart triggered.");
+            _logger.Log("[AUTOUPDATE] Service update installed.");
         }
 
         private async Task RunPluginUpdatesAsync(CancellationToken stoppingToken)

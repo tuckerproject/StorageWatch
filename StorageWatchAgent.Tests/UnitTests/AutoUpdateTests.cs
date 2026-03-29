@@ -398,10 +398,10 @@ namespace StorageWatch.Tests.UnitTests
                 Environment.SetEnvironmentVariable("TMP", isolatedTempRoot);
                 Environment.SetEnvironmentVariable("TMPDIR", isolatedTempRoot);
 
-                var beforeStaging = Directory.Exists(updateTempRoot) ? Directory.GetDirectories(updateTempRoot) : Array.Empty<string>();
-
                 var logger = new TestLogger<ServiceUpdateInstaller>();
                 var installer = new ServiceUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
+
+                var beforeStaging = Directory.Exists(updateTempRoot) ? Directory.GetDirectories(updateTempRoot) : Array.Empty<string>();
 
                 var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
