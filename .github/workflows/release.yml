@@ -403,3 +403,13 @@ jobs:
             artifacts/manifest/**/*.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload manifest in permanent location (not as an asset) for autoupdate
+      - name: Upload manifest to permanent release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: manifest
+          name: StorageWatch manifest
+          files: artifacts/manifest/manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
