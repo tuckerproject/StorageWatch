@@ -8,6 +8,9 @@
 	<AssemblyName>StorageWatchAgent</AssemblyName>
 	<UserSecretsId>dotnet-StorageWatch-5171660d-2158-404d-801d-e9cb0c54631b</UserSecretsId>
 	<WindowsService>true</WindowsService>
+	<FileVersion>$(Version)</FileVersion>
+	<AssemblyVersion>3.0.0.0</AssemblyVersion>
+	<AssemblyInformationalVersion>$(Version)+$(SourceRevisionId)</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

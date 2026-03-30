@@ -3,7 +3,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-	<WindowsService>true</WindowsService>	  
+	<WindowsService>true</WindowsService>
+	<FileVersion>$(Version)</FileVersion>
+	<AssemblyVersion>3.0.0.0</AssemblyVersion>
+	<AssemblyInformationalVersion>$(Version)+$(SourceRevisionId)</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

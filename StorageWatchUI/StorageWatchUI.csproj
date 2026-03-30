@@ -10,6 +10,9 @@
     <RootNamespace>StorageWatchUI</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsNamespaces>
+    <FileVersion>$(Version)</FileVersion>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <AssemblyInformationalVersion>$(Version)+$(SourceRevisionId)</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
