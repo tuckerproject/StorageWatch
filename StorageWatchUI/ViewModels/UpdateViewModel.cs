@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Reflection;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -441,8 +443,8 @@ public class UpdateViewModel : ViewModelBase
     {
         try
         {
-            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return version?.ToString() ?? "1.0.0";
+            var location = Assembly.GetExecutingAssembly().Location;
+            return FileVersionInfo.GetVersionInfo(location).FileVersion ?? "1.0.0";
         }
         catch
         {

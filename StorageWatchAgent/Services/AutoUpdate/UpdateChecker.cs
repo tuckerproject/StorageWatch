@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using StorageWatch.Config.Options;
 using StorageWatch.Shared.Update.Models;
 using Microsoft.Extensions.Logging;
@@ -126,8 +127,15 @@ namespace StorageWatch.Services.AutoUpdate
 
         private static Version GetAssemblyVersion()
         {
-            var assembly = typeof(ServiceUpdateChecker).Assembly;
-            return assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            try
+            {
+                var location = typeof(ServiceUpdateChecker).Assembly.Location;
+                var fileVersion = FileVersionInfo.GetVersionInfo(location).FileVersion;
+                if (!string.IsNullOrWhiteSpace(fileVersion) && Version.TryParse(fileVersion, out var version))
+                    return version;
+            }
+            catch { }
+            return new Version(0, 0, 0, 0);
         }
     }
 }
