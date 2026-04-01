@@ -332,39 +332,6 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
-        public async Task AutoUpdateWorker_ProcessesAvailableUpdate()
-        {
-            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(new StorageWatchOptions { Mode = StorageWatchMode.Standalone });
-            var autoUpdateMonitor = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions { Enabled = true });
-
-            var component = new ComponentUpdateInfo
-            {
-                Version = "1.2.0",
-                DownloadUrl = "https://example.com/update.zip",
-                Sha256 = "hash"
-            };
-
-            var serviceChecker = new FakeServiceUpdateChecker(new ComponentUpdateCheckResult { IsUpdateAvailable = true, Component = component });
-            var serviceDownloader = new FakeServiceUpdateDownloader(new UpdateDownloadResult { Success = true, FilePath = "path.zip" });
-            var serviceInstaller = new FakeServiceUpdateInstaller(new UpdateInstallResult { Success = true });
-            var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = new List<PluginUpdateInfo> { new PluginUpdateInfo { Id = "TestPlugin", Version = "2.0.0", DownloadUrl = "url", Sha256 = "hash" } } });
-            var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = true, FilePath = "plugin.zip" });
-            var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
-            var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
-            var logger = new RollingFileLogger(TestHelpers.CreateTempLogFile());
-
-            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, timerFactory, logger);
-
-            await worker.RunAsync(CancellationToken.None);
-
-            serviceChecker.CallCount.Should().Be(2);
-            serviceDownloader.CallCount.Should().Be(2);
-            serviceInstaller.CallCount.Should().Be(2);
-            pluginDownloader.CallCount.Should().Be(2);
-            pluginInstaller.CallCount.Should().Be(2);
-        }
-
-        [Fact]
         public async Task ServiceUpdateInstaller_RestoresBackupAndCleansTempDirectories_WhenRestartFails()
         {
             var tempSource = TestHelpers.CreateTempDirectory();

@@ -1,0 +1,4 @@
+# Copilot Instructions
+
+## Project Guidelines
+- Roadmap for StorageWatch autoupdate: Phase 1 disable automatic installs in Agent/Server (check only); Phase 2 add IPC commands InstallUpdate and RestartService (client+server); Phase 3 build UI UnifiedUpdateCoordinator, remove second window, banner Install triggers unified pipeline, reuse existing progress dialog for multi-component updates; Phase 4 add Server API update-control endpoints, server-side orchestrator, and Web UI update banner/progress modal. User intent: Local UI and Web UI are coordinators for installing updates for Agent/UI/Server, and no component should self-update without explicit user consent.

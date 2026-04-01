@@ -1,8 +1,12 @@
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using StorageWatch.Shared.Update.Models;
+using StorageWatchUI.Communication;
 using StorageWatchUI.Config;
 using StorageWatchUI.Services.AutoUpdate;
 using StorageWatchUI.Views;
@@ -14,6 +18,9 @@ public class UpdateViewModel : ViewModelBase
 {
     private bool _isUpdateAvailable;
     private string _currentVersion = string.Empty;
+    private string _currentUiVersion = string.Empty;
+    private string _currentAgentVersion = "0.0.0.0";
+    private string _currentServerVersion = "0.0.0.0";
     private string _latestVersion = string.Empty;
     private string _releaseNotes = string.Empty;
     private bool _isUpdateInProgress;
@@ -21,6 +28,8 @@ public class UpdateViewModel : ViewModelBase
     private string _updateStatus = string.Empty;
     private double _updateProgress;
     private bool _isBannerVisible;
+    private readonly IUiUpdateChecker _updateChecker;
+    private readonly ServiceCommunicationClient _serviceCommunicationClient;
     private readonly IUiAutoUpdateWorker _autoUpdateWorker;
     private readonly IUiRestartHandler _restartHandler;
     private readonly IUiUpdateUserSettingsStore _userSettingsStore;
@@ -31,6 +40,7 @@ public class UpdateViewModel : ViewModelBase
     private UpdateProgressDialog? _progressDialog;
     private string? _skippedVersion;
     private DateTimeOffset? _snoozeUntilUtc;
+    private UpdateManifest _latestManifest = new();
 
     public UpdateViewModel(
         IUiUpdateChecker updateChecker,
@@ -42,6 +52,8 @@ public class UpdateViewModel : ViewModelBase
         IOptionsMonitor<AutoUpdateOptions> autoUpdateOptions,
         ILogger<UpdateViewModel> logger)
     {
+        _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
+        _serviceCommunicationClient = new ServiceCommunicationClient();
         _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
         _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
         _userSettingsStore = userSettingsStore ?? throw new ArgumentNullException(nameof(userSettingsStore));
@@ -49,11 +61,11 @@ public class UpdateViewModel : ViewModelBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _autoUpdateWorker.UpdateCheckCompleted += OnUpdateCheckCompleted;
-        _autoUpdateWorker.UpdateProgressChanged += OnUpdateProgressChanged;
         _autoUpdateWorker.UpdateInstallCompleted += OnUpdateInstallCompleted;
         _autoUpdateWorker.RestartPromptRequested += OnRestartPromptRequested;
 
-        CurrentVersion = GetCurrentVersion();
+        CurrentUiVersion = GetCurrentVersion();
+        CurrentVersion = CurrentUiVersion;
         _skippedVersion = _userSettingsStore.GetSkippedVersion();
 
         CheckForUpdatesCommand = new RelayCommand(CheckForUpdatesAsync);
@@ -74,6 +86,24 @@ public class UpdateViewModel : ViewModelBase
     {
         get => _currentVersion;
         set => SetProperty(ref _currentVersion, value);
+    }
+
+    public string CurrentUiVersion
+    {
+        get => _currentUiVersion;
+        set => SetProperty(ref _currentUiVersion, value);
+    }
+
+    public string CurrentAgentVersion
+    {
+        get => _currentAgentVersion;
+        set => SetProperty(ref _currentAgentVersion, value);
+    }
+
+    public string CurrentServerVersion
+    {
+        get => _currentServerVersion;
+        set => SetProperty(ref _currentServerVersion, value);
     }
 
     public string LatestVersion
@@ -156,36 +186,7 @@ public class UpdateViewModel : ViewModelBase
         if (!IsUpdateAvailable)
             return;
 
-        var dialogVm = new UpdateDialogViewModel
-        {
-            CurrentVersion = CurrentVersion,
-            NewVersion = LatestVersion,
-            ReleaseNotes = ReleaseNotes
-        };
-
-        var dialog = new UpdateDialog(dialogVm);
-
-        dialogVm.UpdateRequested += async (s, e) =>
-        {
-            dialog.Close();
-            await PerformUpdateAsync();
-        };
-
-        dialogVm.SkipThisVersionRequested += (s, e) =>
-        {
-            SkipThisVersion();
-            dialog.Close();
-        };
-
-        dialogVm.RemindMeLaterRequested += (s, e) =>
-        {
-            RemindMeLater();
-            dialog.Close();
-        };
-
-        dialogVm.CancelRequested += (s, e) => dialog.Close();
-
-        dialog.ShowDialog();
+        await PerformUpdateAsync();
     }
 
     private async Task PerformUpdateAsync()
@@ -197,15 +198,20 @@ public class UpdateViewModel : ViewModelBase
             return;
         }
 
+        var unifiedSucceeded = false;
+        var unifiedFailed = false;
+
         try
         {
+            _logger.LogInformation("[UPDATE] Starting unified update");
+
             IsUpdateInProgress = true;
             UpdateProgress = 0;
             _updateCts = new CancellationTokenSource();
 
             _progressViewModel = new UpdateProgressViewModel
             {
-                StatusText = "Preparing update...",
+                StatusText = "Checking components...",
                 IsIndeterminate = true,
                 Progress = 0
             };
@@ -214,27 +220,57 @@ public class UpdateViewModel : ViewModelBase
             _progressViewModel.CancelRequested += (s, e) => CancelUpdate();
             _progressDialog.Show();
 
-            var started = await _autoUpdateWorker.TryInstallAvailableUpdateAsync(_updateCts.Token);
-            if (!started)
+            var coordinator = new UnifiedUpdateCoordinator(
+                _autoUpdateWorker,
+                _serviceCommunicationClient,
+                NullLogger<UnifiedUpdateCoordinator>.Instance);
+
+            var progress = new Progress<UpdateProgressInfo>(OnUpdateProgressChanged);
+            var result = await coordinator.PerformUnifiedUpdateAsync(_latestManifest, progress, _updateCts.Token);
+
+            if (result.Errors.Count == 0)
             {
-                IsUpdateInProgress = false;
-                CloseProgressDialog();
+                unifiedSucceeded = true;
+                UpdateStatus = "Update complete";
+                _logger.LogInformation("[UPDATE] Unified update completed successfully");
+                await RefreshVersionsAsync();
+            }
+            else
+            {
+                unifiedFailed = true;
+                var concise = result.Errors.Count == 1
+                    ? result.Errors[0]
+                    : $"{result.Errors[0]} (+{result.Errors.Count - 1} more)";
+                var allErrors = string.Join("; ", result.Errors);
+                UpdateStatus = $"Update failed: {concise}";
+                _logger.LogError("[UPDATE] Unified update failed: {Errors}", allErrors);
+                MessageBox.Show($"Update failed: {concise}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await RefreshVersionsAsync();
             }
         }
         catch (OperationCanceledException)
         {
+            unifiedFailed = true;
             _logger.LogInformation("Update cancelled");
             UpdateStatus = "Update cancelled";
-            IsUpdateInProgress = false;
-            CloseProgressDialog();
         }
         catch (Exception ex)
         {
+            unifiedFailed = true;
             _logger.LogError(ex, "Error during update");
             UpdateStatus = $"Error: {ex.Message}";
+            MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
             IsUpdateInProgress = false;
             CloseProgressDialog();
-            MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            _updateCts?.Dispose();
+            _updateCts = null;
+
+            UpdateProgress = 0;
+            ReevaluateBannerVisibility(unifiedSucceeded, unifiedFailed);
         }
     }
 
@@ -242,6 +278,11 @@ public class UpdateViewModel : ViewModelBase
     {
         RunOnUiThread(() =>
         {
+            if (result.Manifest != null)
+            {
+                _latestManifest = result.Manifest;
+            }
+
             if (_snoozeUntilUtc.HasValue && DateTimeOffset.UtcNow >= _snoozeUntilUtc.Value)
             {
                 _snoozeUntilUtc = null;
@@ -289,21 +330,23 @@ public class UpdateViewModel : ViewModelBase
                 else
                     _logger.LogWarning("UI update check failed: {Error}", result.ErrorMessage);
             }
+
+            ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
         });
     }
 
-    private void OnUpdateProgressChanged(object? sender, UiUpdateProgressInfo progress)
+    private void OnUpdateProgressChanged(UpdateProgressInfo progress)
     {
         RunOnUiThread(() =>
         {
             IsUpdateInProgress = true;
-            UpdateStatus = progress.Status;
-            UpdateProgress = progress.ProgressPercent;
+            UpdateStatus = progress.StatusText;
+            UpdateProgress = progress.Progress;
 
             if (_progressViewModel != null)
             {
-                _progressViewModel.StatusText = progress.Status;
-                _progressViewModel.Progress = progress.ProgressPercent;
+                _progressViewModel.StatusText = progress.StatusText;
+                _progressViewModel.Progress = progress.Progress;
                 _progressViewModel.IsIndeterminate = progress.IsIndeterminate;
             }
         });
@@ -376,6 +419,88 @@ public class UpdateViewModel : ViewModelBase
         _progressDialog.Close();
         _progressDialog = null;
         _progressViewModel = null;
+    }
+
+    private async Task RefreshVersionsAsync()
+    {
+        CurrentUiVersion = GetCurrentVersion();
+        CurrentVersion = CurrentUiVersion;
+
+        CurrentAgentVersion = GetInstalledComponentVersion("StorageWatchAgent.exe");
+        CurrentServerVersion = GetInstalledComponentVersion("StorageWatchServer.exe");
+
+        var uiResult = await _updateChecker.CheckForUpdateAsync(CancellationToken.None);
+        if (uiResult.Manifest != null)
+        {
+            _latestManifest = uiResult.Manifest;
+        }
+
+        var uiNeedsUpdate = Version.TryParse(_latestManifest.Ui.Version, out var manifestUiVersion)
+            && Version.TryParse(CurrentUiVersion, out var localUiVersion)
+            && manifestUiVersion > localUiVersion;
+
+        var agentNeedsUpdate = Version.TryParse(_latestManifest.Agent.Version, out var manifestAgentVersion)
+            && Version.TryParse(CurrentAgentVersion, out var localAgentVersion)
+            && manifestAgentVersion > localAgentVersion;
+
+        var serverNeedsUpdate = Version.TryParse(_latestManifest.Server.Version, out var manifestServerVersion)
+            && Version.TryParse(CurrentServerVersion, out var localServerVersion)
+            && manifestServerVersion > localServerVersion;
+
+        LatestVersion = _latestManifest.Ui.Version;
+        IsUpdateAvailable = uiNeedsUpdate || agentNeedsUpdate || serverNeedsUpdate;
+        ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
+    }
+
+    private static string GetInstalledComponentVersion(string executableName)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var candidates = new[]
+            {
+                Path.Combine(baseDir, executableName),
+                Path.Combine(baseDir, "..", executableName),
+                Path.Combine(baseDir, "..", "..", executableName),
+                Path.Combine(programData, "StorageWatch", "Agent", executableName),
+                Path.Combine(programData, "StorageWatch", "Server", executableName),
+                Path.Combine(programData, "StorageWatch", "UI", executableName)
+            };
+
+            foreach (var candidate in candidates)
+            {
+                var fullPath = Path.GetFullPath(candidate);
+                if (!File.Exists(fullPath))
+                    continue;
+
+                var version = FileVersionInfo.GetVersionInfo(fullPath).FileVersion;
+                if (!string.IsNullOrWhiteSpace(version))
+                    return version;
+            }
+        }
+        catch
+        {
+        }
+
+        return "0.0.0.0";
+    }
+
+    private void ReevaluateBannerVisibility(bool unifiedUpdateSucceeded, bool unifiedUpdateFailed)
+    {
+        if (unifiedUpdateSucceeded)
+        {
+            IsBannerVisible = false;
+            return;
+        }
+
+        if (unifiedUpdateFailed)
+        {
+            IsBannerVisible = true;
+            return;
+        }
+
+        IsBannerVisible = IsUpdateAvailable;
     }
 
     private void CancelUpdate()

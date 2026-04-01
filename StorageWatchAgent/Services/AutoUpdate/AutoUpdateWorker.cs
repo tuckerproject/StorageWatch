@@ -20,6 +20,7 @@ namespace StorageWatch.Services.AutoUpdate
         private readonly IPluginUpdateInstaller _pluginUpdateInstaller;
         private readonly IAutoUpdateTimerFactory _timerFactory;
         private readonly RollingFileLogger _logger;
+        private bool ManualInstallRequested { get; set; } = false;
 
         public AutoUpdateWorker(
             IOptionsMonitor<StorageWatchOptions> storageOptionsMonitor,
@@ -84,7 +85,20 @@ namespace StorageWatch.Services.AutoUpdate
             try
             {
                 stoppingToken.ThrowIfCancellationRequested();
-                await RunServiceUpdateAsync(stoppingToken);
+
+                var result = await _serviceUpdateChecker.CheckForUpdateAsync(stoppingToken);
+                if (!result.IsUpdateAvailable || result.Component == null)
+                {
+                    if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                        _logger.Log($"[AUTOUPDATE] Update check failed: {result.ErrorMessage}");
+                    else
+                        _logger.Log("[AUTOUPDATE] No service updates available.");
+                }
+                else
+                {
+                    _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
+                }
+
                 await RunPluginUpdatesAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -97,42 +111,74 @@ namespace StorageWatch.Services.AutoUpdate
             }
         }
 
-        private async Task RunServiceUpdateAsync(CancellationToken stoppingToken)
+        public void RequestManualInstall()
         {
-            stoppingToken.ThrowIfCancellationRequested();
+            ManualInstallRequested = true;
+            _logger.Log("[AUTOUPDATE] Manual install requested.");
+        }
 
-            var result = await _serviceUpdateChecker.CheckForUpdateAsync(stoppingToken);
-            if (!result.IsUpdateAvailable || result.Component == null)
+        public async Task<UpdateInstallResult> RunServiceUpdateAsync(CancellationToken stoppingToken)
+        {
+            if (!ManualInstallRequested)
             {
-                if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-                    _logger.Log($"[AUTOUPDATE] Update check failed: {result.ErrorMessage}");
-                else
-                    _logger.Log("[AUTOUPDATE] No service updates available.");
-                return;
+                return new UpdateInstallResult
+                {
+                    Success = false,
+                    ErrorMessage = "Manual install was not requested."
+                };
             }
 
-            _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
-
-            stoppingToken.ThrowIfCancellationRequested();
-
-            var download = await _serviceUpdateDownloader.DownloadAsync(result.Component, stoppingToken);
-            if (!download.Success || string.IsNullOrWhiteSpace(download.FilePath))
+            try
             {
-                _logger.Log($"[AUTOUPDATE] Service download failed: {download.ErrorMessage}");
-                return;
+                stoppingToken.ThrowIfCancellationRequested();
+
+                var result = await _serviceUpdateChecker.CheckForUpdateAsync(stoppingToken);
+                if (!result.IsUpdateAvailable || result.Component == null)
+                {
+                    if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                        _logger.Log($"[AUTOUPDATE] Update check failed: {result.ErrorMessage}");
+                    else
+                        _logger.Log("[AUTOUPDATE] No service updates available.");
+
+                    return new UpdateInstallResult
+                    {
+                        Success = false,
+                        ErrorMessage = result.ErrorMessage ?? "No service updates available."
+                    };
+                }
+
+                _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
+
+                stoppingToken.ThrowIfCancellationRequested();
+
+                var download = await _serviceUpdateDownloader.DownloadAsync(result.Component, stoppingToken);
+                if (!download.Success || string.IsNullOrWhiteSpace(download.FilePath))
+                {
+                    _logger.Log($"[AUTOUPDATE] Service download failed: {download.ErrorMessage}");
+                    return new UpdateInstallResult
+                    {
+                        Success = false,
+                        ErrorMessage = download.ErrorMessage ?? "Service download failed."
+                    };
+                }
+
+                stoppingToken.ThrowIfCancellationRequested();
+
+                // Do not interrupt installation once file apply begins; this prevents partial update application.
+                var install = await _serviceUpdateInstaller.InstallAsync(download.FilePath, CancellationToken.None);
+                if (!install.Success)
+                {
+                    _logger.Log($"[AUTOUPDATE] Service install failed: {install.ErrorMessage}");
+                    return install;
+                }
+
+                _logger.Log("[AUTOUPDATE] Service update installed.");
+                return install;
             }
-
-            stoppingToken.ThrowIfCancellationRequested();
-
-            // Do not interrupt installation once file apply begins; this prevents partial update application.
-            var install = await _serviceUpdateInstaller.InstallAsync(download.FilePath, CancellationToken.None);
-            if (!install.Success)
+            finally
             {
-                _logger.Log($"[AUTOUPDATE] Service install failed: {install.ErrorMessage}");
-                return;
+                ManualInstallRequested = false;
             }
-
-            _logger.Log("[AUTOUPDATE] Service update installed.");
         }
 
         private async Task RunPluginUpdatesAsync(CancellationToken stoppingToken)

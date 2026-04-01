@@ -1,6 +1,22 @@
 @page
 @model StorageWatchServer.Dashboard.IndexModel
 
+<div id="updateBanner" class="card update-banner" @(Model.IsUpdateAvailable ? "" : "hidden")>
+    <div class="update-banner-header">
+        <strong>Update available</strong>
+        <span>
+            Server: <code id="currentServerVersion">@Model.CurrentServerVersion</code>
+            &nbsp;•&nbsp; Agent: <code id="currentAgentVersion">@Model.CurrentAgentVersion</code>
+            &nbsp;•&nbsp; UI: <code id="currentUiVersion">@Model.CurrentUiVersion</code>
+        </span>
+    </div>
+    <div class="update-banner-actions">
+        <button id="installUpdateButton" type="button">Install Update</button>
+    </div>
+</div>
+
+<partial name="Shared/UpdateProgressModal" />
+
 <h1>Central Dashboard</h1>
 
 @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -50,3 +66,77 @@
         </table>
     }
 </div>
+
+<script>
+(() => {
+    const banner = document.getElementById('updateBanner');
+    const installButton = document.getElementById('installUpdateButton');
+    const modal = document.getElementById('updateProgressModal');
+    const statusText = document.getElementById('updateStatusText');
+    const spinner = document.getElementById('updateSpinner');
+    const progressBar = document.getElementById('updateProgressBar');
+    const progressValue = document.getElementById('updateProgressValue');
+    const currentServerVersion = document.getElementById('currentServerVersion');
+    const currentAgentVersion = document.getElementById('currentAgentVersion');
+    const currentUiVersion = document.getElementById('currentUiVersion');
+
+    function applyProgress(p) {
+        const status = p?.statusText ?? 'Checking components...';
+        const value = Number(p?.progress ?? 0);
+        const indeterminate = !!p?.isIndeterminate;
+
+        statusText.textContent = status;
+        progressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+        progressValue.textContent = `${Math.round(value)}%`;
+        spinner.hidden = !indeterminate;
+    }
+
+    async function refreshVersionsAsync() {
+        const response = await fetch('?handler=RefreshVersions', { method: 'GET' });
+        if (!response.ok) return;
+
+        const status = await response.json();
+        currentServerVersion.textContent = status.currentServerVersion ?? '0.0.0.0';
+        currentAgentVersion.textContent = status.currentAgentVersion ?? '0.0.0.0';
+        currentUiVersion.textContent = status.currentUiVersion ?? '0.0.0.0';
+
+        if (status.isUpdateAvailable) {
+            banner.removeAttribute('hidden');
+        } else {
+            banner.setAttribute('hidden', 'hidden');
+        }
+    }
+
+    installButton?.addEventListener('click', async () => {
+        modal.removeAttribute('hidden');
+        applyProgress({ statusText: 'Checking components...', progress: 0, isIndeterminate: true });
+
+        try {
+            const response = await fetch('?handler=StartUnifiedUpdate', { method: 'GET' });
+            const payload = await response.json();
+
+            if (Array.isArray(payload.progress)) {
+                for (const phase of payload.progress) {
+                    applyProgress(phase);
+                }
+            }
+
+            await refreshVersionsAsync();
+
+            if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+                banner.removeAttribute('hidden');
+                alert(`Update failed: ${payload.errors[0]}`);
+            } else {
+                banner.setAttribute('hidden', 'hidden');
+            }
+        } catch (err) {
+            banner.removeAttribute('hidden');
+            alert('Update failed. Please try again.');
+        } finally {
+            modal.setAttribute('hidden', 'hidden');
+        }
+    });
+
+    refreshVersionsAsync();
+})();
+</script>

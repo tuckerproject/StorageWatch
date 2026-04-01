@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 using StorageWatchServer.Config;
 using StorageWatchServer.Middleware;
 using StorageWatch.Shared.Update;
+using StorageWatchServer.Services;
 using StorageWatchServer.Services.AutoUpdate;
 using StorageWatchServer.Services.Logging;
 using StorageWatchServer.Server.Api;
@@ -98,11 +99,23 @@ builder.Services.AddSingleton<RawRowIngestionService>();
 builder.Services.AddSingleton<MachineStatusService>();
 
 builder.Services.AddHttpClient<IServerUpdateChecker, ServerUpdateChecker>();
+builder.Services.AddHttpClient<IManifestProvider, ManifestProvider>();
 builder.Services.AddHttpClient<IServerUpdateDownloader, ServerUpdateDownloader>();
+builder.Services.AddHttpClient<UnifiedUpdateClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
+    if (Uri.TryCreate(options.ListenUrl, UriKind.Absolute, out var uri))
+    {
+        client.BaseAddress = uri;
+    }
+});
 builder.Services.AddSingleton<IServerRestartHandler, ServerRestartHandler>();
 builder.Services.AddSingleton<IServerUpdateInstaller, ServerUpdateInstaller>();
 builder.Services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
-builder.Services.AddHostedService<ServerAutoUpdateWorker>();
+builder.Services.AddSingleton<ServerAutoUpdateWorker>();
+builder.Services.AddSingleton<ServiceCommunicationClient>();
+builder.Services.AddSingleton<ServerUnifiedUpdateCoordinator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ServerAutoUpdateWorker>());
 
 var serverOptions = builder.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
 if (!string.IsNullOrWhiteSpace(serverOptions.ListenUrl))

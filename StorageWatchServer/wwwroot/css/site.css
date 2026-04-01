@@ -88,3 +88,82 @@ body {
     border-left: 4px solid #dc2626;
     color: #7f1d1d;
 }
+
+.update-banner {
+    border-left: 4px solid #2563eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.update-banner-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.update-banner-actions button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.update-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.update-modal-content {
+    width: min(460px, calc(100vw - 32px));
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+}
+
+.update-progress-wrap {
+    width: 100%;
+    height: 14px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.update-progress-bar {
+    height: 100%;
+    background: #2563eb;
+    transition: width 200ms ease;
+}
+
+.update-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2563eb;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 8px;
+}
+
+.btn-link {
+    margin-top: 14px;
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+    padding: 6px 12px;
+    border-radius: 6px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

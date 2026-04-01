@@ -88,6 +88,7 @@ namespace StorageWatchUI.Services.AutoUpdate
                 return new ComponentUpdateCheckResult
                 {
                     IsUpdateAvailable = updateAvailable,
+                    Manifest = manifest,
                     Component = updateAvailable ? manifest.Ui : null
                 };
             }

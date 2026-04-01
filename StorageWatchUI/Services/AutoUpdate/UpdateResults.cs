@@ -6,6 +6,7 @@ namespace StorageWatchUI.Services.AutoUpdate
     {
         public bool IsUpdateAvailable { get; set; }
         public ComponentUpdateInfo? Component { get; set; }
+        public UpdateManifest? Manifest { get; set; }
         public string? ErrorMessage { get; set; }
     }
 
