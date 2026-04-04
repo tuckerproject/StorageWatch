@@ -106,7 +106,7 @@ public class ServiceCommunicationServer : BackgroundService
                     return;
                 }
 
-                _logger.Log($"[IPC] Received request: {requestJson}");
+                //_logger.Log($"[IPC] Received request: {requestJson}");
 
                 var request = JsonSerializer.Deserialize<ServiceRequest>(requestJson);
                 if (request == null)
@@ -122,7 +122,7 @@ public class ServiceCommunicationServer : BackgroundService
                 var responseBytes = Encoding.UTF8.GetBytes(responseJson);
                 await pipeServer.WriteAsync(responseBytes, 0, responseBytes.Length, cancellationToken);
                 await pipeServer.FlushAsync(cancellationToken);
-                _logger.Log($"[IPC] Sent response for {request.Command}");
+                //_logger.Log($"[IPC] Sent response for {request.Command}");
             }
             catch (IOException ex) when (!pipeServer.IsConnected)
             {
