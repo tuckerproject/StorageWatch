@@ -4,6 +4,7 @@ RequestExecutionLevel admin
 !include "MUI2.nsh"
 !include "x64.nsh"
 !include "FileFunc.nsh"
+!include "WordFunc.nsh"
 
 !define APP_NAME "StorageWatch"
 !define COMPANY_NAME "StorageWatch"
@@ -48,15 +49,18 @@ Var ServerDataDir
 Var hwndRoleAgent
 Var hwndRoleServer
 Var ServerDataDirEscaped
+Var InstallerVersion
 
 Section -StorageWatchAgent SecService
     SetShellVarContext all
     Call StopServiceIfRunning
 
+    Push "$INSTDIR\Agent\StorageWatchAgent.exe"
+    Call SetOverwriteModeForComponent
+
     SetOutPath "$INSTDIR\Agent"
-    DetailPrint "[INSTALL] Agent copy mode: keeping newer existing files (ifnewer)."
-    SetOverwrite ifnewer
-    File /r /x "appsettings.json" "${PAYLOAD_DIR}\Agent\*"
+    DetailPrint "[INSTALL] Agent copy mode: overwrite only when installer is newer; otherwise copy missing files only."
+    File /r /x "appsettings.json" /x "AutoUpdate.json" /x "AutoUpdateSettings.json" /x "updater\*" "${PAYLOAD_DIR}\Agent\*"
     SetOverwrite on
 
     IfFileExists "$INSTDIR\Agent\appsettings.json" AgentAppSettingsExists
@@ -68,6 +72,24 @@ AgentAppSettingsExists:
     DetailPrint "[INSTALL] Agent appsettings.json exists. Preserving existing file."
 AgentAppSettingsDone:
 
+    IfFileExists "$INSTDIR\Agent\AutoUpdate.json" AgentAutoUpdateExists
+    DetailPrint "[INSTALL] Agent AutoUpdate.json not found. Deploying default AutoUpdate.json if present."
+    SetOutPath "$INSTDIR\Agent"
+    File /nonfatal "${PAYLOAD_DIR}\Agent\AutoUpdate.json"
+    Goto AgentAutoUpdateDone
+AgentAutoUpdateExists:
+    DetailPrint "[INSTALL] Agent AutoUpdate.json exists. Preserving existing file."
+AgentAutoUpdateDone:
+
+    IfFileExists "$INSTDIR\Agent\AutoUpdateSettings.json" AgentAutoUpdateSettingsExists
+    DetailPrint "[INSTALL] Agent AutoUpdateSettings.json not found. Deploying default AutoUpdateSettings.json if present."
+    SetOutPath "$INSTDIR\Agent"
+    File /nonfatal "${PAYLOAD_DIR}\Agent\AutoUpdateSettings.json"
+    Goto AgentAutoUpdateSettingsDone
+AgentAutoUpdateSettingsExists:
+    DetailPrint "[INSTALL] AutoUpdate settings preserved (Agent AutoUpdateSettings.json)."
+AgentAutoUpdateSettingsDone:
+
     Call CreateAgentProgramData
     Call InstallService
 SectionEnd
@@ -76,10 +98,12 @@ Section -StorageWatchCentralServer SecServer
     SetShellVarContext all
     Call StopServerIfRunning
 
+    Push "$INSTDIR\Server\StorageWatchServer.exe"
+    Call SetOverwriteModeForComponent
+
     SetOutPath "$INSTDIR\Server"
-    DetailPrint "[INSTALL] Server copy mode: keeping newer existing files (ifnewer)."
-    SetOverwrite ifnewer
-    File /r /x "appsettings.json" "${PAYLOAD_DIR}\Server\*"
+    DetailPrint "[INSTALL] Server copy mode: overwrite only when installer is newer; otherwise copy missing files only."
+    File /r /x "appsettings.json" /x "AutoUpdate.json" /x "AutoUpdateSettings.json" /x "updater\*" "${PAYLOAD_DIR}\Server\*"
     SetOverwrite on
 
     IfFileExists "$INSTDIR\Server\appsettings.json" ServerAppSettingsExists
@@ -91,16 +115,37 @@ ServerAppSettingsExists:
     DetailPrint "[INSTALL] Server appsettings.json exists. Preserving existing file."
 ServerAppSettingsDone:
 
+    IfFileExists "$INSTDIR\Server\AutoUpdate.json" ServerAutoUpdateExists
+    DetailPrint "[INSTALL] Server AutoUpdate.json not found. Deploying default AutoUpdate.json if present."
+    SetOutPath "$INSTDIR\Server"
+    File /nonfatal "${PAYLOAD_DIR}\Server\AutoUpdate.json"
+    Goto ServerAutoUpdateDone
+ServerAutoUpdateExists:
+    DetailPrint "[INSTALL] Server AutoUpdate.json exists. Preserving existing file."
+ServerAutoUpdateDone:
+
+    IfFileExists "$INSTDIR\Server\AutoUpdateSettings.json" ServerAutoUpdateSettingsExists
+    DetailPrint "[INSTALL] Server AutoUpdateSettings.json not found. Deploying default AutoUpdateSettings.json if present."
+    SetOutPath "$INSTDIR\Server"
+    File /nonfatal "${PAYLOAD_DIR}\Server\AutoUpdateSettings.json"
+    Goto ServerAutoUpdateSettingsDone
+ServerAutoUpdateSettingsExists:
+    DetailPrint "[INSTALL] AutoUpdate settings preserved (Server AutoUpdateSettings.json)."
+ServerAutoUpdateSettingsDone:
+
     Call CreateServerProgramData
     Call InstallServerService
 SectionEnd
 
 Section -StorageWatchUI SecUI
     SetShellVarContext all
+
+    Push "$INSTDIR\UI\StorageWatchUI.exe"
+    Call SetOverwriteModeForComponent
+
     SetOutPath "$INSTDIR\UI"
-    DetailPrint "[INSTALL] UI copy mode: keeping newer existing files (ifnewer)."
-    SetOverwrite ifnewer
-    File /r /x "appsettings.json" "${PAYLOAD_DIR}\UI\*"
+    DetailPrint "[INSTALL] UI copy mode: overwrite only when installer is newer; otherwise copy missing files only."
+    File /r /x "appsettings.json" /x "AutoUpdate.json" /x "AutoUpdateSettings.json" /x "updater\*" "${PAYLOAD_DIR}\UI\*"
     SetOverwrite on
 
     IfFileExists "$INSTDIR\UI\appsettings.json" UiAppSettingsExists
@@ -112,13 +157,34 @@ UiAppSettingsExists:
     DetailPrint "[INSTALL] UI appsettings.json exists. Preserving existing file."
 UiAppSettingsDone:
 
+    IfFileExists "$INSTDIR\UI\AutoUpdate.json" UiAutoUpdateExists
+    DetailPrint "[INSTALL] UI AutoUpdate.json not found. Deploying default AutoUpdate.json if present."
+    SetOutPath "$INSTDIR\UI"
+    File /nonfatal "${PAYLOAD_DIR}\UI\AutoUpdate.json"
+    Goto UiAutoUpdateDone
+UiAutoUpdateExists:
+    DetailPrint "[INSTALL] UI AutoUpdate.json exists. Preserving existing file."
+UiAutoUpdateDone:
+
+    IfFileExists "$INSTDIR\UI\AutoUpdateSettings.json" UiAutoUpdateSettingsExists
+    DetailPrint "[INSTALL] UI AutoUpdateSettings.json not found. Deploying default AutoUpdateSettings.json if present."
+    SetOutPath "$INSTDIR\UI"
+    File /nonfatal "${PAYLOAD_DIR}\UI\AutoUpdateSettings.json"
+    Goto UiAutoUpdateSettingsDone
+UiAutoUpdateSettingsExists:
+    DetailPrint "[INSTALL] AutoUpdate settings preserved (UI AutoUpdateSettings.json)."
+UiAutoUpdateSettingsDone:
+
     CreateDirectory "$SMPROGRAMS\${STARTMENU_FOLDER}"
     CreateShortCut "$SMPROGRAMS\${STARTMENU_FOLDER}\StorageWatch Dashboard.lnk" "$INSTDIR\UI\StorageWatchUI.exe"
 SectionEnd
 
-Section /o "Desktop Shortcut" SecDesktop
+Section -StorageWatchUpdater SecUpdater
     SetShellVarContext all
-    CreateShortCut "$DESKTOP\StorageWatch Dashboard.lnk" "$INSTDIR\UI\StorageWatchUI.exe"
+    CreateDirectory "$INSTDIR\Updater"
+    Call InstallSharedUpdater
+    Call ApplyUpdaterPermissions
+    Call CleanupLegacyUpdaterCopies
 SectionEnd
 
 Section -ProgramData SecProgramData
@@ -133,12 +199,10 @@ Section -ProgramData SecProgramData
 
     Call ApplyFolderPermissions
 
-    ; Copy plugins
-    SetOutPath "$APPDATA\${APP_NAME}\Plugins"
-    DetailPrint "[INSTALL] Plugin copy mode: keeping newer existing files (ifnewer)."
-    SetOverwrite ifnewer
+    ; Stage plugins from installer payload and install with version-aware overwrite rules
+    SetOutPath "$PLUGINSDIR\Plugins"
     File /nonfatal /r "${PAYLOAD_DIR}\Plugins\*.dll"
-    SetOverwrite on
+    Call InstallPluginDllsRespectingInstallerVersion
 SectionEnd
 
 Section -PostInstall
@@ -169,6 +233,7 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\Agent"
     RMDir /r "$INSTDIR\UI"
     RMDir /r "$INSTDIR\Server"
+    Call un.SafeRemoveSharedUpdater
     RMDir "$INSTDIR"
 
     ; Note: Do NOT delete ProgramData directories (Agent, Server, Logs, Plugins)
@@ -364,6 +429,71 @@ Function ApplyFolderPermissions
     ExecWait '"$SYSDIR\icacls.exe" "$APPDATA\${APP_NAME}\Plugins" /grant "Users:(OI)(CI)RX" /T'
 FunctionEnd
 
+Function InstallSharedUpdater
+    ; Install exactly one shared updater at $INSTDIR\Updater\StorageWatch.Updater.exe
+    IfFileExists "$INSTDIR\Updater\StorageWatch.Updater.exe" compareVersions copyMissing
+
+copyMissing:
+    DetailPrint "[INSTALL] Updater EXE installed (missing target)."
+    SetOutPath "$INSTDIR\Updater"
+    SetOverwrite on
+    File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
+    File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
+    File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+    Return
+
+compareVersions:
+    ClearErrors
+    ${GetFileVersion} "$EXEPATH" $0
+    ${If} ${Errors}
+        DetailPrint "[INSTALL] Could not determine installer version. Preserving existing shared updater."
+        Return
+    ${EndIf}
+
+    ClearErrors
+    ${GetFileVersion} "$INSTDIR\Updater\StorageWatch.Updater.exe" $1
+    ${If} ${Errors}
+        DetailPrint "[INSTALL] Existing shared updater version unknown. Updater EXE installed."
+        SetOutPath "$INSTDIR\Updater"
+        SetOverwrite on
+        File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
+        File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
+        File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+        Return
+    ${EndIf}
+
+    ${VersionCompare} $0 $1 $2
+    ${If} $2 == 1
+        DetailPrint "[INSTALL] Updater EXE installed (installer version is newer)."
+        SetOutPath "$INSTDIR\Updater"
+        SetOverwrite on
+        File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
+        File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
+        File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+    ${ElseIf} $2 == 0
+        DetailPrint "[INSTALL] Updater EXE skipped due to newer installed version."
+    ${Else}
+        DetailPrint "[INSTALL] Updater EXE skipped (installed version is equal)."
+    ${EndIf}
+FunctionEnd
+
+Function ApplyUpdaterPermissions
+    ; Users: read/execute. Administrators: modify (includes write). System: full control.
+    ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Updater" /grant "Users:(OI)(CI)RX"'
+    ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Updater" /grant "Administrators:(OI)(CI)M"'
+    ExecWait '"$SYSDIR\icacls.exe" "$INSTDIR\Updater" /grant "SYSTEM:(OI)(CI)F"'
+FunctionEnd
+
+Function CleanupLegacyUpdaterCopies
+    ; Ensure only one updater copy remains on disk.
+    Delete "$INSTDIR\Agent\updater\StorageWatch.Updater.exe"
+    Delete "$INSTDIR\Server\updater\StorageWatch.Updater.exe"
+    Delete "$INSTDIR\UI\updater\StorageWatch.Updater.exe"
+    RMDir "$INSTDIR\Agent\updater"
+    RMDir "$INSTDIR\Server\updater"
+    RMDir "$INSTDIR\UI\updater"
+FunctionEnd
+
 Function CreateAgentProgramData
     ; Create Agent subdirectories (already created in SecProgramData, but ensure they exist)
     CreateDirectory "$APPDATA\${APP_NAME}\Agent"
@@ -425,4 +555,164 @@ Function WriteVersionMetadata
     FileClose $1
 
     DetailPrint "[INSTALL] Wrote version metadata to '$INSTDIR\version.txt': $0"
+FunctionEnd
+
+Function SetOverwriteModeForComponent
+    Exch $0
+
+    Push $1
+    Push $2
+
+    ; Missing target executable: allow overwrite (fresh install path)
+    IfFileExists "$0" 0 allowOverwrite
+
+    Call EnsureInstallerVersion
+
+    StrCmp $InstallerVersion "unknown" copyMissingOnly
+
+    ClearErrors
+    ${GetFileVersion} "$0" $1
+    ${If} ${Errors}
+        ; Existing file has unknown version, preserve it and only copy missing files.
+        Goto copyMissingOnly
+    ${EndIf}
+
+    ${VersionCompare} $InstallerVersion $1 $2
+    ${If} $2 == 1
+        Goto allowOverwrite
+    ${Else}
+        Goto copyMissingOnly
+    ${EndIf}
+
+allowOverwrite:
+    SetOverwrite on
+    Goto done
+
+copyMissingOnly:
+    SetOverwrite off
+
+done:
+    Pop $2
+    Pop $1
+    Pop $0
+FunctionEnd
+
+Function InstallPluginDllsRespectingInstallerVersion
+    Push $0
+    Push $1
+    Push $2
+    Push $3
+    Push $4
+
+    Call EnsureInstallerVersion
+
+    FindFirst $0 $1 "$PLUGINSDIR\Plugins\*.dll"
+    StrCmp $1 "" done
+
+loop:
+    StrCpy $2 "$PLUGINSDIR\Plugins\$1"
+    StrCpy $3 "$APPDATA\${APP_NAME}\Plugins\$1"
+
+    IfFileExists "$3" compare existingMissing
+
+existingMissing:
+    DetailPrint "[INSTALL] Plugin '$1' missing. Installing."
+    CopyFiles /SILENT "$2" "$3"
+    Goto next
+
+compare:
+    StrCmp $InstallerVersion "unknown" keepExisting
+
+    ClearErrors
+    ${GetFileVersion} "$3" $4
+    ${If} ${Errors}
+        DetailPrint "[INSTALL] Plugin '$1' existing version unknown. Preserving existing file."
+        Goto next
+    ${EndIf}
+
+    ${VersionCompare} $InstallerVersion $4 $4
+    ${If} $4 == 1
+        DetailPrint "[INSTALL] Plugin '$1' overwritten because installer is newer."
+        CopyFiles /SILENT "$2" "$3"
+    ${Else}
+keepExisting:
+        DetailPrint "[INSTALL] Plugin '$1' preserved (installer is not newer)."
+    ${EndIf}
+
+next:
+    FindNext $0 $1
+    StrCmp $1 "" done
+    Goto loop
+
+done:
+    FindClose $0
+
+    Pop $4
+    Pop $3
+    Pop $2
+    Pop $1
+    Pop $0
+FunctionEnd
+
+Function EnsureInstallerVersion
+    StrCmp $InstallerVersion "" 0 done
+
+    ClearErrors
+    ${GetFileVersion} "$EXEPATH" $InstallerVersion
+    ${If} ${Errors}
+        StrCpy $InstallerVersion "unknown"
+    ${EndIf}
+
+done:
+FunctionEnd
+
+Function un.SafeRemoveSharedUpdater
+    Push $0
+    Push $1
+    Push $2
+
+    StrCmp "$INSTDIR" "" keepUpdater
+
+    IfFileExists "$INSTDIR\Updater\StorageWatch.Updater.exe" 0 done
+
+    ; Keep updater if any component still appears installed.
+    IfFileExists "$INSTDIR\Agent\StorageWatchAgent.exe" keepUpdater checkServer
+checkServer:
+    IfFileExists "$INSTDIR\Server\StorageWatchServer.exe" keepUpdater checkUi
+checkUi:
+    IfFileExists "$INSTDIR\UI\StorageWatchUI.exe" keepUpdater compareVersions
+
+compareVersions:
+    ClearErrors
+    ${GetFileVersion} "$EXEPATH" $0
+    ${If} ${Errors}
+        DetailPrint "[UNINSTALL] Could not determine uninstaller version. Preserving shared updater for safety."
+        Goto keepUpdater
+    ${EndIf}
+
+    ClearErrors
+    ${GetFileVersion} "$INSTDIR\Updater\StorageWatch.Updater.exe" $1
+    ${If} ${Errors}
+        DetailPrint "[UNINSTALL] Could not determine updater version. Removing shared updater."
+        Goto removeUpdater
+    ${EndIf}
+
+    ${VersionCompare} $1 $0 $2
+    ${If} $2 == 1
+        DetailPrint "[UNINSTALL] Shared updater is newer than uninstaller version. Preserving updater."
+        Goto keepUpdater
+    ${EndIf}
+
+removeUpdater:
+    Delete "$INSTDIR\Updater\StorageWatch.Updater.exe"
+    RMDir "$INSTDIR\Updater"
+    Goto done
+
+keepUpdater:
+    DetailPrint "[UNINSTALL] Updater EXE preserved during uninstall."
+
+done:
+    Pop $2
+    Pop $1
+    Pop $0
 FunctionEnd
