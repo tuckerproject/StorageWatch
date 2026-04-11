@@ -1,7 +1,7 @@
 using StorageWatch.Services.Logging;
-using Microsoft.Extensions.Hosting;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace StorageWatch.Services.AutoUpdate
@@ -11,101 +11,90 @@ namespace StorageWatch.Services.AutoUpdate
         void RequestRestart();
     }
 
-    public class NoOpServiceRestartHandler : IServiceRestartHandler
-    {
-        private readonly RollingFileLogger _logger;
-
-        public NoOpServiceRestartHandler(RollingFileLogger logger)
-        {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        public void RequestRestart()
-        {
-            _logger.Log("[AUTOUPDATE] Restart requested but skipped for current mode.");
-        }
-    }
-
-    public class ScmServiceRestartHandler : IServiceRestartHandler
+    public class UpdaterServiceRestartHandler : IServiceRestartHandler
     {
         private const string DefaultServiceName = "StorageWatchAgent";
-        private static readonly TimeSpan RestartTimeout = TimeSpan.FromMinutes(2);
         private readonly RollingFileLogger _logger;
-        private readonly IHostApplicationLifetime _lifetime;
         private readonly string _serviceName;
+        private readonly Func<ProcessStartInfo, Process?> _processStarter;
+        private readonly Action _exitAction;
 
-        public ScmServiceRestartHandler(RollingFileLogger logger, IHostApplicationLifetime lifetime)
-            : this(logger, lifetime, Environment.GetEnvironmentVariable("STORAGEWATCH_AGENT_SERVICE_NAME"))
+        public UpdaterServiceRestartHandler(RollingFileLogger logger)
+            : this(
+                logger,
+                Environment.GetEnvironmentVariable("STORAGEWATCH_AGENT_SERVICE_NAME"),
+                processStartInfo => Process.Start(processStartInfo),
+                () => Environment.Exit(0))
         {
         }
 
-        internal ScmServiceRestartHandler(
+        public UpdaterServiceRestartHandler(
             RollingFileLogger logger,
-            IHostApplicationLifetime lifetime,
-            string? serviceName)
+            string? serviceName,
+            Func<ProcessStartInfo, Process?> processStarter,
+            Action exitAction)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
             _serviceName = string.IsNullOrWhiteSpace(serviceName) ? DefaultServiceName : serviceName.Trim();
+            _processStarter = processStarter ?? throw new ArgumentNullException(nameof(processStarter));
+            _exitAction = exitAction ?? throw new ArgumentNullException(nameof(exitAction));
         }
 
         public void RequestRestart()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                _logger.Log("[AUTOUPDATE] SCM restart requested on non-Windows OS. Restart skipped.");
+                _logger.Log("[AUTOUPDATE] Restart requested on non-Windows OS. Restart skipped.");
                 return;
             }
 
             try
             {
-                var helperScript = BuildRestartHelperScript(_serviceName, RestartTimeout);
-                var helperProcess = StartHelperProcess(new ProcessStartInfo
+                var updaterPath = ResolveUpdaterExecutablePath();
+                var processStartInfo = new ProcessStartInfo
                 {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{helperScript}\"",
-                    CreateNoWindow = true,
+                    FileName = updaterPath,
+                    Arguments = "--restart-agent",
                     UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(updaterPath) ?? AppContext.BaseDirectory
+                };
+                processStartInfo.EnvironmentVariables["STORAGEWATCH_AGENT_SERVICE_NAME"] = _serviceName;
 
-                if (helperProcess == null)
+                var process = _processStarter(processStartInfo);
+                if (process == null)
                 {
-                    _logger.Log($"[AUTOUPDATE] Failed to launch SCM restart helper for service '{_serviceName}'.");
+                    _logger.Log("[AUTOUPDATE] Failed to launch updater for agent restart.");
                     return;
                 }
 
-                _logger.Log($"[AUTOUPDATE] Restart requested for service '{_serviceName}'. Helper PID: {helperProcess.Id}. Initiating graceful shutdown.");
-                _lifetime.StopApplication();
+                _logger.Log($"[AUTOUPDATE] Updater launched for agent restart. PID: {process.Id}. Exiting agent process.");
+                _exitAction();
             }
             catch (Exception ex)
             {
-                _logger.Log($"[AUTOUPDATE] Service restart failed for '{_serviceName}': {ex}");
+                _logger.Log($"[AUTOUPDATE] Failed to delegate restart to updater: {ex}");
             }
         }
 
-        protected virtual Process? StartHelperProcess(ProcessStartInfo processStartInfo)
+        private static string ResolveUpdaterExecutablePath()
         {
-            return Process.Start(processStartInfo);
-        }
+            var candidates = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "StorageWatch.Updater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "StorageWatchUpdater.exe")
+            };
 
-        private static string BuildRestartHelperScript(string serviceName, TimeSpan timeout)
-        {
-            var escapedServiceName = serviceName.Replace("'", "''", StringComparison.Ordinal);
-            var timeoutSeconds = (int)timeout.TotalSeconds;
+            foreach (var candidate in candidates)
+            {
+                var fullPath = Path.GetFullPath(candidate);
+                if (File.Exists(fullPath))
+                    return fullPath;
+            }
 
-            return string.Join(';',
-                "$ErrorActionPreference='Stop'",
-                $"$serviceName='{escapedServiceName}'",
-                $"$timeout=[TimeSpan]::FromSeconds({timeoutSeconds})",
-                "$deadline=(Get-Date).Add($timeout)",
-                "Stop-Service -Name $serviceName -ErrorAction Stop",
-                "do { Start-Sleep -Seconds 1; $service=Get-Service -Name $serviceName -ErrorAction Stop } while ($service.Status -ne 'Stopped' -and (Get-Date) -lt $deadline)",
-                "if ($service.Status -ne 'Stopped') { throw \"Timed out waiting for service to stop.\" }",
-                "Start-Service -Name $serviceName -ErrorAction Stop",
-                "$deadline=(Get-Date).Add($timeout)",
-                "do { Start-Sleep -Seconds 1; $service=Get-Service -Name $serviceName -ErrorAction Stop } while ($service.Status -ne 'Running' -and (Get-Date) -lt $deadline)",
-                "if ($service.Status -ne 'Running') { throw \"Timed out waiting for service to start.\" }");
+            throw new FileNotFoundException("Updater executable not found.");
         }
     }
 }

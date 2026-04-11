@@ -159,15 +159,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHttpClient<IServiceUpdateChecker, ServiceUpdateChecker>();
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
-
-        if (options.Mode == StorageWatchMode.Agent)
-        {
-            services.AddSingleton<IServiceRestartHandler, NoOpServiceRestartHandler>();
-        }
-        else
-        {
-            services.AddSingleton<IServiceRestartHandler, ScmServiceRestartHandler>();
-        }
+        services.AddSingleton<IServiceRestartHandler, UpdaterServiceRestartHandler>();
 
         services.AddSingleton<IServiceUpdateInstaller, ServiceUpdateInstaller>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
