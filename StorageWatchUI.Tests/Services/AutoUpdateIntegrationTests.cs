@@ -35,6 +35,10 @@ namespace StorageWatchUI.Tests.Services
             Directory.CreateDirectory(Path.GetDirectoryName(payloadFilePath)!);
             await File.WriteAllTextAsync(payloadFilePath, "integration-payload-v1", Encoding.UTF8);
 
+            var updaterExePath = Path.Combine(targetRoot, "StorageWatch.Updater.exe");
+            var systemExe = Path.Combine(Environment.SystemDirectory, "whoami.exe");
+            File.Copy(systemExe, updaterExePath, overwrite: true);
+
             ZipFile.CreateFromDirectory(payloadRoot, zipPath);
             var zipBytes = await File.ReadAllBytesAsync(zipPath);
             var zipHash = Convert.ToHexString(SHA256.HashData(zipBytes)).ToLowerInvariant();
@@ -65,7 +69,9 @@ namespace StorageWatchUI.Tests.Services
                 NullLogger<UiUpdateInstaller>.Instance,
                 new FakeRestartPrompter(true),
                 restartHandler,
-                targetRoot);
+                targetRoot,
+                (_, _) => true,
+                () => { });
 
             var worker = new UiAutoUpdateWorker(
                 options,
@@ -95,13 +101,11 @@ namespace StorageWatchUI.Tests.Services
 
             installResult.Should().NotBeNull();
             installResult!.Success.Should().BeTrue();
-            restartPromptRequestedCount.Should().Be(1);
+            restartPromptRequestedCount.Should().Be(0);
             restartHandler.RestartRequested.Should().BeFalse();
 
             var installedPayloadFile = Path.Combine(targetRoot, "app", "version.txt");
-            File.Exists(installedPayloadFile).Should().BeTrue();
-            var installedContents = await File.ReadAllTextAsync(installedPayloadFile, Encoding.UTF8);
-            installedContents.Should().Be("integration-payload-v1");
+            File.Exists(installedPayloadFile).Should().BeFalse();
         }
 
         [Fact]

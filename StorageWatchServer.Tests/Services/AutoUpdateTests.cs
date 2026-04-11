@@ -222,7 +222,7 @@ namespace StorageWatchServer.Tests.Services
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             Assert.False(result.Success);
-            Assert.Contains("Failed to launch updater executable.", result.ErrorMessage, StringComparison.Ordinal);
+            Assert.Contains("Failed to launch updater handoff process.", result.ErrorMessage, StringComparison.Ordinal);
             Assert.False(File.Exists(Path.Combine(tempTarget, "app", "test.txt")));
         }
 

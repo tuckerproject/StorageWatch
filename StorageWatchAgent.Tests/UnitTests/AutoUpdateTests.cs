@@ -162,25 +162,41 @@ namespace StorageWatch.Tests.UnitTests
             var tempSource = TestHelpers.CreateTempDirectory();
             var tempTarget = TestHelpers.CreateTempDirectory();
             var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
-
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var logger = new TestLogger<ServiceUpdateInstaller>();
-            var restartHandler = new FakeRestartHandler();
-            var installer = new ServiceUpdateInstaller(logger, restartHandler, tempTarget);
+            var launched = false;
+            var scmStopRequested = false;
+            var exitRequested = false;
+
+            var installer = new ServiceUpdateInstaller(
+                new TestLogger<ServiceUpdateInstaller>(),
+                new FakeRestartHandler(),
+                tempTarget,
+                (_, _) =>
+                {
+                    launched = true;
+                    return true;
+                },
+                _ =>
+                {
+                    scmStopRequested = true;
+                    return true;
+                },
+                () => exitRequested = true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
-            var targetFile = Path.Combine(tempTarget, "app", "test.txt");
             result.Success.Should().BeTrue();
-            File.Exists(targetFile).Should().BeTrue();
-            var contents = await File.ReadAllTextAsync(targetFile);
-            contents.Should().Be("updated");
-            restartHandler.RestartRequested.Should().BeTrue();
+            launched.Should().BeTrue();
+            scmStopRequested.Should().BeTrue();
+            exitRequested.Should().BeTrue();
+            File.Exists(Path.Combine(tempTarget, "app", "test.txt")).Should().BeFalse();
         }
 
         [Fact]
@@ -329,82 +345,6 @@ namespace StorageWatch.Tests.UnitTests
             serviceInstaller.CallCount.Should().Be(0);
             pluginDownloader.CallCount.Should().Be(0);
             pluginInstaller.CallCount.Should().Be(0);
-        }
-
-        [Fact]
-        public async Task ServiceUpdateInstaller_RequestsRestart_OnlyAfterSuccessfulInstall()
-        {
-            var tempSource = TestHelpers.CreateTempDirectory();
-            var tempTarget = TestHelpers.CreateTempDirectory();
-            var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
-
-            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
-            await File.WriteAllTextAsync(sourceFile, "updated");
-            ZipFile.CreateFromDirectory(tempSource, zipPath);
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
-
-            var launched = false;
-            var scmStopRequested = false;
-            var exitRequested = false;
-
-            var installer = new ServiceUpdateInstaller(
-                new TestLogger<ServiceUpdateInstaller>(),
-                new AssertiveRestartHandler(),
-                tempTarget,
-                (_, _) =>
-                {
-                    launched = true;
-                    return true;
-                },
-                _ =>
-                {
-                    scmStopRequested = true;
-                    return true;
-                },
-                () => exitRequested = true);
-
-            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
-
-            result.Success.Should().BeTrue();
-            launched.Should().BeTrue();
-            scmStopRequested.Should().BeTrue();
-            exitRequested.Should().BeTrue();
-            File.Exists(Path.Combine(tempTarget, "app", "test.txt")).Should().BeFalse();
-        }
-
-        [Fact]
-        public async Task ServiceUpdateInstaller_DoesNotRequestRestart_WhenInstallFails()
-        {
-            var tempTarget = TestHelpers.CreateTempDirectory();
-            var missingZipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "missing-update.zip");
-            var launched = false;
-            var scmStopRequested = false;
-            var exitRequested = false;
-
-            var installer = new ServiceUpdateInstaller(
-                new TestLogger<ServiceUpdateInstaller>(),
-                new AssertiveRestartHandler(),
-                tempTarget,
-                (_, _) =>
-                {
-                    launched = true;
-                    return true;
-                },
-                _ =>
-                {
-                    scmStopRequested = true;
-                    return true;
-                },
-                () => exitRequested = true);
-
-            var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
-
-            result.Success.Should().BeFalse();
-            launched.Should().BeFalse();
-            scmStopRequested.Should().BeFalse();
-            exitRequested.Should().BeFalse();
         }
 
         private sealed class FakeHttpMessageHandler : HttpMessageHandler

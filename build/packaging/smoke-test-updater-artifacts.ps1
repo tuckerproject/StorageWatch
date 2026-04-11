@@ -60,6 +60,23 @@ function Assert-AuthenticodeValid([string]$filePath, [string]$label) {
     }
 }
 
+function Assert-ManifestComponent([object]$manifest, [string]$componentName) {
+    $component = $manifest.$componentName
+    if (-not $component) {
+        throw "Manifest does not contain '$componentName' entry."
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$component.version)) {
+        throw "Manifest $componentName.version is missing."
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$component.sha256)) {
+        throw "Manifest $componentName.sha256 is missing."
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$component.downloadUrl)) {
+        throw "Manifest $componentName.downloadUrl is missing."
+    }
+}
+
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
     $ArtifactsRoot = Join-Path $resolvedRepoRoot 'artifacts'
@@ -134,22 +151,22 @@ finally {
 }
 
 $manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json
-if (-not $manifest.updater) {
-    throw 'Manifest does not contain updater object.'
-}
-if ([string]::IsNullOrWhiteSpace([string]$manifest.updater.version)) {
-    throw 'Manifest updater.version is missing.'
-}
-if ([string]::IsNullOrWhiteSpace([string]$manifest.updater.sha256)) {
-    throw 'Manifest updater.sha256 is missing.'
-}
-if ([string]::IsNullOrWhiteSpace([string]$manifest.updater.downloadUrl)) {
-    throw 'Manifest updater.downloadUrl is missing.'
-}
 
+Assert-ManifestComponent -manifest $manifest -componentName 'ui'
+Assert-ManifestComponent -manifest $manifest -componentName 'agent'
+Assert-ManifestComponent -manifest $manifest -componentName 'server'
+Assert-ManifestComponent -manifest $manifest -componentName 'updater'
+
+Assert-VersionMatch -actualVersion ([string]$manifest.ui.version) -expectedVersion $ExpectedVersion -sourceName 'Manifest UI'
+Assert-VersionMatch -actualVersion ([string]$manifest.agent.version) -expectedVersion $ExpectedVersion -sourceName 'Manifest Agent'
+Assert-VersionMatch -actualVersion ([string]$manifest.server.version) -expectedVersion $ExpectedVersion -sourceName 'Manifest Server'
 Assert-VersionMatch -actualVersion ([string]$manifest.updater.version) -expectedVersion $ExpectedVersion -sourceName 'Manifest updater'
 
+Assert-VersionMatch -actualVersion ([string]$manifest.ui.version) -expectedVersion ([string]$manifest.updater.version) -sourceName 'Manifest UI vs updater'
+Assert-VersionMatch -actualVersion ([string]$manifest.agent.version) -expectedVersion ([string]$manifest.updater.version) -sourceName 'Manifest Agent vs updater'
+Assert-VersionMatch -actualVersion ([string]$manifest.server.version) -expectedVersion ([string]$manifest.updater.version) -sourceName 'Manifest Server vs updater'
+
 $updaterFileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updaterExe).FileVersion
-Assert-VersionMatch -actualVersion $updaterFileVersion -expectedVersion $ExpectedVersion -sourceName 'Updater executable'
+Assert-VersionMatch -actualVersion $updaterFileVersion -expectedVersion ([string]$manifest.updater.version) -sourceName 'Updater executable vs manifest updater'
 
 Write-Host '[SMOKE] Updater artifact smoke tests passed.'
