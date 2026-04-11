@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Logging;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace StorageWatchUI.Services.AutoUpdate
 {
@@ -16,9 +19,9 @@ namespace StorageWatchUI.Services.AutoUpdate
     public class UiUpdateInstaller : IUiUpdateInstaller
     {
         private readonly ILogger<UiUpdateInstaller> _logger;
-        private readonly IUiRestartPrompter _restartPrompter;
-        private readonly IUiRestartHandler _restartHandler;
         private readonly string _targetDirectory;
+        private readonly Func<string, string, bool> _updaterLauncher;
+        private readonly Action _exitAction;
 
         public UiUpdateInstaller(
             ILogger<UiUpdateInstaller> logger,
@@ -32,12 +35,16 @@ namespace StorageWatchUI.Services.AutoUpdate
             ILogger<UiUpdateInstaller> logger,
             IUiRestartPrompter restartPrompter,
             IUiRestartHandler restartHandler,
-            string targetDirectory)
+            string targetDirectory,
+            Func<string, string, bool>? updaterLauncher = null,
+            Action? exitAction = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _restartPrompter = restartPrompter ?? throw new ArgumentNullException(nameof(restartPrompter));
-            _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
+            _ = restartPrompter ?? throw new ArgumentNullException(nameof(restartPrompter));
+            _ = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
+            _updaterLauncher = updaterLauncher ?? LaunchUpdaterProcess;
+            _exitAction = exitAction ?? ExitApplication;
         }
 
         public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null)
@@ -59,58 +66,124 @@ namespace StorageWatchUI.Services.AutoUpdate
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 ZipFile.ExtractToDirectory(zipPath, stagingDirectory, true);
+                progress?.Report(0.8);
 
-                var files = Directory.GetFiles(stagingDirectory, "*", SearchOption.AllDirectories);
-                var totalFiles = files.Length;
-                var copiedFiles = 0;
+                var installDir = Path.GetFullPath(_targetDirectory);
+                var manifestPath = EnsureStagingManifest(stagingDirectory);
 
-                foreach (var file in files)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var relativePath = Path.GetRelativePath(stagingDirectory, file);
-                    var destinationPath = Path.Combine(_targetDirectory, relativePath);
-                    var destinationDir = Path.GetDirectoryName(destinationPath);
-                    if (!string.IsNullOrWhiteSpace(destinationDir))
-                        Directory.CreateDirectory(destinationDir);
-
-                    File.Copy(file, destinationPath, true);
-
-                    copiedFiles++;
-                    if (totalFiles > 0)
-                        progress?.Report((double)copiedFiles / totalFiles);
-                }
+                LaunchUpdaterForUIUpdate(stagingDirectory, manifestPath, installDir);
 
                 progress?.Report(1.0);
+                _logger.LogInformation("[AUTOUPDATE] UI update handed off to updater executable.");
 
-                _logger.LogInformation("[AUTOUPDATE] UI update applied.");
-                if (promptForRestart && _restartPrompter.PromptForRestart())
-                {
-                    _restartHandler.RequestRestart();
-                }
-
+                _exitAction();
                 return Task.FromResult(new UpdateInstallResult { Success = true });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[AUTOUPDATE] UI install failed");
+                _logger.LogError(ex, "[AUTOUPDATE] UI install handoff failed");
+                TryDeleteDirectory(stagingDirectory);
                 return Task.FromResult(new UpdateInstallResult
                 {
                     Success = false,
                     ErrorMessage = ex.Message
                 });
             }
-            finally
+        }
+
+        private void LaunchUpdaterForUIUpdate(string stagingDir, string manifestPath, string installDir)
+        {
+            if (string.IsNullOrWhiteSpace(stagingDir))
+                throw new ArgumentException("Staging directory is required.", nameof(stagingDir));
+            if (string.IsNullOrWhiteSpace(manifestPath))
+                throw new ArgumentException("Manifest path is required.", nameof(manifestPath));
+            if (string.IsNullOrWhiteSpace(installDir))
+                throw new ArgumentException("Install directory is required.", nameof(installDir));
+
+            var updaterPath = ResolveUpdaterExecutablePath(installDir);
+            var arguments = $"--update-ui --source \"{stagingDir}\" --target \"{installDir}\" --manifest \"{manifestPath}\" --restart-ui";
+
+            if (!_updaterLauncher(updaterPath, arguments))
             {
-                try
-                {
-                    if (Directory.Exists(stagingDirectory))
-                        Directory.Delete(stagingDirectory, true);
-                }
-                catch
-                {
-                }
+                throw new InvalidOperationException("Failed to launch updater executable.");
+            }
+        }
+
+        private static string EnsureStagingManifest(string stagingDirectory)
+        {
+            var existingManifest = Directory
+                .EnumerateFiles(stagingDirectory, "*.json", SearchOption.TopDirectoryOnly)
+                .FirstOrDefault(path => string.Equals(Path.GetFileName(path), "manifest.json", StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(existingManifest))
+                return existingManifest;
+
+            var manifestPath = Path.Combine(stagingDirectory, "manifest.json");
+            var manifestJson = JsonSerializer.Serialize(new
+            {
+                component = "ui",
+                createdUtc = DateTimeOffset.UtcNow
+            });
+            File.WriteAllText(manifestPath, manifestJson);
+            return manifestPath;
+        }
+
+        private static string ResolveUpdaterExecutablePath(string installDir)
+        {
+            var candidates = new[]
+            {
+                Path.Combine(installDir, "StorageWatchUpdater.exe"),
+                Path.Combine(installDir, "StorageWatch.Updater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe")
+            };
+
+            foreach (var candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            throw new FileNotFoundException("Updater executable was not found.");
+        }
+
+        private static bool LaunchUpdaterProcess(string updaterPath, string arguments)
+        {
+            var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = updaterPath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(updaterPath) ?? AppContext.BaseDirectory
+            });
+
+            return process != null;
+        }
+
+        private static void ExitApplication()
+        {
+            if (Application.Current == null)
+            {
+                Environment.Exit(0);
+                return;
+            }
+
+            Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown(0));
+        }
+
+        private static void TryDeleteDirectory(string directory)
+        {
+            try
+            {
+                if (Directory.Exists(directory))
+                    Directory.Delete(directory, true);
+            }
+            catch
+            {
             }
         }
     }

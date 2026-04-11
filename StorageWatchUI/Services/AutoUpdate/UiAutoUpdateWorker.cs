@@ -192,36 +192,20 @@ namespace StorageWatchUI.Services.AutoUpdate
                     return false;
                 }
 
-                var installProgress = new Progress<double>(p =>
-                    UpdateProgressChanged?.Invoke(this, new UiUpdateProgressInfo
-                    {
-                        Status = "Installing update...",
-                        ProgressPercent = 70 + Math.Clamp(p * 0.3, 0, 30),
-                        IsIndeterminate = false
-                    }));
-
                 UpdateProgressChanged?.Invoke(this, new UiUpdateProgressInfo
                 {
-                    Status = "Installing update...",
-                    ProgressPercent = 70,
+                    Status = "StorageWatch is restarting to apply updates…",
+                    ProgressPercent = 100,
                     IsIndeterminate = true
                 });
 
-                var install = await _updateInstaller.InstallAsync(download.FilePath, cancellationToken, promptForRestart: false, progress: installProgress);
+                var install = await _updateInstaller.InstallAsync(download.FilePath, cancellationToken, promptForRestart: false, progress: null);
 
                 UpdateInstallCompleted?.Invoke(this, install);
 
                 if (install.Success)
                 {
-                    UpdateProgressChanged?.Invoke(this, new UiUpdateProgressInfo
-                    {
-                        Status = "Update installed successfully",
-                        ProgressPercent = 100,
-                        IsIndeterminate = false
-                    });
-
                     _pendingComponent = null;
-                    RestartPromptRequested?.Invoke(this, EventArgs.Empty);
                 }
 
                 return install.Success;

@@ -362,15 +362,13 @@ public class UpdateViewModel : ViewModelBase
             {
                 IsUpdateAvailable = false;
                 IsBannerVisible = false;
-                UpdateStatus = "Update installed successfully";
+                UpdateStatus = "StorageWatch is restarting to apply updates…";
                 UpdateProgress = 100;
-            }
-            else
-            {
-                UpdateStatus = $"Update failed: {result.ErrorMessage}";
-                MessageBox.Show($"Update failed: {result.ErrorMessage}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
 
+            UpdateStatus = $"Update failed: {result.ErrorMessage}";
+            MessageBox.Show($"Update failed: {result.ErrorMessage}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
             CloseProgressDialog();
         });
     }

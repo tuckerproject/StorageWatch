@@ -1,55 +1,37 @@
 using StorageWatch.Updater;
 
-// Parse command-line arguments
-var arguments = UpdaterArguments.Parse(args);
+var arguments = ArgumentParser.Parse(args);
 
-// Display parsed arguments
-Console.WriteLine("StorageWatch Updater");
-Console.WriteLine();
-Console.WriteLine("Parsed Arguments:");
-Console.WriteLine();
-
-// Update flags
-var hasUpdates = arguments.UpdateUI || arguments.UpdateAgent || arguments.UpdateServer;
-if (hasUpdates)
+if (arguments.UpdateUI)
 {
-    Console.WriteLine("Update Actions:");
-    if (arguments.UpdateUI)
-        Console.WriteLine("  ✓ Update UI");
-    if (arguments.UpdateAgent)
-        Console.WriteLine("  ✓ Update Agent");
-    if (arguments.UpdateServer)
-        Console.WriteLine("  ✓ Update Server");
-    Console.WriteLine();
+    if (string.IsNullOrWhiteSpace(arguments.SourcePath) || string.IsNullOrWhiteSpace(arguments.TargetPath))
+    {
+        Console.WriteLine("Error: --update-ui requires both --source and --target paths.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.InvalidArguments);
+    }
+
+    var fileReplacementEngine = new FileReplacementEngine();
+
+    Console.WriteLine("File replacement begins.");
+    var replaced = fileReplacementEngine.TryCopyFilesFromStaging(arguments.SourcePath, arguments.TargetPath);
+
+    if (!replaced)
+    {
+        Console.WriteLine("UI update failed during file replacement.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.UnexpectedError);
+    }
+
+    Console.WriteLine("File replacement succeeded.");
+
+    var uiExecutablePath = Path.Combine(arguments.TargetPath, "StorageWatchUI.exe");
+    var uiRestartHelper = new UIRestartHelper();
+    uiRestartHelper.TryRestartUI(uiExecutablePath);
+
+    Console.WriteLine("Updater exiting.");
+    Environment.Exit(ExitCodes.Success);
 }
 
-// Restart flags
-var hasRestarts = arguments.RestartUI || arguments.RestartAgent || arguments.RestartServer;
-if (hasRestarts)
-{
-    Console.WriteLine("Restart Actions:");
-    if (arguments.RestartUI)
-        Console.WriteLine("  ✓ Restart UI");
-    if (arguments.RestartAgent)
-        Console.WriteLine("  ✓ Restart Agent");
-    if (arguments.RestartServer)
-        Console.WriteLine("  ✓ Restart Server");
-    Console.WriteLine();
-}
-
-// Paths
-var hasPaths = arguments.ManifestPath != null || arguments.SourcePath != null || arguments.TargetPath != null;
-if (hasPaths)
-{
-    Console.WriteLine("Paths:");
-    if (arguments.ManifestPath != null)
-        Console.WriteLine($"  Manifest: {arguments.ManifestPath}");
-    if (arguments.SourcePath != null)
-        Console.WriteLine($"  Source:   {arguments.SourcePath}");
-    if (arguments.TargetPath != null)
-        Console.WriteLine($"  Target:   {arguments.TargetPath}");
-    Console.WriteLine();
-}
-
-Console.WriteLine("Ready for update operations.");
+Console.WriteLine("Updater exiting.");
 Environment.Exit(ExitCodes.Success);

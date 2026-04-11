@@ -48,7 +48,7 @@ internal class ParseResult
 /// Parses command-line arguments for the updater.
 /// Designed for testability with instance methods and non-throwing variants.
 /// </summary>
-public class ArgumentParser
+internal class ArgumentParser
 {
     /// <summary>
     /// Initializes a new ArgumentParser instance.

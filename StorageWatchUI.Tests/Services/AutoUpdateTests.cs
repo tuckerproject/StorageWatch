@@ -90,58 +90,39 @@ namespace StorageWatchUI.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
-
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var logger = new TestLogger<UiUpdateInstaller>();
-            var prompt = new FakeRestartPrompter(true);
+            var launched = false;
+            var exitRequested = false;
             var restartHandler = new FakeRestartHandler();
-            var installer = new UiUpdateInstaller(logger, prompt, restartHandler, tempTarget);
-
-            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
-
-            var targetFile = Path.Combine(tempTarget, "app", "test.txt");
-            result.Success.Should().BeTrue();
-            File.Exists(targetFile).Should().BeTrue();
-            var contents = await File.ReadAllTextAsync(targetFile);
-            contents.Should().Be("updated");
-            restartHandler.RestartRequested.Should().BeTrue();
-        }
-
-        [Fact]
-        public async Task UiUpdateInstaller_RequestsRestart_OnlyAfterSuccessfulInstall()
-        {
-            var tempSource = TestDirectoryFactory.CreateTempDirectory();
-            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
-            var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-
-            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
-            await File.WriteAllTextAsync(sourceFile, "updated");
-            ZipFile.CreateFromDirectory(tempSource, zipPath);
-
-            var restartCalledAfterCopy = false;
-            var expectedTargetFile = Path.Combine(tempTarget, "app", "test.txt");
-            var restartHandler = new AssertiveUiRestartHandler(() =>
-            {
-                restartCalledAfterCopy = File.Exists(expectedTargetFile);
-            });
 
             var installer = new UiUpdateInstaller(
                 new TestLogger<UiUpdateInstaller>(),
                 new FakeRestartPrompter(true),
                 restartHandler,
-                tempTarget);
+                tempTarget,
+                (_, _) =>
+                {
+                    launched = true;
+                    return true;
+                },
+                () => exitRequested = true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             result.Success.Should().BeTrue();
-            restartHandler.RequestCount.Should().Be(1);
-            restartCalledAfterCopy.Should().BeTrue();
+            launched.Should().BeTrue();
+            exitRequested.Should().BeTrue();
+            restartHandler.RestartRequested.Should().BeFalse();
+
+            var targetFile = Path.Combine(tempTarget, "app", "test.txt");
+            File.Exists(targetFile).Should().BeFalse();
         }
 
         [Fact]
@@ -160,6 +141,86 @@ namespace StorageWatchUI.Tests.Services
             var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
 
             result.Success.Should().BeFalse();
+            restartHandler.RequestCount.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task UiUpdateInstaller_StagesFilesAndLaunchesUpdater_ExitsImmediately()
+        {
+            var tempSource = TestDirectoryFactory.CreateTempDirectory();
+            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
+            var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
+
+            var launched = false;
+            string? launchedExe = null;
+            string? launchedArgs = null;
+            var exitRequested = false;
+
+            var installer = new UiUpdateInstaller(
+                new TestLogger<UiUpdateInstaller>(),
+                new FakeRestartPrompter(true),
+                new FakeRestartHandler(),
+                tempTarget,
+                (exe, args) =>
+                {
+                    launched = true;
+                    launchedExe = exe;
+                    launchedArgs = args;
+                    return true;
+                },
+                () => exitRequested = true);
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
+            launched.Should().BeTrue();
+            exitRequested.Should().BeTrue();
+            launchedExe.Should().Be(updaterExePath);
+            launchedArgs.Should().NotBeNullOrWhiteSpace();
+            launchedArgs!.Should().Contain("--update-ui");
+            launchedArgs.Should().Contain("--source");
+            launchedArgs.Should().Contain("--target");
+            launchedArgs.Should().Contain("--manifest");
+            launchedArgs.Should().Contain("--restart-ui");
+
+            var targetFile = Path.Combine(tempTarget, "app", "test.txt");
+            File.Exists(targetFile).Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task UiUpdateInstaller_DoesNotRequestRestart_WhenUpdateIsHandedToUpdater()
+        {
+            var tempSource = TestDirectoryFactory.CreateTempDirectory();
+            var tempTarget = TestDirectoryFactory.CreateTempDirectory();
+            var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
+
+            var sourceFile = Path.Combine(tempSource, "app", "test.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+            await File.WriteAllTextAsync(sourceFile, "updated");
+            ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
+
+            var restartHandler = new AssertiveUiRestartHandler();
+
+            var installer = new UiUpdateInstaller(
+                new TestLogger<UiUpdateInstaller>(),
+                new FakeRestartPrompter(true),
+                restartHandler,
+                tempTarget,
+                (_, _) => true,
+                () => { });
+
+            var result = await installer.InstallAsync(zipPath, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
             restartHandler.RequestCount.Should().Be(0);
         }
 
