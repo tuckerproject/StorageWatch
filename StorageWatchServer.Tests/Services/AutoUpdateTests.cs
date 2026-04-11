@@ -91,25 +91,37 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
-
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var logger = new TestLogger<ServerUpdateInstaller>();
-            var restartHandler = new FakeRestartHandler();
-            var installer = new ServerUpdateInstaller(logger, restartHandler, tempTarget);
+            var launched = false;
+            var gracefulStopRequested = false;
+            var exitRequested = false;
+
+            var installer = new ServerUpdateInstaller(
+                new TestLogger<ServerUpdateInstaller>(),
+                new FakeRestartHandler(),
+                tempTarget,
+                (_, _) =>
+                {
+                    launched = true;
+                    return true;
+                },
+                () => gracefulStopRequested = true,
+                () => exitRequested = true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
-            var targetFile = Path.Combine(tempTarget, "app", "test.txt");
             Assert.True(result.Success);
-            Assert.True(File.Exists(targetFile));
-            var contents = await File.ReadAllTextAsync(targetFile);
-            Assert.Equal("updated", contents);
-            Assert.True(restartHandler.RestartRequested);
+            Assert.True(launched);
+            Assert.True(gracefulStopRequested);
+            Assert.True(exitRequested);
+            Assert.False(File.Exists(Path.Combine(tempTarget, "app", "test.txt")));
         }
 
         [Fact]
@@ -118,26 +130,42 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var restartCalledAfterCopy = false;
-            var expectedTargetFile = Path.Combine(tempTarget, "app", "test.txt");
-            var restartHandler = new AssertiveServerRestartHandler(() =>
-            {
-                restartCalledAfterCopy = File.Exists(expectedTargetFile);
-            });
+            string? launchedExe = null;
+            string? launchedArgs = null;
 
-            var installer = new ServerUpdateInstaller(new TestLogger<ServerUpdateInstaller>(), restartHandler, tempTarget);
+            var installer = new ServerUpdateInstaller(
+                new TestLogger<ServerUpdateInstaller>(),
+                new AssertiveServerRestartHandler(),
+                tempTarget,
+                (exe, args) =>
+                {
+                    launchedExe = exe;
+                    launchedArgs = args;
+                    return true;
+                },
+                () => { },
+                () => { });
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             Assert.True(result.Success);
-            Assert.Equal(1, restartHandler.RequestCount);
-            Assert.True(restartCalledAfterCopy);
+            Assert.Equal("powershell.exe", launchedExe);
+            Assert.NotNull(launchedArgs);
+            Assert.Contains("Start-Process", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("StorageWatch.Updater.exe", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("--update-server", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("--source", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("--target", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("--manifest", launchedArgs, StringComparison.Ordinal);
+            Assert.Contains("--restart-server", launchedArgs, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -145,14 +173,28 @@ namespace StorageWatchServer.Tests.Services
         {
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var missingZipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "missing-update.zip");
-            var restartHandler = new AssertiveServerRestartHandler();
+            var launched = false;
+            var gracefulStopRequested = false;
+            var exitRequested = false;
 
-            var installer = new ServerUpdateInstaller(new TestLogger<ServerUpdateInstaller>(), restartHandler, tempTarget);
+            var installer = new ServerUpdateInstaller(
+                new TestLogger<ServerUpdateInstaller>(),
+                new AssertiveServerRestartHandler(),
+                tempTarget,
+                (_, _) =>
+                {
+                    launched = true;
+                    return true;
+                },
+                () => gracefulStopRequested = true,
+                () => exitRequested = true);
 
             var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
 
             Assert.False(result.Success);
-            Assert.Equal(0, restartHandler.RequestCount);
+            Assert.False(launched);
+            Assert.False(gracefulStopRequested);
+            Assert.False(exitRequested);
         }
 
         [Fact]
@@ -161,28 +203,27 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-
-            var existingFile = Path.Combine(tempTarget, "app", "test.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(existingFile)!);
-            await File.WriteAllTextAsync(existingFile, "original");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
-
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var logger = new TestLogger<ServerUpdateInstaller>();
-            var restartHandler = new ThrowingRestartHandler();
-            var installer = new ServerUpdateInstaller(logger, restartHandler, tempTarget);
+            var installer = new ServerUpdateInstaller(
+                new TestLogger<ServerUpdateInstaller>(),
+                new ThrowingRestartHandler(),
+                tempTarget,
+                (_, _) => false,
+                () => { },
+                () => { });
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             Assert.False(result.Success);
-            Assert.Contains("Restart failed", result.ErrorMessage, StringComparison.Ordinal);
-            Assert.True(File.Exists(existingFile));
-            var contents = await File.ReadAllTextAsync(existingFile);
-            Assert.Equal("original", contents);
+            Assert.Contains("Failed to launch updater executable.", result.ErrorMessage, StringComparison.Ordinal);
+            Assert.False(File.Exists(Path.Combine(tempTarget, "app", "test.txt")));
         }
 
         [Fact]
@@ -191,45 +232,37 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-
-            var existingFile = Path.Combine(tempTarget, "app", "test.txt");
-            var existingOnlyFile = Path.Combine(tempTarget, "app", "existing-only.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(existingFile)!);
-            await File.WriteAllTextAsync(existingFile, "original");
-            await File.WriteAllTextAsync(existingOnlyFile, "keep-me");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             var newFile = Path.Combine(tempSource, "app", "new.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             await File.WriteAllTextAsync(newFile, "new-file");
-
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var beforeStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
-            var beforeBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
-
-            var logger = new TestLogger<ServerUpdateInstaller>();
-            var installer = new ServerUpdateInstaller(logger, new ThrowingRestartHandler(), tempTarget);
+            var launched = false;
+            var installer = new ServerUpdateInstaller(
+                new TestLogger<ServerUpdateInstaller>(),
+                new ThrowingRestartHandler(),
+                tempTarget,
+                (_, _) =>
+                {
+                    launched = true;
+                    return true;
+                },
+                () => { },
+                () => { });
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
-            Assert.False(result.Success);
-            Assert.Contains("Restart failed", result.ErrorMessage, StringComparison.Ordinal);
-
-            Assert.True(File.Exists(existingFile));
-            var restored = await File.ReadAllTextAsync(existingFile);
-            Assert.Equal("original", restored);
-            Assert.True(File.Exists(existingOnlyFile));
-            var untouched = await File.ReadAllTextAsync(existingOnlyFile);
-            Assert.Equal("keep-me", untouched);
+            Assert.True(result.Success);
+            Assert.True(launched);
+            Assert.False(File.Exists(Path.Combine(tempTarget, "app", "test.txt")));
             Assert.False(File.Exists(Path.Combine(tempTarget, "app", "new.txt")));
-
-            var afterStagingDirectories = SnapshotTempChildDirectories("StorageWatchUpdate");
-            var afterBackupDirectories = SnapshotTempChildDirectories("StorageWatchBackup");
-            Assert.True(afterStagingDirectories.SetEquals(beforeStagingDirectories));
-            Assert.True(afterBackupDirectories.SetEquals(beforeBackupDirectories));
         }
+
 
         [Fact]
         public async Task ServerAutoUpdateWorker_UsesTimerTicksToRunUpdateCycle()

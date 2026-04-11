@@ -68,6 +68,37 @@ if (arguments.UpdateAgent)
     Environment.Exit(ExitCodes.Success);
 }
 
+if (arguments.UpdateServer)
+{
+    if (string.IsNullOrWhiteSpace(arguments.SourcePath) || string.IsNullOrWhiteSpace(arguments.TargetPath))
+    {
+        Console.WriteLine("Error: --update-server requires both --source and --target paths.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.InvalidArguments);
+    }
+
+    var fileReplacementEngine = new FileReplacementEngine();
+
+    Console.WriteLine("File replacement begins.");
+    var replaced = fileReplacementEngine.TryCopyFilesFromStaging(arguments.SourcePath, arguments.TargetPath);
+
+    if (!replaced)
+    {
+        Console.WriteLine("Server update failed during file replacement.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.UnexpectedError);
+    }
+
+    Console.WriteLine("File replacement succeeded.");
+
+    var serverExecutablePath = Path.Combine(arguments.TargetPath, "StorageWatchServer.exe");
+    var serverRestartHelper = new ServerRestartHelper();
+    serverRestartHelper.TryRestartServer(serverExecutablePath);
+
+    Console.WriteLine("Updater exiting.");
+    Environment.Exit(ExitCodes.Success);
+}
+
 if (arguments.RestartAgent)
 {
     var serviceName = Environment.GetEnvironmentVariable("STORAGEWATCH_AGENT_SERVICE_NAME");
