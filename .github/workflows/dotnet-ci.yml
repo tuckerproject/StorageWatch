@@ -9,6 +9,14 @@ on:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    env:
+      STORAGEWATCH_SIGNING_CERT_BASE64: ${{ secrets.STORAGEWATCH_SIGNING_CERT_BASE64 }}
+      STORAGEWATCH_SIGNING_CERT_PASSWORD: ${{ secrets.STORAGEWATCH_SIGNING_CERT_PASSWORD }}
+      STORAGEWATCH_SIGNING_TIMESTAMP_URL: ${{ secrets.STORAGEWATCH_SIGNING_TIMESTAMP_URL }}
 
     steps:
     - name: Checkout code
@@ -23,47 +31,74 @@ jobs:
       run: dotnet restore
 
     - name: Build solution
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
 
-    # -------------------------
-    # Run ALL test projects
-    # -------------------------
+    - name: Build updater
+      run: dotnet build StorageWatch.Updater/StorageWatch.Updater.csproj --configuration ${{ matrix.configuration }} --no-restore
+
     - name: Run StorageWatchAgent.Tests
-      run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration Release --no-build --verbosity normal
+      run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
 
     - name: Run StorageWatchServer.Tests
-      run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration Release --no-build --verbosity normal
+      run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
 
     - name: Run StorageWatchUI.Tests
-      run: dotnet test StorageWatchUI.Tests/StorageWatchUI.Tests.csproj --configuration Release --no-build --verbosity normal
+      run: dotnet test StorageWatchUI.Tests/StorageWatchUI.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
 
-    # -------------------------
-    # Code coverage (optional)
-    # -------------------------
     - name: Upload coverage to artifacts
       uses: actions/upload-artifact@v4
-      if: always()
+      if: always() && matrix.configuration == 'Release'
       with:
         name: code-coverage-reports
         path: StorageWatchAgent.Tests/coverage/
         retention-days: 30
 
-    # -------------------------
-    # Publish agent
-    # -------------------------
     - name: Publish build artifacts - Agent
+      if: matrix.configuration == 'Release'
       run: dotnet publish StorageWatchAgent/StorageWatchAgent.csproj --configuration Release --output ./publish/StorageWatchAgent
 
+    - name: Publish build artifacts - Updater (single-file, framework-dependent)
+      if: matrix.configuration == 'Release'
+      run: dotnet publish StorageWatch.Updater/StorageWatch.Updater.csproj --configuration Release --framework net10.0 --runtime win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false --output ./publish/StorageWatch.Updater
+
+    - name: Sign updater executable
+      if: matrix.configuration == 'Release'
+      shell: pwsh
+      run: |
+        ./build/packaging/sign-executable.ps1 -FilePath "$env:GITHUB_WORKSPACE/publish/StorageWatch.Updater/StorageWatch.Updater.exe" | Out-Null
+
+    - name: Print updater build diagnostics
+      if: matrix.configuration == 'Release'
+      shell: pwsh
+      run: |
+        $updaterExe = Join-Path $env:GITHUB_WORKSPACE 'publish/StorageWatch.Updater/StorageWatch.Updater.exe'
+        if (-not (Test-Path -LiteralPath $updaterExe)) {
+          throw "Updater executable not found: $updaterExe"
+        }
+
+        $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updaterExe).FileVersion
+        $sha256 = (Get-FileHash -LiteralPath $updaterExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+        Write-Host "Updater output path: $updaterExe"
+        Write-Host "Updater EXE version: $version"
+        Write-Host "Updater EXE SHA256: $sha256"
+
     - name: Upload agent executable artifact
+      if: matrix.configuration == 'Release'
       uses: actions/upload-artifact@v4
       with:
         name: StorageWatchAgent-executable
         path: ./publish/StorageWatchAgent/
         retention-days: 30
 
-    # -------------------------
-    # Auto-format (PR only)
-    # -------------------------
+    - name: Upload updater executable artifact
+      if: matrix.configuration == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: StorageWatchUpdater-executable
+        path: ./publish/StorageWatch.Updater/
+        retention-days: 30
+
     - name: Auto-format code (PR only)
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && matrix.configuration == 'Release'
       run: dotnet format --verbosity diagnostic

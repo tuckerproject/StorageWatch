@@ -28,6 +28,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$UiPackagePath,
 
+    [Parameter(Mandatory = $true)]
+    [string]$UpdaterExecutablePath,
+
     [Parameter()]
     [string]$PluginsMetadataFile = '',
 
@@ -82,6 +85,7 @@ $resolvedHashesFile = Resolve-ExistingPath -Path $HashesFile -Name 'HashesFile'
 $resolvedAgentPackagePath = Resolve-ExistingPath -Path $AgentPackagePath -Name 'AgentPackagePath'
 $resolvedServerPackagePath = Resolve-ExistingPath -Path $ServerPackagePath -Name 'ServerPackagePath'
 $resolvedUiPackagePath = Resolve-ExistingPath -Path $UiPackagePath -Name 'UiPackagePath'
+$resolvedUpdaterExecutablePath = Resolve-ExistingPath -Path $UpdaterExecutablePath -Name 'UpdaterExecutablePath'
 
 $resolvedPluginsMetadataFile = ''
 if (-not [string]::IsNullOrWhiteSpace($PluginsMetadataFile)) {
@@ -111,10 +115,12 @@ if (-not (Test-Path -LiteralPath $manifestDirectory)) {
 $agentFileName = Split-Path -Leaf $resolvedAgentPackagePath
 $serverFileName = Split-Path -Leaf $resolvedServerPackagePath
 $uiFileName = Split-Path -Leaf $resolvedUiPackagePath
+$updaterFileName = Split-Path -Leaf $resolvedUpdaterExecutablePath
 
 $agentHash = Get-HashForPath -Path $resolvedAgentPackagePath -Entries $hashEntries
 $serverHash = Get-HashForPath -Path $resolvedServerPackagePath -Entries $hashEntries
 $uiHash = Get-HashForPath -Path $resolvedUiPackagePath -Entries $hashEntries
+$updaterHash = Get-HashForPath -Path $resolvedUpdaterExecutablePath -Entries $hashEntries
 
 $plugins = @()
 if (-not [string]::IsNullOrWhiteSpace($resolvedPluginsMetadataFile)) {
@@ -161,6 +167,11 @@ $uiInfo = [ordered]@{
     downloadUrl = (New-DownloadUrl -BaseUrl $BaseDownloadUrl -FileName $uiFileName)
     sha256      = $uiHash
 }
+$updaterInfo = [ordered]@{
+    version     = $Version
+    downloadUrl = (New-DownloadUrl -BaseUrl $BaseDownloadUrl -FileName $updaterFileName)
+    sha256      = $updaterHash
+}
 
 if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesUrl)) {
     $agentInfo['releaseNotesUrl'] = $ReleaseNotesUrl
@@ -174,6 +185,7 @@ $manifest = [ordered]@{
     agent           = $agentInfo
     server          = $serverInfo
     ui              = $uiInfo
+    updater         = $updaterInfo
     plugins         = $plugins
 }
 

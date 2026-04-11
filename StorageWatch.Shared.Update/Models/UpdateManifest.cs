@@ -15,6 +15,8 @@ public class UpdateManifest
 
     public ComponentUpdateInfo Ui { get; set; } = new();
 
+    public ComponentUpdateInfo Updater { get; set; } = new();
+
     public List<PluginUpdateInfo> Plugins { get; set; } = new();
 
     [JsonIgnore]

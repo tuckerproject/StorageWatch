@@ -77,6 +77,11 @@ if ($ValidatePayload) {
         if (-not (Test-Path -LiteralPath $path)) {
             throw "Required payload directory missing: $path"
         }
+
+        $updaterPath = Join-Path $path 'updater\StorageWatch.Updater.exe'
+        if (-not (Test-Path -LiteralPath $updaterPath)) {
+            throw "Required updater executable missing from payload: $updaterPath"
+        }
     }
 }
 

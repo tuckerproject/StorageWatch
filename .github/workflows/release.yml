@@ -97,6 +97,23 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.meta.outputs.version }}
 
+      - name: Build Updater
+        run: dotnet build StorageWatch.Updater/StorageWatch.Updater.csproj --configuration Release --no-restore /p:Version=${{ steps.meta.outputs.version }}
+
+      - name: Print updater build diagnostics
+        run: |
+          $updaterExe = Join-Path $env:GITHUB_WORKSPACE 'StorageWatch.Updater/bin/Release/net10.0/StorageWatch.Updater.exe'
+          if (-not (Test-Path -LiteralPath $updaterExe)) {
+            throw "Updater executable not found: $updaterExe"
+          }
+
+          $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updaterExe).FileVersion
+          $sha256 = (Get-FileHash -LiteralPath $updaterExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          Write-Host "Updater output path: $updaterExe"
+          Write-Host "Updater EXE version: $version"
+          Write-Host "Updater EXE SHA256: $sha256"
+
       - name: Test StorageWatchAgent.Tests
         run: dotnet test StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj --configuration Release --no-build --verbosity normal
 
@@ -112,6 +129,10 @@ jobs:
     defaults:
       run:
         shell: pwsh
+    env:
+      STORAGEWATCH_SIGNING_CERT_BASE64: ${{ secrets.STORAGEWATCH_SIGNING_CERT_BASE64 }}
+      STORAGEWATCH_SIGNING_CERT_PASSWORD: ${{ secrets.STORAGEWATCH_SIGNING_CERT_PASSWORD }}
+      STORAGEWATCH_SIGNING_TIMESTAMP_URL: ${{ secrets.STORAGEWATCH_SIGNING_TIMESTAMP_URL }}
 
     steps:
       - name: Checkout
@@ -245,13 +266,15 @@ jobs:
         run: |
           $zipFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages" -Recurse -Filter *.zip -File | Select-Object -ExpandProperty FullName
           $installerFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/installer" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
+          $updaterFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/updater" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
 
           $inputs = @()
           $inputs += $zipFiles
           $inputs += $installerFiles
+          $inputs += $updaterFiles
 
           if ($inputs.Count -eq 0) {
-            throw "No ZIP or installer assets found for hashing."
+            throw "No ZIP, updater, or installer assets found for hashing."
           }
 
           ./build/packaging/compute-hashes.ps1 `
@@ -315,9 +338,10 @@ jobs:
           $agentZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/agent" -Filter *.zip -File | Select-Object -First 1).FullName
           $serverZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/server" -Filter *.zip -File | Select-Object -First 1).FullName
           $uiZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/ui" -Filter *.zip -File | Select-Object -First 1).FullName
+          $updaterExe = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/updater" -Filter *.exe -File | Select-Object -First 1).FullName
 
-          if (-not $agentZip -or -not $serverZip -or -not $uiZip) {
-            throw "One or more component ZIPs were not found (agent/server/ui)."
+          if (-not $agentZip -or -not $serverZip -or -not $uiZip -or -not $updaterExe) {
+            throw "One or more release assets were not found (agent/server/ui ZIPs, updater EXE)."
           }
           $pluginsMetadata = ""
           if (Test-Path "$env:GITHUB_WORKSPACE/artifacts/packages/plugins/plugins.metadata.json") {
@@ -336,6 +360,7 @@ jobs:
             -AgentPackagePath $agentZip `
             -ServerPackagePath $serverZip `
             -UiPackagePath $uiZip `
+            -UpdaterExecutablePath $updaterExe `
             -PluginsMetadataFile $pluginsMetadata `
             -ReleaseNotesUrl $releaseNotesUrl `
             -ManifestVersion 1 `
@@ -348,11 +373,44 @@ jobs:
           path: artifacts/manifest/**
           retention-days: 14
 
+  smoke-test-updater:
+    runs-on: windows-latest
+    needs:
+      - validate
+      - generate-manifest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download packaged components
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-components
+          path: ${{ github.workspace }}
+
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: artifacts/manifest
+
+      - name: Run updater artifact smoke tests
+        run: |
+          ./build/packaging/smoke-test-updater-artifacts.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -ExpectedVersion "${{ needs.validate.outputs.version }}" `
+            -ArtifactsRoot "$env:GITHUB_WORKSPACE/artifacts"
+
   publish-release:
     runs-on: windows-latest
     needs:
       - validate
       - generate-manifest
+      - smoke-test-updater
     if: ${{ needs.validate.outputs.dry_run != 'true' }}
     defaults:
       run:
@@ -361,14 +419,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-  
+
       # Download ALL artifacts needed for publishing
       - name: Download packaged components
         uses: actions/download-artifact@v4
         with:
           name: packaged-components
           path: ${{ github.workspace }}
-  
+
       - name: Download installer
         uses: actions/download-artifact@v4
         with:
@@ -398,6 +456,7 @@ jobs:
           files: |
             artifacts/installer/*.exe
             artifacts/packages/**/*.zip
+            artifacts/packages/updater/*.exe
             artifacts/hashes/hashes.json
             artifacts/hashes/SHA256SUMS.txt
             artifacts/manifest/**/*.json
