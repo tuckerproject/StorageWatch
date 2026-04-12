@@ -105,7 +105,7 @@ $publishArgs = @(
 )
 
 Write-Host 'Publishing Updater...'
-& dotnet @publishArgs
+& dotnet @publishArgs | Out-Host
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed for Updater with exit code $LASTEXITCODE."
 }
