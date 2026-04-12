@@ -14,6 +14,7 @@ jobs:
       matrix:
         configuration: [Debug, Release]
     env:
+      CONFIGURATION: ${{ matrix.configuration }}
       STORAGEWATCH_SIGNING_CERT_BASE64: ${{ secrets.STORAGEWATCH_SIGNING_CERT_BASE64 }}
       STORAGEWATCH_SIGNING_CERT_PASSWORD: ${{ secrets.STORAGEWATCH_SIGNING_CERT_PASSWORD }}
       STORAGEWATCH_SIGNING_TIMESTAMP_URL: ${{ secrets.STORAGEWATCH_SIGNING_TIMESTAMP_URL }}

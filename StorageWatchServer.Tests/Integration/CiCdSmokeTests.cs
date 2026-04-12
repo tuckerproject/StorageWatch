@@ -27,8 +27,18 @@ namespace StorageWatchServer.Tests.Integration
         public void Smoke_UpdaterExecutableExists()
         {
             var repoRoot = FindRepositoryRoot();
-            var configuration = Environment.GetEnvironmentVariable("CONFIGURATION") ?? "Debug";
-            var updaterExePath = Path.Combine(repoRoot, "StorageWatch.Updater", "bin", configuration, "net10.0", "StorageWatch.Updater.exe");
+            var configuration =
+                Environment.GetEnvironmentVariable("CONFIGURATION")
+                ?? Environment.GetEnvironmentVariable("Configuration")
+                ?? "Debug";
+
+            var updaterExePath = Path.Combine(
+                repoRoot,
+                "StorageWatch.Updater",
+                "bin",
+                configuration,
+                "net10.0",
+                "StorageWatch.Updater.exe");
 
             Assert.True(File.Exists(updaterExePath), $"Updater executable not found at: {updaterExePath}");
         }
