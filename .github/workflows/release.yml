@@ -91,8 +91,11 @@ jobs:
           "is_prerelease=$isPrerelease" >> $env:GITHUB_OUTPUT
           "tag_name=$tagName" >> $env:GITHUB_OUTPUT
 
-      - name: Restore
+      - name: Restore solution
         run: dotnet restore
+
+      - name: Restore updater project
+        run: dotnet restore StorageWatch.Updater/StorageWatch.Updater.csproj
 
       - name: Build
         run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.meta.outputs.version }}
