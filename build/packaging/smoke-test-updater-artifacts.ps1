@@ -85,7 +85,7 @@ if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
 $resolvedArtifactsRoot = Resolve-PathRequired -pathValue $ArtifactsRoot -name 'ArtifactsRoot'
 
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
-    $manifestCandidates = Get-ChildItem (Join-Path $resolvedArtifactsRoot 'manifest') -Recurse -Filter manifest.json -File
+    $manifestCandidates = @(Get-ChildItem (Join-Path $resolvedArtifactsRoot 'manifest') -Recurse -Filter manifest.json -File)
     if ($manifestCandidates.Count -eq 0) {
         throw 'Manifest file was not found under artifacts/manifest.'
     }
