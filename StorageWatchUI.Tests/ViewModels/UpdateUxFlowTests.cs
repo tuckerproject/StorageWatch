@@ -19,7 +19,6 @@ namespace StorageWatchUI.Tests.ViewModels
             Mock<IUiUpdateChecker>? checker = null,
             Mock<IUiUpdateDownloader>? downloader = null,
             Mock<IUiUpdateInstaller>? installer = null,
-            Mock<IUiRestartHandler>? restartHandler = null,
             Mock<IUiAutoUpdateWorker>? worker = null,
             Mock<IUiUpdateUserSettingsStore>? userSettingsStore = null,
             Mock<IOptionsMonitor<AutoUpdateOptions>>? autoUpdateOptions = null,
@@ -38,7 +37,6 @@ namespace StorageWatchUI.Tests.ViewModels
                 (checker ?? new Mock<IUiUpdateChecker>()).Object,
                 (downloader ?? new Mock<IUiUpdateDownloader>()).Object,
                 (installer ?? new Mock<IUiUpdateInstaller>()).Object,
-                (restartHandler ?? new Mock<IUiRestartHandler>()).Object,
                 workerMock.Object,
                 settingsMock.Object,
                 optionsMock.Object,
@@ -188,13 +186,11 @@ namespace StorageWatchUI.Tests.ViewModels
         public void UpdateUxFlow_RestartPrompt_AllowsUserChoice()
         {
             // Arrange
-            var restartHandlerMock = new Mock<IUiRestartHandler>();
-            var viewModel = CreateViewModel(restartHandler: restartHandlerMock);
+            var viewModel = CreateViewModel();
             viewModel.IsRestartRequired = true;
 
             // Act & Assert
             viewModel.RestartNowCommand.CanExecute(null).Should().BeTrue();
-            restartHandlerMock.Verify(h => h.RequestRestart(), Times.Never); // Not called yet
         }
 
         [Fact]

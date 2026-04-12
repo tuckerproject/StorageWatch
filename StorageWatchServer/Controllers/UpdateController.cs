@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 
 namespace StorageWatchServer.Controllers
 {
+    /// <summary>
+    /// API endpoints for update status and server updater handoff operations.
+    /// </summary>
     [Route("api/update")]
     [ApiController]
     public class UpdateController : ControllerBase
@@ -16,7 +19,6 @@ namespace StorageWatchServer.Controllers
         private readonly IServerUpdateChecker _updateChecker;
         private readonly IManifestProvider _manifestProvider;
         private readonly ServerAutoUpdateWorker _autoUpdateWorker;
-        private readonly ServerUnifiedUpdateCoordinator _serverUnifiedUpdateCoordinator;
         private readonly IServerRestartHandler _restartHandler;
         private readonly ILogger<UpdateController> _logger;
 
@@ -24,18 +26,19 @@ namespace StorageWatchServer.Controllers
             IServerUpdateChecker updateChecker,
             IManifestProvider manifestProvider,
             ServerAutoUpdateWorker autoUpdateWorker,
-            ServerUnifiedUpdateCoordinator serverUnifiedUpdateCoordinator,
             IServerRestartHandler restartHandler,
             ILogger<UpdateController> logger)
         {
             _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
             _manifestProvider = manifestProvider ?? throw new ArgumentNullException(nameof(manifestProvider));
             _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
-            _serverUnifiedUpdateCoordinator = serverUnifiedUpdateCoordinator ?? throw new ArgumentNullException(nameof(serverUnifiedUpdateCoordinator));
             _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        /// <summary>
+        /// Returns current and latest versions for Server, Agent, and UI components.
+        /// </summary>
         [HttpGet("status")]
         public async Task<ActionResult<ServerUpdateStatusDto>> GetStatus(CancellationToken cancellationToken)
         {
@@ -85,6 +88,9 @@ namespace StorageWatchServer.Controllers
             });
         }
 
+        /// <summary>
+        /// Starts the server update flow (prepare, stage, handoff, exit).
+        /// </summary>
         [HttpPost("install")]
         public async Task<ActionResult<UpdateInstallResponseDto>> Install(CancellationToken cancellationToken)
         {
@@ -123,48 +129,9 @@ namespace StorageWatchServer.Controllers
             }
         }
 
-        [HttpPost("unified-install")]
-        public async Task<ActionResult<ServerUnifiedInstallResponseDto>> UnifiedInstall(CancellationToken cancellationToken)
-        {
-            try
-            {
-                var manifest = await _manifestProvider.GetManifestAsync(cancellationToken);
-                if (manifest == null)
-                {
-                    return Ok(new ServerUnifiedInstallResponseDto
-                    {
-                        ServerUpdated = false,
-                        AgentUpdated = false,
-                        UiUpdated = false,
-                        Errors = new List<string> { "Manifest is unavailable." }
-                    });
-                }
-
-                var progressEvents = new List<ServerUpdateProgressInfo>();
-                var progress = new Progress<ServerUpdateProgressInfo>(p => progressEvents.Add(p));
-                var result = await _serverUnifiedUpdateCoordinator.PerformUnifiedUpdateAsync(manifest, progress, cancellationToken);
-
-                return Ok(new ServerUnifiedInstallResponseDto
-                {
-                    ServerUpdated = result.ServerUpdated,
-                    AgentUpdated = result.AgentUpdated,
-                    UiUpdated = result.UiUpdated,
-                    Errors = result.Errors,
-                    Progress = progressEvents
-                });
-            }
-            catch (Exception ex)
-            {
-                return Ok(new ServerUnifiedInstallResponseDto
-                {
-                    ServerUpdated = false,
-                    AgentUpdated = false,
-                    UiUpdated = false,
-                    Errors = new List<string> { ex.Message }
-                });
-            }
-        }
-
+        /// <summary>
+        /// Accepted for compatibility; restart behavior is delegated to updater handoff flows.
+        /// </summary>
         [HttpPost("restart")]
         public ActionResult<UpdateInstallResponseDto> Restart()
         {
@@ -246,6 +213,9 @@ namespace StorageWatchServer.Controllers
         }
     }
 
+    /// <summary>
+    /// Version and install-state payload for update status requests.
+    /// </summary>
     public class ServerUpdateStatusDto
     {
         public string CurrentVersion { get; set; } = string.Empty;
@@ -260,18 +230,12 @@ namespace StorageWatchServer.Controllers
         public bool IsInstalling { get; set; }
     }
 
+    /// <summary>
+    /// Response payload for update start requests.
+    /// </summary>
     public class UpdateInstallResponseDto
     {
         public bool Success { get; set; }
         public string Error { get; set; } = string.Empty;
-    }
-
-    public class ServerUnifiedInstallResponseDto
-    {
-        public bool ServerUpdated { get; set; }
-        public bool AgentUpdated { get; set; }
-        public bool UiUpdated { get; set; }
-        public List<string> Errors { get; set; } = new();
-        public List<ServerUpdateProgressInfo> Progress { get; set; } = new();
     }
 }

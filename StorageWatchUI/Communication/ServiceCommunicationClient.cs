@@ -123,26 +123,6 @@ public class ServiceCommunicationClient
     }
 
     /// <summary>
-    /// Sends a request to the service to perform an InstallUpdate.
-    /// </summary>
-    public async Task<ServiceResponse> SendInstallUpdateRequestAsync(CancellationToken cancellationToken = default)
-    {
-        _logger?.Log("[IPC] Sending InstallUpdate request");
-        var request = new ServiceRequest { Command = "InstallUpdate" };
-        return await SendRequestAsync(request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Sends a request to the service to restart itself.
-    /// </summary>
-    public async Task<ServiceResponse> SendRestartServiceRequestAsync(CancellationToken cancellationToken = default)
-    {
-        _logger?.Log("[IPC] Sending RestartService request");
-        var request = new ServiceRequest { Command = "RestartService" };
-        return await SendRequestAsync(request, cancellationToken);
-    }
-
-    /// <summary>
     /// Gets the current service status.
     /// </summary>
     public async Task<ServiceStatusInfo?> GetStatusAsync(CancellationToken cancellationToken = default)

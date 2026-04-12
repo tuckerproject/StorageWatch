@@ -110,11 +110,9 @@ builder.Services.AddHttpClient<UnifiedUpdateClient>((sp, client) =>
     }
 });
 builder.Services.AddSingleton<IServerRestartHandler, ServerRestartHandler>();
-builder.Services.AddSingleton<IServerUpdateInstaller, ServerUpdateInstaller>();
+builder.Services.AddSingleton<IServerUpdateInstaller, ServerUpdateHandoffInstaller>();
 builder.Services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
 builder.Services.AddSingleton<ServerAutoUpdateWorker>();
-builder.Services.AddSingleton<ServiceCommunicationClient>();
-builder.Services.AddSingleton<ServerUnifiedUpdateCoordinator>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ServerAutoUpdateWorker>());
 
 var serverOptions = builder.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();

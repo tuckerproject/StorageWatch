@@ -3,7 +3,6 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using StorageWatch.Shared.Update.Models;
 using StorageWatchUI.Communication;
@@ -29,9 +28,7 @@ public class UpdateViewModel : ViewModelBase
     private double _updateProgress;
     private bool _isBannerVisible;
     private readonly IUiUpdateChecker _updateChecker;
-    private readonly ServiceCommunicationClient _serviceCommunicationClient;
     private readonly IUiAutoUpdateWorker _autoUpdateWorker;
-    private readonly IUiRestartHandler _restartHandler;
     private readonly IUiUpdateUserSettingsStore _userSettingsStore;
     private readonly IOptionsMonitor<AutoUpdateOptions> _autoUpdateOptions;
     private readonly ILogger<UpdateViewModel> _logger;
@@ -46,23 +43,19 @@ public class UpdateViewModel : ViewModelBase
         IUiUpdateChecker updateChecker,
         IUiUpdateDownloader updateDownloader,
         IUiUpdateInstaller updateInstaller,
-        IUiRestartHandler restartHandler,
         IUiAutoUpdateWorker autoUpdateWorker,
         IUiUpdateUserSettingsStore userSettingsStore,
         IOptionsMonitor<AutoUpdateOptions> autoUpdateOptions,
         ILogger<UpdateViewModel> logger)
     {
         _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
-        _serviceCommunicationClient = new ServiceCommunicationClient();
         _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
-        _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
         _userSettingsStore = userSettingsStore ?? throw new ArgumentNullException(nameof(userSettingsStore));
         _autoUpdateOptions = autoUpdateOptions ?? throw new ArgumentNullException(nameof(autoUpdateOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _autoUpdateWorker.UpdateCheckCompleted += OnUpdateCheckCompleted;
         _autoUpdateWorker.UpdateInstallCompleted += OnUpdateInstallCompleted;
-        _autoUpdateWorker.RestartPromptRequested += OnRestartPromptRequested;
 
         CurrentUiVersion = GetCurrentVersion();
         CurrentVersion = CurrentUiVersion;
@@ -203,7 +196,7 @@ public class UpdateViewModel : ViewModelBase
 
         try
         {
-            _logger.LogInformation("[UPDATE] Starting unified update");
+            _logger.LogInformation("[UPDATE] Starting updater handoff flow");
 
             IsUpdateInProgress = true;
             UpdateProgress = 0;
@@ -211,7 +204,7 @@ public class UpdateViewModel : ViewModelBase
 
             _progressViewModel = new UpdateProgressViewModel
             {
-                StatusText = "Checking components...",
+                StatusText = "Preparing update...",
                 IsIndeterminate = true,
                 Progress = 0
             };
@@ -220,33 +213,20 @@ public class UpdateViewModel : ViewModelBase
             _progressViewModel.CancelRequested += (s, e) => CancelUpdate();
             _progressDialog.Show();
 
-            var coordinator = new UnifiedUpdateCoordinator(
-                _autoUpdateWorker,
-                _serviceCommunicationClient,
-                NullLogger<UnifiedUpdateCoordinator>.Instance);
-
-            var progress = new Progress<UpdateProgressInfo>(OnUpdateProgressChanged);
-            var result = await coordinator.PerformUnifiedUpdateAsync(_latestManifest, progress, _updateCts.Token);
-
-            if (result.Errors.Count == 0)
+            var installed = await _autoUpdateWorker.TryInstallAvailableUpdateAsync(_updateCts.Token);
+            if (installed)
             {
                 unifiedSucceeded = true;
-                UpdateStatus = "Update complete";
-                _logger.LogInformation("[UPDATE] Unified update completed successfully");
-                await RefreshVersionsAsync();
+                _logger.LogInformation("[UPDATE] Updater handoff completed successfully");
             }
             else
             {
                 unifiedFailed = true;
-                var concise = result.Errors.Count == 1
-                    ? result.Errors[0]
-                    : $"{result.Errors[0]} (+{result.Errors.Count - 1} more)";
-                var allErrors = string.Join("; ", result.Errors);
-                UpdateStatus = $"Update failed: {concise}";
-                _logger.LogError("[UPDATE] Unified update failed: {Errors}", allErrors);
-                MessageBox.Show($"Update failed: {concise}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                await RefreshVersionsAsync();
+                if (string.IsNullOrWhiteSpace(UpdateStatus))
+                    UpdateStatus = "Update failed.";
             }
+
+            await RefreshVersionsAsync();
         }
         catch (OperationCanceledException)
         {
@@ -335,23 +315,6 @@ public class UpdateViewModel : ViewModelBase
         });
     }
 
-    private void OnUpdateProgressChanged(UpdateProgressInfo progress)
-    {
-        RunOnUiThread(() =>
-        {
-            IsUpdateInProgress = true;
-            UpdateStatus = progress.StatusText;
-            UpdateProgress = progress.Progress;
-
-            if (_progressViewModel != null)
-            {
-                _progressViewModel.StatusText = progress.StatusText;
-                _progressViewModel.Progress = progress.Progress;
-                _progressViewModel.IsIndeterminate = progress.IsIndeterminate;
-            }
-        });
-    }
-
     private void OnUpdateInstallCompleted(object? sender, UpdateInstallResult result)
     {
         RunOnUiThread(() =>
@@ -373,40 +336,10 @@ public class UpdateViewModel : ViewModelBase
         });
     }
 
-    private void OnRestartPromptRequested(object? sender, EventArgs e)
+    private void RestartNow()
     {
-        RunOnUiThread(() =>
-        {
-            IsRestartRequired = true;
-            ShowRestartPrompt();
-        });
-    }
-
-    private void ShowRestartPrompt()
-    {
-        if (Application.Current?.Dispatcher?.CheckAccess() != true)
-        {
-            Application.Current?.Dispatcher?.Invoke(ShowRestartPrompt);
-            return;
-        }
-
-        var restartDialog = new RestartPromptDialog();
-
-        var owner = Application.Current?.MainWindow;
-        if (owner is { IsLoaded: true, IsVisible: true } && owner.WindowState != WindowState.Minimized)
-        {
-            restartDialog.Owner = owner;
-            restartDialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
-        else
-        {
-            restartDialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        }
-
-        if (restartDialog.ShowDialog() == true)
-        {
-            RestartNow();
-        }
+        IsRestartRequired = false;
+        UpdateStatus = "Restart is delegated to updater executable.";
     }
 
     private void CloseProgressDialog()
@@ -507,19 +440,6 @@ public class UpdateViewModel : ViewModelBase
         IsUpdateInProgress = false;
         UpdateStatus = "Update cancelled";
         CloseProgressDialog();
-    }
-
-    private void RestartNow()
-    {
-        try
-        {
-            _restartHandler.RequestRestart();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error restarting application");
-            UpdateStatus = $"Error restarting: {ex.Message}";
-        }
     }
 
     private void DismissBanner()

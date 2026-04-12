@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using StorageWatchServer.Server.Data;
 using StorageWatchServer.Server.Services;
 using StorageWatchServer.Services;
-using StorageWatchServer.Services.AutoUpdate;
 using StorageWatchServer.Services.Logging;
 
 namespace StorageWatchServer.Dashboard;
@@ -90,20 +89,17 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetStartUnifiedUpdateAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[WEB] Starting unified update");
+        _logger.LogInformation("[WEB] Starting update handoff flow");
 
-        var progressEvents = new List<ServerUpdateProgressInfo>();
-        var progress = new Progress<ServerUpdateProgressInfo>(p => progressEvents.Add(p));
-
-        var result = await _unifiedUpdateClient.StartUnifiedUpdateAsync(progress, cancellationToken);
+        var result = await _unifiedUpdateClient.StartUnifiedUpdateAsync(cancellationToken);
 
         if (result.Errors.Count == 0)
         {
-            _logger.LogInformation("[WEB] Unified update completed successfully");
+            _logger.LogInformation("[WEB] Update handoff flow completed successfully");
         }
         else
         {
-            _logger.LogError("[WEB] Unified update failed: {Errors}", string.Join("; ", result.Errors));
+            _logger.LogError("[WEB] Update handoff flow failed: {Errors}", string.Join("; ", result.Errors));
         }
 
         await RefreshVersionsAsync(cancellationToken);
@@ -114,7 +110,7 @@ public class IndexModel : PageModel
             agentUpdated = result.AgentUpdated,
             uiUpdated = result.UiUpdated,
             errors = result.Errors,
-            progress = progressEvents,
+            progress = Array.Empty<object>(),
             currentServerVersion = CurrentServerVersion,
             currentAgentVersion = CurrentAgentVersion,
             currentUiVersion = CurrentUiVersion,

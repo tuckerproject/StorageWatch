@@ -103,9 +103,8 @@ namespace StorageWatchServer.Tests.Services
             var gracefulStopRequested = false;
             var exitRequested = false;
 
-            var installer = new ServerUpdateInstaller(
-                new TestLogger<ServerUpdateInstaller>(),
-                new FakeRestartHandler(),
+            var installer = new ServerUpdateHandoffInstaller(
+                new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) =>
                 {
@@ -141,9 +140,8 @@ namespace StorageWatchServer.Tests.Services
             string? launchedExe = null;
             string? launchedArgs = null;
 
-            var installer = new ServerUpdateInstaller(
-                new TestLogger<ServerUpdateInstaller>(),
-                new AssertiveServerRestartHandler(),
+            var installer = new ServerUpdateHandoffInstaller(
+                new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
                 (exe, args) =>
                 {
@@ -177,9 +175,8 @@ namespace StorageWatchServer.Tests.Services
             var gracefulStopRequested = false;
             var exitRequested = false;
 
-            var installer = new ServerUpdateInstaller(
-                new TestLogger<ServerUpdateInstaller>(),
-                new AssertiveServerRestartHandler(),
+            var installer = new ServerUpdateHandoffInstaller(
+                new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) =>
                 {
@@ -211,9 +208,8 @@ namespace StorageWatchServer.Tests.Services
             ZipFile.CreateFromDirectory(tempSource, zipPath);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var installer = new ServerUpdateInstaller(
-                new TestLogger<ServerUpdateInstaller>(),
-                new ThrowingRestartHandler(),
+            var installer = new ServerUpdateHandoffInstaller(
+                new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) => false,
                 () => { },
@@ -243,9 +239,8 @@ namespace StorageWatchServer.Tests.Services
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             var launched = false;
-            var installer = new ServerUpdateInstaller(
-                new TestLogger<ServerUpdateInstaller>(),
-                new ThrowingRestartHandler(),
+            var installer = new ServerUpdateHandoffInstaller(
+                new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) =>
                 {
@@ -309,25 +304,15 @@ namespace StorageWatchServer.Tests.Services
         }
 
         [Fact]
-        public void ServerRestartHandler_BuildRestartHelperScript_UsesScmRestartFlow()
+        public void ServerRestartHandler_RequestRestart_DoesNotThrow_WhenRestartDelegatedToUpdater()
         {
-            var method = typeof(ServerRestartHandler).GetMethod("BuildRestartHelperScript", BindingFlags.NonPublic | BindingFlags.Static);
+            var lifetime = new TestHostApplicationLifetime();
+            var handler = new ServerRestartHandler(new TestLogger<ServerRestartHandler>(), lifetime);
 
-            Assert.NotNull(method);
+            var exception = Record.Exception(() => handler.RequestRestart());
 
-            var script = Assert.IsType<string>(method!.Invoke(null, new object[]
-            {
-                "StorageWatchServer",
-                TimeSpan.FromSeconds(30),
-                @"C:\Logs\server-restart.log"
-            }));
-
-            Assert.Contains("Wait-ForState", script, StringComparison.Ordinal);
-            Assert.Contains("sc.exe stop", script, StringComparison.Ordinal);
-            Assert.Contains("sc.exe start", script, StringComparison.Ordinal);
-            Assert.Contains("STOPPED", script, StringComparison.Ordinal);
-            Assert.Contains("RUNNING", script, StringComparison.Ordinal);
-            Assert.Contains("server-restart.log", script, StringComparison.Ordinal);
+            Assert.Null(exception);
+            Assert.Equal(0, lifetime.StopApplicationCount);
         }
 
         private sealed class FakeHttpMessageHandler : HttpMessageHandler
@@ -483,6 +468,20 @@ namespace StorageWatchServer.Tests.Services
             public Task RunAsync(CancellationToken token)
             {
                 return ExecuteAsync(token);
+            }
+        }
+
+        private sealed class TestHostApplicationLifetime : Microsoft.Extensions.Hosting.IHostApplicationLifetime
+        {
+            public CancellationToken ApplicationStarted => CancellationToken.None;
+            public CancellationToken ApplicationStopping => CancellationToken.None;
+            public CancellationToken ApplicationStopped => CancellationToken.None;
+
+            public int StopApplicationCount { get; private set; }
+
+            public void StopApplication()
+            {
+                StopApplicationCount++;
             }
         }
 

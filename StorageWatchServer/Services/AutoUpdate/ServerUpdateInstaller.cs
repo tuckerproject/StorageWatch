@@ -11,26 +11,33 @@ using System.Threading.Tasks;
 
 namespace StorageWatchServer.Services.AutoUpdate
 {
+    /// <summary>
+    /// Installs Server updates using a handoff-only pipeline: prepare, stage, handoff, exit.
+    /// </summary>
     public interface IServerUpdateInstaller
     {
+        /// <summary>
+        /// Prepares and stages the update package, then launches the updater executable and exits the server process.
+        /// </summary>
         Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken);
     }
 
-    public class ServerUpdateInstaller : IServerUpdateInstaller
+    /// <summary>
+    /// Server update installer that only prepares files, stages payload content, hands off to updater, and exits.
+    /// </summary>
+    public class ServerUpdateHandoffInstaller : IServerUpdateInstaller
     {
-        private readonly ILogger<ServerUpdateInstaller> _logger;
+        private readonly ILogger<ServerUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
         private readonly Func<string, string, bool> _updaterLauncher;
         private readonly Action _gracefulStopAction;
         private readonly Action _exitAction;
 
-        public ServerUpdateInstaller(
-            ILogger<ServerUpdateInstaller> logger,
-            IServerRestartHandler restartHandler,
+        public ServerUpdateHandoffInstaller(
+            ILogger<ServerUpdateHandoffInstaller> logger,
             IHostApplicationLifetime lifetime)
             : this(
                 logger,
-                restartHandler,
                 AppContext.BaseDirectory,
                 updaterLauncher: null,
                 gracefulStopAction: () => lifetime.StopApplication(),
@@ -38,22 +45,23 @@ namespace StorageWatchServer.Services.AutoUpdate
         {
         }
 
-        public ServerUpdateInstaller(
-            ILogger<ServerUpdateInstaller> logger,
-            IServerRestartHandler restartHandler,
+        public ServerUpdateHandoffInstaller(
+            ILogger<ServerUpdateHandoffInstaller> logger,
             string targetDirectory,
             Func<string, string, bool>? updaterLauncher = null,
             Action? gracefulStopAction = null,
             Action? exitAction = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _ = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
             _updaterLauncher = updaterLauncher ?? LaunchUpdaterProcess;
             _gracefulStopAction = gracefulStopAction ?? (() => { });
             _exitAction = exitAction ?? ExitProcess;
         }
 
+        /// <summary>
+        /// Executes the handoff flow: prepare package input, stage extracted payload, hand off to updater, and exit.
+        /// </summary>
         public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(zipPath))
@@ -93,7 +101,6 @@ namespace StorageWatchServer.Services.AutoUpdate
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[AUTOUPDATE] Server install handoff failed.");
-                TryDeleteDirectory(stagingDirectory);
                 return Task.FromResult(new UpdateInstallResult
                 {
                     Success = false,
@@ -181,18 +188,6 @@ namespace StorageWatchServer.Services.AutoUpdate
         private static void ExitProcess()
         {
             Environment.Exit(0);
-        }
-
-        private static void TryDeleteDirectory(string directory)
-        {
-            try
-            {
-                if (Directory.Exists(directory))
-                    Directory.Delete(directory, true);
-            }
-            catch
-            {
-            }
         }
     }
 }

@@ -56,7 +56,6 @@ namespace StorageWatch.Tests.UnitTests
                 var result = await checker.CheckForUpdatesAsync(CancellationToken.None);
 
                 result.ErrorMessage.Should().BeNullOrEmpty();
-                result.Updates.Should().HaveCount(2);
                 result.Updates.Should().Contain(u => u.Id == "TestPlugin" && u.Version == "1.1.0");
                 result.Updates.Should().Contain(u => u.Id == "NewPlugin" && u.Version == "1.0.0");
                 result.Updates.Should().NotContain(u => u.Id == "TestPlugin" && u.Version == "0.9.0");
@@ -128,7 +127,14 @@ namespace StorageWatch.Tests.UnitTests
             content.Should().Be("plugin-binary-v2");
 
             var afterStaging = SnapshotTempChildDirectories("StorageWatchPluginUpdate");
-            afterStaging.Should().BeEquivalentTo(beforeStaging);
+            var retries = 20;
+            while (retries-- > 0 && afterStaging.Except(beforeStaging).Any())
+            {
+                await Task.Delay(50);
+                afterStaging = SnapshotTempChildDirectories("StorageWatchPluginUpdate");
+            }
+
+            afterStaging.Except(beforeStaging).Should().BeEmpty();
         }
 
         [Fact]

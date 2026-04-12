@@ -48,7 +48,7 @@ namespace StorageWatch.Services.AutoUpdate
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // Auto-update runs in both Agent and Server modes
+            // Auto-update check loop for the Agent service.
             var autoUpdateOptions = _autoUpdateOptionsMonitor.CurrentValue;
             if (!autoUpdateOptions.Enabled)
             {
@@ -61,7 +61,7 @@ namespace StorageWatch.Services.AutoUpdate
 
             try
             {
-                // Perform immediate update check on startup
+                // Perform an immediate check at startup.
                 await RunUpdateCycleAsync(stoppingToken);
 
                 while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -164,7 +164,7 @@ namespace StorageWatch.Services.AutoUpdate
 
                 stoppingToken.ThrowIfCancellationRequested();
 
-                // Do not interrupt installation once file apply begins; this prevents partial update application.
+                // Use a non-cancelable token once handoff starts to avoid partial staging state.
                 var install = await _serviceUpdateInstaller.InstallAsync(download.FilePath, CancellationToken.None);
                 if (!install.Success)
                 {

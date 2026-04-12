@@ -11,30 +11,38 @@ using System.Threading.Tasks;
 
 namespace StorageWatch.Services.AutoUpdate
 {
+    /// <summary>
+    /// Installs Agent updates using a handoff-only pipeline: prepare, stage, handoff, exit.
+    /// </summary>
     public interface IServiceUpdateInstaller
     {
+        /// <summary>
+        /// Prepares and stages the update package, then launches the updater executable and exits the service process.
+        /// </summary>
         Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken);
     }
 
-    public class ServiceUpdateInstaller : IServiceUpdateInstaller
+    /// <summary>
+    /// Agent update installer that only prepares files, stages payload content, hands off to updater, and exits.
+    /// </summary>
+    public class AgentUpdateHandoffInstaller : IServiceUpdateInstaller
     {
         private const string DefaultServiceName = "StorageWatchAgent";
 
-        private readonly ILogger<ServiceUpdateInstaller> _logger;
+        private readonly ILogger<AgentUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
         private readonly string _serviceName;
         private readonly Func<string, string, bool> _updaterLauncher;
         private readonly Func<string, bool> _scmStopRequester;
         private readonly Action _exitAction;
 
-        public ServiceUpdateInstaller(ILogger<ServiceUpdateInstaller> logger, IServiceRestartHandler restartHandler)
-            : this(logger, restartHandler, AppContext.BaseDirectory)
+        public AgentUpdateHandoffInstaller(ILogger<AgentUpdateHandoffInstaller> logger)
+            : this(logger, AppContext.BaseDirectory)
         {
         }
 
-        public ServiceUpdateInstaller(
-            ILogger<ServiceUpdateInstaller> logger,
-            IServiceRestartHandler restartHandler,
+        public AgentUpdateHandoffInstaller(
+            ILogger<AgentUpdateHandoffInstaller> logger,
             string targetDirectory,
             Func<string, string, bool>? updaterLauncher = null,
             Func<string, bool>? scmStopRequester = null,
@@ -42,7 +50,6 @@ namespace StorageWatch.Services.AutoUpdate
             string? serviceName = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _ = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
             _serviceName = string.IsNullOrWhiteSpace(serviceName) ? DefaultServiceName : serviceName.Trim();
             _updaterLauncher = updaterLauncher ?? LaunchUpdaterProcess;
@@ -50,6 +57,9 @@ namespace StorageWatch.Services.AutoUpdate
             _exitAction = exitAction ?? ExitProcess;
         }
 
+        /// <summary>
+        /// Executes the handoff flow: prepare package input, stage extracted payload, hand off to updater, and exit.
+        /// </summary>
         public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(zipPath))
@@ -88,7 +98,6 @@ namespace StorageWatch.Services.AutoUpdate
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[AUTOUPDATE] Agent install handoff failed.");
-                TryDeleteDirectory(stagingDirectory);
                 return Task.FromResult(new UpdateInstallResult
                 {
                     Success = false,
@@ -185,18 +194,6 @@ namespace StorageWatch.Services.AutoUpdate
         private static void ExitProcess()
         {
             Environment.Exit(0);
-        }
-
-        private static void TryDeleteDirectory(string directory)
-        {
-            try
-            {
-                if (Directory.Exists(directory))
-                    Directory.Delete(directory, true);
-            }
-            catch
-            {
-            }
         }
     }
 }

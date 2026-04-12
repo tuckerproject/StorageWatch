@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 
 namespace StorageWatchUI.Services.AutoUpdate
 {
+    /// <summary>
+    /// Progress details for the UI update handoff flow.
+    /// </summary>
     public sealed class UiUpdateProgressInfo
     {
         public string Status { get; init; } = string.Empty;
@@ -15,6 +18,9 @@ namespace StorageWatchUI.Services.AutoUpdate
         public bool IsIndeterminate { get; init; }
     }
 
+    /// <summary>
+    /// Coordinates update checks and updater handoff operations for the UI process.
+    /// </summary>
     public interface IUiAutoUpdateWorker
     {
         void Start();
@@ -25,7 +31,6 @@ namespace StorageWatchUI.Services.AutoUpdate
         event EventHandler<ComponentUpdateCheckResult>? UpdateCheckCompleted;
         event EventHandler<UiUpdateProgressInfo>? UpdateProgressChanged;
         event EventHandler<UpdateInstallResult>? UpdateInstallCompleted;
-        event EventHandler? RestartPromptRequested;
     }
 
     public class UiAutoUpdateWorker : IUiAutoUpdateWorker
@@ -60,7 +65,6 @@ namespace StorageWatchUI.Services.AutoUpdate
         public event EventHandler<ComponentUpdateCheckResult>? UpdateCheckCompleted;
         public event EventHandler<UiUpdateProgressInfo>? UpdateProgressChanged;
         public event EventHandler<UpdateInstallResult>? UpdateInstallCompleted;
-        public event EventHandler? RestartPromptRequested;
 
         public bool IsCycleActive => _cycleLock.CurrentCount == 0;
 
@@ -194,12 +198,12 @@ namespace StorageWatchUI.Services.AutoUpdate
 
                 UpdateProgressChanged?.Invoke(this, new UiUpdateProgressInfo
                 {
-                    Status = "StorageWatch is restarting to apply updates…",
+                    Status = "Preparing handoff to updater...",
                     ProgressPercent = 100,
                     IsIndeterminate = true
                 });
 
-                var install = await _updateInstaller.InstallAsync(download.FilePath, cancellationToken, promptForRestart: false, progress: null);
+                var install = await _updateInstaller.InstallAsync(download.FilePath, cancellationToken, progress: null);
 
                 UpdateInstallCompleted?.Invoke(this, install);
 

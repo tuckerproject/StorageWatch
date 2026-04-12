@@ -64,11 +64,8 @@ namespace StorageWatchUI.Tests.Services
 
             var checker = new UiUpdateChecker(httpClient, NullLogger<UiUpdateChecker>.Instance, options);
             var downloader = new UiUpdateDownloader(httpClient, NullLogger<UiUpdateDownloader>.Instance);
-            var restartHandler = new FakeRestartHandler();
-            var installer = new UiUpdateInstaller(
-                NullLogger<UiUpdateInstaller>.Instance,
-                new FakeRestartPrompter(true),
-                restartHandler,
+            var installer = new UiUpdateHandoffInstaller(
+                NullLogger<UiUpdateHandoffInstaller>.Instance,
                 targetRoot,
                 (_, _) => true,
                 () => { });
@@ -83,11 +80,9 @@ namespace StorageWatchUI.Tests.Services
 
             ComponentUpdateCheckResult? checkResult = null;
             UpdateInstallResult? installResult = null;
-            var restartPromptRequestedCount = 0;
 
             worker.UpdateCheckCompleted += (_, result) => checkResult = result;
             worker.UpdateInstallCompleted += (_, result) => installResult = result;
-            worker.RestartPromptRequested += (_, _) => restartPromptRequestedCount++;
 
             var checkRan = await worker.TryRunUpdateCycleAsync(CancellationToken.None);
             var installRan = await worker.TryInstallAvailableUpdateAsync(CancellationToken.None);
@@ -101,8 +96,6 @@ namespace StorageWatchUI.Tests.Services
 
             installResult.Should().NotBeNull();
             installResult!.Success.Should().BeTrue();
-            restartPromptRequestedCount.Should().Be(0);
-            restartHandler.RestartRequested.Should().BeFalse();
 
             var installedPayloadFile = Path.Combine(targetRoot, "app", "version.txt");
             File.Exists(installedPayloadFile).Should().BeFalse();
@@ -147,11 +140,8 @@ namespace StorageWatchUI.Tests.Services
 
             var checker = new UiUpdateChecker(httpClient, NullLogger<UiUpdateChecker>.Instance, options);
             var downloader = new UiUpdateDownloader(httpClient, NullLogger<UiUpdateDownloader>.Instance);
-            var restartHandler = new FakeRestartHandler();
-            var installer = new UiUpdateInstaller(
-                NullLogger<UiUpdateInstaller>.Instance,
-                new FakeRestartPrompter(true),
-                restartHandler,
+            var installer = new UiUpdateHandoffInstaller(
+                NullLogger<UiUpdateHandoffInstaller>.Instance,
                 targetRoot);
 
             var worker = new UiAutoUpdateWorker(
@@ -163,10 +153,8 @@ namespace StorageWatchUI.Tests.Services
                 NullLogger<UiAutoUpdateWorker>.Instance);
 
             UpdateInstallResult? installResult = null;
-            var restartPromptRequestedCount = 0;
 
             worker.UpdateInstallCompleted += (_, result) => installResult = result;
-            worker.RestartPromptRequested += (_, _) => restartPromptRequestedCount++;
 
             var checkRan = await worker.TryRunUpdateCycleAsync(CancellationToken.None);
             var installRan = await worker.TryInstallAvailableUpdateAsync(CancellationToken.None);
@@ -176,8 +164,6 @@ namespace StorageWatchUI.Tests.Services
             installResult.Should().NotBeNull();
             installResult!.Success.Should().BeFalse();
             installResult.ErrorMessage.Should().NotBeNullOrWhiteSpace();
-            restartPromptRequestedCount.Should().Be(0);
-            restartHandler.RestartRequested.Should().BeFalse();
 
             var installedPayloadFile = Path.Combine(targetRoot, "app", "version.txt");
             File.Exists(installedPayloadFile).Should().BeFalse();
@@ -220,28 +206,6 @@ namespace StorageWatchUI.Tests.Services
                 }
 
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
-            }
-        }
-
-        private sealed class FakeRestartPrompter : IUiRestartPrompter
-        {
-            private readonly bool _response;
-
-            public FakeRestartPrompter(bool response)
-            {
-                _response = response;
-            }
-
-            public bool PromptForRestart() => _response;
-        }
-
-        private sealed class FakeRestartHandler : IUiRestartHandler
-        {
-            public bool RestartRequested { get; private set; }
-
-            public void RequestRestart()
-            {
-                RestartRequested = true;
             }
         }
 

@@ -100,12 +100,9 @@ namespace StorageWatchUI.Tests.Services
 
             var launched = false;
             var exitRequested = false;
-            var restartHandler = new FakeRestartHandler();
 
-            var installer = new UiUpdateInstaller(
-                new TestLogger<UiUpdateInstaller>(),
-                new FakeRestartPrompter(true),
-                restartHandler,
+            var installer = new UiUpdateHandoffInstaller(
+                new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) =>
                 {
@@ -119,7 +116,6 @@ namespace StorageWatchUI.Tests.Services
             result.Success.Should().BeTrue();
             launched.Should().BeTrue();
             exitRequested.Should().BeTrue();
-            restartHandler.RestartRequested.Should().BeFalse();
 
             var targetFile = Path.Combine(tempTarget, "app", "test.txt");
             File.Exists(targetFile).Should().BeFalse();
@@ -130,18 +126,14 @@ namespace StorageWatchUI.Tests.Services
         {
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var missingZipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "missing-update.zip");
-            var restartHandler = new AssertiveUiRestartHandler();
 
-            var installer = new UiUpdateInstaller(
-                new TestLogger<UiUpdateInstaller>(),
-                new FakeRestartPrompter(true),
-                restartHandler,
+            var installer = new UiUpdateHandoffInstaller(
+                new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget);
 
             var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
 
             result.Success.Should().BeFalse();
-            restartHandler.RequestCount.Should().Be(0);
         }
 
         [Fact]
@@ -163,10 +155,8 @@ namespace StorageWatchUI.Tests.Services
             string? launchedArgs = null;
             var exitRequested = false;
 
-            var installer = new UiUpdateInstaller(
-                new TestLogger<UiUpdateInstaller>(),
-                new FakeRestartPrompter(true),
-                new FakeRestartHandler(),
+            var installer = new UiUpdateHandoffInstaller(
+                new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
                 (exe, args) =>
                 {
@@ -208,12 +198,8 @@ namespace StorageWatchUI.Tests.Services
             ZipFile.CreateFromDirectory(tempSource, zipPath);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var restartHandler = new AssertiveUiRestartHandler();
-
-            var installer = new UiUpdateInstaller(
-                new TestLogger<UiUpdateInstaller>(),
-                new FakeRestartPrompter(true),
-                restartHandler,
+            var installer = new UiUpdateHandoffInstaller(
+                new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) => true,
                 () => { });
@@ -221,7 +207,6 @@ namespace StorageWatchUI.Tests.Services
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             result.Success.Should().BeTrue();
-            restartHandler.RequestCount.Should().Be(0);
         }
 
         [Fact]
@@ -297,46 +282,6 @@ namespace StorageWatchUI.Tests.Services
             }
         }
 
-        private sealed class FakeRestartPrompter : IUiRestartPrompter
-        {
-            private readonly bool _response;
-
-            public FakeRestartPrompter(bool response)
-            {
-                _response = response;
-            }
-
-            public bool PromptForRestart() => _response;
-        }
-
-        private sealed class FakeRestartHandler : IUiRestartHandler
-        {
-            public bool RestartRequested { get; private set; }
-
-            public void RequestRestart()
-            {
-                RestartRequested = true;
-            }
-        }
-
-        private sealed class AssertiveUiRestartHandler : IUiRestartHandler
-        {
-            private readonly Action? _onRequest;
-
-            public AssertiveUiRestartHandler(Action? onRequest = null)
-            {
-                _onRequest = onRequest;
-            }
-
-            public int RequestCount { get; private set; }
-
-            public void RequestRestart()
-            {
-                RequestCount++;
-                _onRequest?.Invoke();
-            }
-        }
-
         private sealed class FakeUiUpdateChecker : IUiUpdateChecker
         {
             private readonly ComponentUpdateCheckResult _result;
@@ -397,7 +342,7 @@ namespace StorageWatchUI.Tests.Services
                 _result = result;
             }
 
-            public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null)
+            public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, IProgress<double>? progress = null)
             {
                 return Task.FromResult(_result);
             }

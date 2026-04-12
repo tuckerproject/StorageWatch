@@ -112,9 +112,7 @@ public partial class App : Application
         // Auto-Update Services
         services.AddHttpClient<IUiUpdateChecker, UiUpdateChecker>();
         services.AddHttpClient<IUiUpdateDownloader, UiUpdateDownloader>();
-        services.AddSingleton<IUiRestartPrompter, UiRestartPrompter>();
-        services.AddSingleton<IUiRestartHandler, UiRestartHandler>();
-        services.AddSingleton<IUiUpdateInstaller, UiUpdateInstaller>();
+        services.AddSingleton<IUiUpdateInstaller, UiUpdateHandoffInstaller>();
         services.AddSingleton<IUiUpdateUserSettingsStore, UiUpdateUserSettingsStore>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
         services.AddSingleton<IUiAutoUpdateWorker, UiAutoUpdateWorker>();

@@ -11,43 +11,49 @@ using System.Windows;
 
 namespace StorageWatchUI.Services.AutoUpdate
 {
+    /// <summary>
+    /// Installs UI updates using a handoff-only pipeline: prepare, stage, handoff, exit.
+    /// </summary>
     public interface IUiUpdateInstaller
     {
-        Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null);
+        /// <summary>
+        /// Prepares and stages the update package, then launches the updater executable and exits the UI process.
+        /// </summary>
+        Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, IProgress<double>? progress = null);
     }
 
-    public class UiUpdateInstaller : IUiUpdateInstaller
+    /// <summary>
+    /// UI update installer that only prepares files, stages payload content, hands off to updater, and exits.
+    /// </summary>
+    public class UiUpdateHandoffInstaller : IUiUpdateInstaller
     {
-        private readonly ILogger<UiUpdateInstaller> _logger;
+        private readonly ILogger<UiUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
         private readonly Func<string, string, bool> _updaterLauncher;
         private readonly Action _exitAction;
 
-        public UiUpdateInstaller(
-            ILogger<UiUpdateInstaller> logger,
-            IUiRestartPrompter restartPrompter,
-            IUiRestartHandler restartHandler)
-            : this(logger, restartPrompter, restartHandler, AppContext.BaseDirectory)
+        public UiUpdateHandoffInstaller(
+            ILogger<UiUpdateHandoffInstaller> logger)
+            : this(logger, AppContext.BaseDirectory)
         {
         }
 
-        public UiUpdateInstaller(
-            ILogger<UiUpdateInstaller> logger,
-            IUiRestartPrompter restartPrompter,
-            IUiRestartHandler restartHandler,
+        public UiUpdateHandoffInstaller(
+            ILogger<UiUpdateHandoffInstaller> logger,
             string targetDirectory,
             Func<string, string, bool>? updaterLauncher = null,
             Action? exitAction = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _ = restartPrompter ?? throw new ArgumentNullException(nameof(restartPrompter));
-            _ = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
             _updaterLauncher = updaterLauncher ?? LaunchUpdaterProcess;
             _exitAction = exitAction ?? ExitApplication;
         }
 
-        public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, bool promptForRestart = true, IProgress<double>? progress = null)
+        /// <summary>
+        /// Executes the handoff flow: prepare package input, stage extracted payload, hand off to updater, and exit.
+        /// </summary>
+        public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken, IProgress<double>? progress = null)
         {
             if (string.IsNullOrWhiteSpace(zipPath))
                 throw new ArgumentException("Zip path is required.", nameof(zipPath));
@@ -85,7 +91,6 @@ namespace StorageWatchUI.Services.AutoUpdate
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[AUTOUPDATE] UI install handoff failed");
-                TryDeleteDirectory(stagingDirectory);
                 return Task.FromResult(new UpdateInstallResult
                 {
                     Success = false,
@@ -173,18 +178,6 @@ namespace StorageWatchUI.Services.AutoUpdate
             }
 
             Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown(0));
-        }
-
-        private static void TryDeleteDirectory(string directory)
-        {
-            try
-            {
-                if (Directory.Exists(directory))
-                    Directory.Delete(directory, true);
-            }
-            catch
-            {
-            }
         }
     }
 }

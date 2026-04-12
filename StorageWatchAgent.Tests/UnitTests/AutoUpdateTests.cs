@@ -174,9 +174,8 @@ namespace StorageWatch.Tests.UnitTests
             var scmStopRequested = false;
             var exitRequested = false;
 
-            var installer = new ServiceUpdateInstaller(
-                new TestLogger<ServiceUpdateInstaller>(),
-                new FakeRestartHandler(),
+            var installer = new AgentUpdateHandoffInstaller(
+                new TestLogger<AgentUpdateHandoffInstaller>(),
                 tempTarget,
                 (_, _) =>
                 {

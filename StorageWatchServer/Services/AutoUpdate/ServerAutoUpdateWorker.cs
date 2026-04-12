@@ -126,11 +126,11 @@ namespace StorageWatchServer.Services.AutoUpdate
                 var install = await _updateInstaller.InstallAsync(download.FilePath, stoppingToken);
                 if (!install.Success)
                 {
-                    _logger.LogWarning("[AUTOUPDATE] Server install failed: {Error}", install.ErrorMessage);
+                    _logger.LogWarning("[AUTOUPDATE] Server handoff failed: {Error}", install.ErrorMessage);
                     return install;
                 }
 
-                _logger.LogInformation("[AUTOUPDATE] Server update installed. Restart triggered.");
+                _logger.LogInformation("[AUTOUPDATE] Server update staged and handed off to updater.");
                 return install;
             }
             finally

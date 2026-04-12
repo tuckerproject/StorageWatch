@@ -353,17 +353,17 @@ namespace StorageWatch.Config.Options
     public class AutoUpdateOptions
     {
         /// <summary>
-        /// Configuration section key within StorageWatch section
+        /// Configuration section key within StorageWatch section.
         /// </summary>
         public const string SectionKey = "AutoUpdate";
 
         /// <summary>
-        /// Enables or disables automatic updates for the service.
+        /// Enables or disables automatic update checks and updater handoff operations.
         /// </summary>
         public bool Enabled { get; set; } = true;
 
         /// <summary>
-        /// URL to the update manifest JSON.
+        /// URL to the update manifest JSON used during the prepare and stage phases.
         /// </summary>
         [StringLength(500, ErrorMessage = "ManifestUrl cannot exceed 500 characters")]
         public string ManifestUrl { get; set; } = string.Empty;

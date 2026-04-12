@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using StorageWatch.Communication.Models;
-using StorageWatch.Services.AutoUpdate;
 using StorageWatch.Services.Logging;
 
 namespace StorageWatch.Communication;
@@ -157,8 +156,6 @@ public class ServiceCommunicationServer : BackgroundService
                 "TestAlertSenders" => await HandleTestAlertSendersAsync(cancellationToken),
                 "GetPluginStatus" => await HandleGetPluginStatusAsync(cancellationToken),
                 "GetLocalData" => await HandleGetLocalDataAsync(request, cancellationToken),
-                "InstallUpdate" => await HandleInstallUpdateAsync(cancellationToken),
-                "RestartService" => await HandleRestartServiceAsync(cancellationToken),
                 _ => new ServiceResponse
                 {
                     Success = false,
@@ -306,81 +303,6 @@ public class ServiceCommunicationServer : BackgroundService
             Success = true,
             Data = JsonSerializer.SerializeToElement(new { Message = "Local data query not yet implemented" })
         };
-    }
-
-    private async Task<ServiceResponse> HandleInstallUpdateAsync(CancellationToken cancellationToken)
-    {
-        _logger.Log("[IPC] Received InstallUpdate request");
-
-        try
-        {
-            var worker = _serviceProvider.GetServices<IHostedService>().OfType<AutoUpdateWorker>().FirstOrDefault();
-            if (worker == null)
-            {
-                _logger.Log("[IPC] InstallUpdate failed: AutoUpdateWorker is not available.");
-                return new ServiceResponse
-                {
-                    Success = false,
-                    ErrorMessage = "AutoUpdateWorker is not available."
-                };
-            }
-
-            worker.RequestManualInstall();
-            var install = await worker.RunServiceUpdateAsync(cancellationToken);
-
-            if (install.Success)
-            {
-                _logger.Log("[IPC] InstallUpdate completed successfully.");
-                return new ServiceResponse
-                {
-                    Success = true,
-                    Data = JsonSerializer.SerializeToElement(new { Message = "InstallUpdate completed successfully." })
-                };
-            }
-
-            _logger.Log($"[IPC] InstallUpdate failed: {install.ErrorMessage}");
-            return new ServiceResponse
-            {
-                Success = false,
-                ErrorMessage = install.ErrorMessage ?? "InstallUpdate failed."
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.Log($"[IPC ERROR] InstallUpdate failed: {ex.Message}");
-            return new ServiceResponse
-            {
-                Success = false,
-                ErrorMessage = ex.Message
-            };
-        }
-    }
-
-    private async Task<ServiceResponse> HandleRestartServiceAsync(CancellationToken cancellationToken)
-    {
-        _logger.Log("[IPC] Received RestartService request");
-
-        try
-        {
-            var restartHandler = _serviceProvider.GetRequiredService<IServiceRestartHandler>();
-            restartHandler.RequestRestart();
-            _logger.Log("[IPC] RestartService completed successfully.");
-
-            return new ServiceResponse
-            {
-                Success = true,
-                Data = JsonSerializer.SerializeToElement(new { Message = "RestartService request accepted." })
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.Log($"[IPC ERROR] RestartService failed: {ex.Message}");
-            return new ServiceResponse
-            {
-                Success = false,
-                ErrorMessage = ex.Message
-            };
-        }
     }
 
     private async Task SendErrorResponse(NamedPipeServerStream pipeServer, string error, CancellationToken cancellationToken)

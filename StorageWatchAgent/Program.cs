@@ -161,7 +161,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
         services.AddSingleton<IServiceRestartHandler, UpdaterServiceRestartHandler>();
 
-        services.AddSingleton<IServiceUpdateInstaller, ServiceUpdateInstaller>();
+        services.AddSingleton<IServiceUpdateInstaller, AgentUpdateHandoffInstaller>();
         services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();
         services.AddHttpClient<IPluginUpdateChecker, PluginUpdateChecker>();
         services.AddHttpClient<IPluginUpdateDownloader, PluginUpdateDownloader>();
