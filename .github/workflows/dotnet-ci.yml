@@ -15,7 +15,7 @@ jobs:
         configuration: [Debug, Release]
     env:
       STORAGEWATCH_SIGNING_CERT_BASE64: ${{ secrets.STORAGEWATCH_SIGNING_CERT_BASE64 }}
-      STORAGEWATCH_SIGNING_CERT_PASSWORD: ${{ secrets.STORAGEWATCH_SIGNING_CERT_PASSWORD }}
+      STORAGEWATCH_SIGNING_CERT_PASSWORD: ${{ secrets/STORAGEWATCH_SIGNING_CERT_PASSWORD }}
       STORAGEWATCH_SIGNING_TIMESTAMP_URL: ${{ secrets.STORAGEWATCH_SIGNING_TIMESTAMP_URL }}
 
     steps:
@@ -27,8 +27,15 @@ jobs:
       with:
         dotnet-version: '10.x'
 
-    - name: Restore dependencies
+    # -------------------------------
+    # 🔧 FIX: Restore dependencies
+    # -------------------------------
+    - name: Restore solution dependencies
       run: dotnet restore
+
+    - name: Restore updater dependencies
+      run: dotnet restore StorageWatch.Updater/StorageWatch.Updater.csproj
+    # -------------------------------
 
     - name: Build solution
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
