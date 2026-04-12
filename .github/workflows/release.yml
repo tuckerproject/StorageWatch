@@ -35,6 +35,9 @@ jobs:
     defaults:
       run:
         shell: pwsh
+    env:
+      CONFIGURATION: Release
+
     outputs:
       version: ${{ steps.meta.outputs.version }}
       channel: ${{ steps.meta.outputs.channel }}
