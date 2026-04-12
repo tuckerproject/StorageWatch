@@ -117,7 +117,7 @@ namespace StorageWatchServer.Services.AutoUpdate
 
         public static bool IsUpdateAvailable(Version currentVersion, Version manifestVersion)
         {
-            return manifestVersion.CompareTo(currentVersion) > 0;
+            return manifestVersion > currentVersion;
         }
 
         private static Version GetAssemblyVersion()

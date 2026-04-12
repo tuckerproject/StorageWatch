@@ -86,6 +86,31 @@ namespace StorageWatchServer.Tests.Services
         }
 
         [Fact]
+        public async Task ServerUpdateDownloader_HandlesNetworkTimeout_GracefullyWithFailureResult()
+        {
+            var component = new ComponentUpdateInfo
+            {
+                Version = "1.0.1",
+                DownloadUrl = "https://example.com/update.zip",
+                Sha256 = "abc123"
+            };
+
+            var handler = new FakeHttpMessageHandler(_ =>
+            {
+                throw new HttpRequestException("Connection timeout");
+            });
+
+            var httpClient = new HttpClient(handler);
+            var logger = new TestLogger<ServerUpdateDownloader>();
+            var downloader = new ServerUpdateDownloader(httpClient, logger);
+
+            var result = await downloader.DownloadAsync(component, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.NotEmpty(result.ErrorMessage);
+        }
+
+        [Fact]
         public async Task ServerUpdateInstaller_ExtractsAndCopiesFiles_TriggersRestart()
         {
             var tempSource = TestDirectoryFactory.CreateTempDirectory();

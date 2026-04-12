@@ -346,6 +346,74 @@ namespace StorageWatch.Tests.UnitTests
             pluginInstaller.CallCount.Should().Be(0);
         }
 
+        [Fact]
+        public async Task ServiceUpdateInstaller_ReturnsFailure_WhenStagingDirectoryMissing()
+        {
+            var tempTarget = TestHelpers.CreateTempDirectory();
+            var nonExistentStagingDir = Path.Combine(tempTarget, "non-existent-staging");
+            var manifestPath = Path.Combine(nonExistentStagingDir, "manifest.json");
+            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            await File.WriteAllTextAsync(updaterExePath, string.Empty);
+
+            var updateLaunched = false;
+            var installer = new AgentUpdateHandoffInstaller(
+                new TestLogger<AgentUpdateHandoffInstaller>(),
+                tempTarget,
+                (_, _) =>
+                {
+                    updateLaunched = true;
+                    return true;
+                });
+
+            var result = await installer.InstallAsync(manifestPath, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            updateLaunched.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task ServiceUpdateInstaller_ReturnsFailure_WhenManifestFileDoesNotExist()
+        {
+            var tempTarget = TestHelpers.CreateTempDirectory();
+            var stagingDir = Path.Combine(tempTarget, "staging");
+            Directory.CreateDirectory(stagingDir);
+            var manifestPath = Path.Combine(stagingDir, "manifest.json");
+
+            var updateLaunched = false;
+            var installer = new AgentUpdateHandoffInstaller(
+                new TestLogger<AgentUpdateHandoffInstaller>(),
+                tempTarget,
+                (_, _) =>
+                {
+                    updateLaunched = true;
+                    return true;
+                });
+
+            var result = await installer.InstallAsync(manifestPath, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            updateLaunched.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task ServiceUpdateDownloader_ReturnsFailure_OnNetworkTimeout()
+        {
+            var component = new ComponentUpdateInfo
+            {
+                Version = "1.0.1",
+                DownloadUrl = "https://example.com/update.zip",
+                Sha256 = "abc123"
+            };
+
+            var handler = new FakeHttpMessageHandler(_ => throw new HttpRequestException("timeout"));
+            var httpClient = new HttpClient(handler);
+            var downloader = new ServiceUpdateDownloader(httpClient, new TestLogger<ServiceUpdateDownloader>());
+
+            var result = await downloader.DownloadAsync(component, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+        }
+
         private sealed class FakeHttpMessageHandler : HttpMessageHandler
         {
             private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
