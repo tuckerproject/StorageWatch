@@ -59,6 +59,7 @@ function Clear-Directory([string]$Path) {
 
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedProjectPath = if ([System.IO.Path]::IsPathRooted($ProjectPath)) { $ProjectPath } else { Join-Path $resolvedRepoRoot $ProjectPath }
+$resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $resolvedRepoRoot $OutputRoot }
 $signScript = Join-Path $resolvedRepoRoot 'build/packaging/sign-executable.ps1'
 
 if (-not (Test-Path -LiteralPath $resolvedProjectPath)) {
@@ -115,22 +116,31 @@ if (-not (Test-Path -LiteralPath $updaterExe)) {
     throw "Updater executable not found after publish: $updaterExe"
 }
 
-if (Test-Path -LiteralPath $signScript) {
-    & $signScript -FilePath $updaterExe | Out-Null
-}
-
-$updaterFileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updaterExe).FileVersion
-$updaterSha256 = (Get-FileHash -LiteralPath $updaterExe -Algorithm SHA256).Hash.ToLowerInvariant()
-Write-Host "Updater output path: $updaterExe"
-Write-Host "Updater EXE version: $updaterFileVersion"
-Write-Host "Updater EXE SHA256: $updaterSha256"
-
 $packagedExecutablePath = $null
 if ($CopyToPackageOutput) {
     Ensure-Directory -Path $resolvedPackageOutputDir
     $packagedExecutablePath = Join-Path $resolvedPackageOutputDir $ExecutableFileName
     Copy-Item -LiteralPath $updaterExe -Destination $packagedExecutablePath -Force
+
+    if (Test-Path -LiteralPath $signScript) {
+        $signed = & $signScript -FilePath $packagedExecutablePath
+        if ($signed) {
+            Ensure-Directory -Path $resolvedOutputRoot
+            $markerFile = Join-Path $resolvedOutputRoot 'signing-performed.marker'
+            Set-Content -LiteralPath $markerFile -Value '' -Encoding ASCII
+            Write-Host "[SIGN] Signing marker written to '$markerFile'."
+        } else {
+            Write-Warning "[SIGN] Signing secrets not configured. Updater EXE was NOT signed. Smoke tests will skip Authenticode validation."
+        }
+    }
 }
+
+$targetExeForInfo = if ($packagedExecutablePath -and (Test-Path -LiteralPath $packagedExecutablePath)) { $packagedExecutablePath } else { $updaterExe }
+$updaterFileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($targetExeForInfo).FileVersion
+$updaterSha256 = (Get-FileHash -LiteralPath $targetExeForInfo -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "Updater output path: $targetExeForInfo"
+Write-Host "Updater EXE version: $updaterFileVersion"
+Write-Host "Updater EXE SHA256: $updaterSha256"
 
 [pscustomobject]@{
     Component = 'Updater'

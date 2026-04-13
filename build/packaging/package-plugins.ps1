@@ -72,6 +72,7 @@ function Clear-Directory([string]$Path) {
 
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $resolvedRepoRoot $OutputRoot }
+$signScript = Join-Path $resolvedRepoRoot 'build/packaging/sign-executable.ps1'
 
 if ([string]::IsNullOrWhiteSpace($PackageOutputDir)) {
     $PackageOutputDir = Join-Path $resolvedOutputRoot 'packages/plugins'
@@ -176,7 +177,11 @@ if ($PackageIndividually) {
         Ensure-Directory -Path $stagingDir
 
         try {
-            Copy-Item -LiteralPath $plugin.FullName -Destination (Join-Path $stagingDir $plugin.Name) -Force
+            $stagedFile = Join-Path $stagingDir $plugin.Name
+            Copy-Item -LiteralPath $plugin.FullName -Destination $stagedFile -Force
+            if (Test-Path -LiteralPath $signScript) {
+                & $signScript -FilePath $stagedFile | Out-Null
+            }
             Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
         }
         finally {
@@ -211,7 +216,11 @@ else {
 
     try {
         foreach ($plugin in $plugins) {
-            Copy-Item -LiteralPath $plugin.FullName -Destination (Join-Path $stagingDir $plugin.Name) -Force
+            $stagedFile = Join-Path $stagingDir $plugin.Name
+            Copy-Item -LiteralPath $plugin.FullName -Destination $stagedFile -Force
+            if (Test-Path -LiteralPath $signScript) {
+                & $signScript -FilePath $stagedFile | Out-Null
+            }
             if ($StageToPayload) {
                 Copy-Item -LiteralPath $plugin.FullName -Destination (Join-Path $resolvedPayloadPluginsDir $plugin.Name) -Force
             }
