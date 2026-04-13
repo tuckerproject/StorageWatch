@@ -155,16 +155,22 @@ $updaterResult = & $updaterPackScript `
     -OutputRoot $resolvedOutputRoot `
     -Force:$Force.IsPresent
 
-if (-not $updaterResult -or -not (Test-Path -LiteralPath $updaterResult.ExecutablePath)) {
+if (-not $updaterResult -or (-not (Test-Path -LiteralPath $updaterResult.PackagedExecutablePath) -and -not (Test-Path -LiteralPath $updaterResult.ExecutablePath))) {
     throw "Failed to publish updater executable."
 }
 
+$sourceUpdaterExe = if ($updaterResult.PackagedExecutablePath -and (Test-Path -LiteralPath $updaterResult.PackagedExecutablePath)) {
+    $updaterResult.PackagedExecutablePath
+} else {
+    $updaterResult.ExecutablePath
+}
+
 Ensure-Directory -Path $componentUpdaterDir
-Copy-Item -LiteralPath $updaterResult.ExecutablePath -Destination (Join-Path $componentUpdaterDir 'StorageWatch.Updater.exe') -Force
+Copy-Item -LiteralPath $sourceUpdaterExe -Destination (Join-Path $componentUpdaterDir 'StorageWatch.Updater.exe') -Force
 
 if (Test-Path -LiteralPath $signScript) {
     Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
-        Where-Object { $_.Name -like 'StorageWatch*.exe' } |
+        Where-Object { $_.Name -like 'StorageWatch*.exe' -and -not $_.FullName.StartsWith($componentUpdaterDir + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase) } |
         ForEach-Object {
             & $signScript -FilePath $_.FullName | Out-Null
         }

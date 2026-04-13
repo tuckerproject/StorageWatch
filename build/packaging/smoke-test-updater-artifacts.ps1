@@ -55,9 +55,11 @@ function Assert-ZipContainsUpdater([string]$zipPath, [string]$label) {
 
 function Assert-AuthenticodeValid([string]$filePath, [string]$label) {
     $sig = Get-AuthenticodeSignature -FilePath $filePath
-    if ($sig.Status -ne 'Valid') {
-        throw "$label is not signed with a valid Authenticode signature. Status: $($sig.Status)"
+    if ($sig.Status -eq 'Valid') { return }
+    if ($sig.Status -eq 'NotSigned') {
+        throw "$label is not Authenticode-signed (Status: NotSigned). Ensure signing secrets are configured and packaging runs signing."
     }
+    throw "$label has an invalid Authenticode signature (Status: $($sig.Status))."
 }
 
 function Assert-ManifestComponent([object]$manifest, [string]$componentName) {
@@ -83,6 +85,14 @@ if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
 }
 
 $resolvedArtifactsRoot = Resolve-PathRequired -pathValue $ArtifactsRoot -name 'ArtifactsRoot'
+
+$signingMarkerPath = Join-Path $resolvedArtifactsRoot 'signing-performed.marker'
+$signingExpected = Test-Path -LiteralPath $signingMarkerPath
+if ($signingExpected) {
+    Write-Host '[SMOKE] Signing marker found. Authenticode validation will be enforced.'
+} else {
+    Write-Warning '[SMOKE] Signing marker not found (signing-performed.marker). Authenticode validation will be SKIPPED. This is expected when signing secrets are absent.'
+}
 
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
     $manifestCandidates = @(Get-ChildItem (Join-Path $resolvedArtifactsRoot 'manifest') -Recurse -Filter manifest.json -File)
@@ -123,7 +133,11 @@ foreach ($payloadPath in $requiredPayloadUpdaterPaths) {
     }
 }
 
-Assert-AuthenticodeValid -filePath $updaterExe -label 'Packaged updater executable'
+if ($signingExpected) {
+    Assert-AuthenticodeValid -filePath $updaterExe -label 'Packaged updater executable'
+} else {
+    Write-Warning "[SMOKE] Skipping Authenticode validation for packaged updater executable (signing not performed)."
+}
 
 $tempExtractRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("storagewatch-updater-smoke-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempExtractRoot -Force | Out-Null
@@ -141,7 +155,11 @@ try {
         if (-not (Test-Path -LiteralPath $exeInZip)) {
             throw "$key ZIP extraction did not produce updater executable at updater/StorageWatch.Updater.exe"
         }
-        Assert-AuthenticodeValid -filePath $exeInZip -label "$key ZIP updater executable"
+        if ($signingExpected) {
+            Assert-AuthenticodeValid -filePath $exeInZip -label "$key ZIP updater executable"
+        } else {
+            Write-Warning "[SMOKE] Skipping Authenticode validation for $key ZIP updater executable (signing not performed)."
+        }
     }
 }
 finally {
