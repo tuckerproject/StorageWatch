@@ -158,6 +158,7 @@ namespace StorageWatchServer.Services.AutoUpdate
             {
                 Path.Combine(installDir, "StorageWatchUpdater.exe"),
                 Path.Combine(installDir, "StorageWatch.Updater.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe")
             };

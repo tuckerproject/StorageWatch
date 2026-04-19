@@ -81,6 +81,7 @@ namespace StorageWatch.Services.AutoUpdate
         {
             var candidates = new[]
             {
+                Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "..", "StorageWatch.Updater.exe"),
