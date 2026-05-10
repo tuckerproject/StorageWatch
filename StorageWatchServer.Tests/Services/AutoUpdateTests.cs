@@ -131,7 +131,7 @@ namespace StorageWatchServer.Tests.Services
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     launched = true;
                     return true;
@@ -163,15 +163,19 @@ namespace StorageWatchServer.Tests.Services
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             string? launchedExe = null;
-            string? launchedArgs = null;
+            string? launchedStagingDir = null;
+            string? launchedManifestPath = null;
+            string? launchedInstallDir = null;
 
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
-                (exe, args) =>
+                (exe, stagingDir, manifestPath, installDir) =>
                 {
                     launchedExe = exe;
-                    launchedArgs = args;
+                    launchedStagingDir = stagingDir;
+                    launchedManifestPath = manifestPath;
+                    launchedInstallDir = installDir;
                     return true;
                 },
                 () => { },
@@ -180,15 +184,10 @@ namespace StorageWatchServer.Tests.Services
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             Assert.True(result.Success);
-            Assert.Equal("powershell.exe", launchedExe);
-            Assert.NotNull(launchedArgs);
-            Assert.Contains("Start-Process", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("StorageWatch.Updater.exe", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("--update-server", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("--source", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("--target", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("--manifest", launchedArgs, StringComparison.Ordinal);
-            Assert.Contains("--restart-server", launchedArgs, StringComparison.Ordinal);
+            Assert.NotNull(launchedExe);
+            Assert.NotNull(launchedStagingDir);
+            Assert.NotNull(launchedManifestPath);
+            Assert.Equal(tempTarget, launchedInstallDir);
         }
 
         [Fact]
@@ -203,7 +202,7 @@ namespace StorageWatchServer.Tests.Services
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     launched = true;
                     return true;
@@ -236,7 +235,7 @@ namespace StorageWatchServer.Tests.Services
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) => false,
+                (_, _, _, _) => false,
                 () => { },
                 () => { });
 
@@ -267,7 +266,7 @@ namespace StorageWatchServer.Tests.Services
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     launched = true;
                     return true;

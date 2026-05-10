@@ -29,7 +29,7 @@ namespace StorageWatchServer.Services.AutoUpdate
     {
         private readonly ILogger<ServerUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
-        private readonly Func<string, string, bool> _updaterLauncher;
+        private readonly Func<string, string, string, string, bool> _updaterLauncher;
         private readonly Action _gracefulStopAction;
         private readonly Action _exitAction;
 
@@ -48,7 +48,7 @@ namespace StorageWatchServer.Services.AutoUpdate
         public ServerUpdateHandoffInstaller(
             ILogger<ServerUpdateHandoffInstaller> logger,
             string targetDirectory,
-            Func<string, string, bool>? updaterLauncher = null,
+            Func<string, string, string, string, bool>? updaterLauncher = null,
             Action? gracefulStopAction = null,
             Action? exitAction = null)
         {
@@ -119,17 +119,8 @@ namespace StorageWatchServer.Services.AutoUpdate
                 throw new ArgumentException("Install directory is required.", nameof(installDir));
 
             var updaterPath = ResolveUpdaterExecutablePath(installDir);
-            var updaterArguments = $"--update-server --source \"{stagingDir}\" --target \"{installDir}\" --manifest \"{manifestPath}\" --restart-server";
 
-            var currentProcessId = Environment.ProcessId;
-            var escapedUpdaterPath = updaterPath.Replace("'", "''", StringComparison.Ordinal);
-            var escapedArguments = updaterArguments.Replace("'", "''", StringComparison.Ordinal);
-            var handoffScript =
-                $"$ErrorActionPreference='Stop'; " +
-                $"Wait-Process -Id {currentProcessId}; " +
-                $"Start-Process -FilePath '{escapedUpdaterPath}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden";
-
-            if (!_updaterLauncher("powershell.exe", $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{handoffScript}\""))
+            if (!_updaterLauncher(updaterPath, stagingDir, manifestPath, installDir))
                 throw new InvalidOperationException("Failed to launch updater handoff process.");
         }
 
@@ -172,15 +163,21 @@ namespace StorageWatchServer.Services.AutoUpdate
             throw new FileNotFoundException("Updater executable was not found.");
         }
 
-        private static bool LaunchUpdaterProcess(string fileName, string arguments)
+        private static bool LaunchUpdaterProcess(string updaterPath, string stagingDir, string manifestPath, string installDir)
         {
+            var currentProcessId = Environment.ProcessId;
+            var handoffScript =
+                $"$ErrorActionPreference='Stop'; " +
+                $"Wait-Process -Id {currentProcessId}; " +
+                $"Start-Process -FilePath @('{updaterPath}') -ArgumentList @('--update-server','--source','{stagingDir}','--target','{installDir}','--manifest','{manifestPath}','--restart-server') -WindowStyle Hidden";
+
             var process = Process.Start(new ProcessStartInfo
             {
-                FileName = fileName,
-                Arguments = arguments,
+                FileName = "powershell.exe",
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WorkingDirectory = AppContext.BaseDirectory
+                WorkingDirectory = AppContext.BaseDirectory,
+                ArgumentList = { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", handoffScript }
             });
 
             return process != null;

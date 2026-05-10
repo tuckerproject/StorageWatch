@@ -29,7 +29,7 @@ namespace StorageWatchUI.Services.AutoUpdate
     {
         private readonly ILogger<UiUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
-        private readonly Func<string, string, bool> _updaterLauncher;
+        private readonly Func<string, string, string, string, bool> _updaterLauncher;
         private readonly Action _exitAction;
 
         public UiUpdateHandoffInstaller(
@@ -41,7 +41,7 @@ namespace StorageWatchUI.Services.AutoUpdate
         public UiUpdateHandoffInstaller(
             ILogger<UiUpdateHandoffInstaller> logger,
             string targetDirectory,
-            Func<string, string, bool>? updaterLauncher = null,
+            Func<string, string, string, string, bool>? updaterLauncher = null,
             Action? exitAction = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -109,9 +109,8 @@ namespace StorageWatchUI.Services.AutoUpdate
                 throw new ArgumentException("Install directory is required.", nameof(installDir));
 
             var updaterPath = ResolveUpdaterExecutablePath(installDir);
-            var arguments = $"--update-ui --source \"{stagingDir}\" --target \"{installDir}\" --manifest \"{manifestPath}\" --restart-ui";
 
-            if (!_updaterLauncher(updaterPath, arguments))
+            if (!_updaterLauncher(updaterPath, stagingDir, manifestPath, installDir))
             {
                 throw new InvalidOperationException("Failed to launch updater executable.");
             }
@@ -156,15 +155,15 @@ namespace StorageWatchUI.Services.AutoUpdate
             throw new FileNotFoundException("Updater executable was not found.");
         }
 
-        private static bool LaunchUpdaterProcess(string updaterPath, string arguments)
+        private static bool LaunchUpdaterProcess(string updaterPath, string stagingDir, string manifestPath, string installDir)
         {
             var process = Process.Start(new ProcessStartInfo
             {
                 FileName = updaterPath,
-                Arguments = arguments,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WorkingDirectory = Path.GetDirectoryName(updaterPath) ?? AppContext.BaseDirectory
+                WorkingDirectory = Path.GetDirectoryName(updaterPath) ?? AppContext.BaseDirectory,
+                ArgumentList = { "--update-ui", "--source", stagingDir, "--target", installDir, "--manifest", manifestPath, "--restart-ui" }
             });
 
             return process != null;

@@ -104,7 +104,7 @@ namespace StorageWatchUI.Tests.Services
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     launched = true;
                     return true;
@@ -152,17 +152,21 @@ namespace StorageWatchUI.Tests.Services
 
             var launched = false;
             string? launchedExe = null;
-            string? launchedArgs = null;
+            string? launchedStagingDir = null;
+            string? launchedManifestPath = null;
+            string? launchedInstallDir = null;
             var exitRequested = false;
 
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
-                (exe, args) =>
+                (exe, stagingDir, manifestPath, installDir) =>
                 {
                     launched = true;
                     launchedExe = exe;
-                    launchedArgs = args;
+                    launchedStagingDir = stagingDir;
+                    launchedManifestPath = manifestPath;
+                    launchedInstallDir = installDir;
                     return true;
                 },
                 () => exitRequested = true);
@@ -173,12 +177,9 @@ namespace StorageWatchUI.Tests.Services
             launched.Should().BeTrue();
             exitRequested.Should().BeTrue();
             launchedExe.Should().Be(updaterExePath);
-            launchedArgs.Should().NotBeNullOrWhiteSpace();
-            launchedArgs!.Should().Contain("--update-ui");
-            launchedArgs.Should().Contain("--source");
-            launchedArgs.Should().Contain("--target");
-            launchedArgs.Should().Contain("--manifest");
-            launchedArgs.Should().Contain("--restart-ui");
+            launchedStagingDir.Should().NotBeNullOrWhiteSpace();
+            launchedManifestPath.Should().NotBeNullOrWhiteSpace();
+            launchedInstallDir.Should().Be(tempTarget);
 
             var targetFile = Path.Combine(tempTarget, "app", "test.txt");
             File.Exists(targetFile).Should().BeFalse();
@@ -201,7 +202,7 @@ namespace StorageWatchUI.Tests.Services
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) => true,
+                (_, _, _, _) => true,
                 () => { });
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
@@ -280,7 +281,7 @@ namespace StorageWatchUI.Tests.Services
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     updateLaunched = true;
                     return true;
@@ -305,7 +306,7 @@ namespace StorageWatchUI.Tests.Services
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     updateLaunched = true;
                     return true;

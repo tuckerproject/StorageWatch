@@ -67,7 +67,7 @@ namespace StorageWatchUI.Tests.Services
             var installer = new UiUpdateHandoffInstaller(
                 NullLogger<UiUpdateHandoffInstaller>.Instance,
                 targetRoot,
-                (_, _) => true,
+                (_, _, _, _) => true,
                 () => { });
 
             var worker = new UiAutoUpdateWorker(

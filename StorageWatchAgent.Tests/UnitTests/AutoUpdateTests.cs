@@ -170,16 +170,16 @@ namespace StorageWatch.Tests.UnitTests
             ZipFile.CreateFromDirectory(tempSource, zipPath);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
-            var launched = false;
+            var installed = false;
             var scmStopRequested = false;
             var exitRequested = false;
 
             var installer = new AgentUpdateHandoffInstaller(
                 new TestLogger<AgentUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
-                    launched = true;
+                    installed = true;
                     return true;
                 },
                 _ =>
@@ -192,7 +192,7 @@ namespace StorageWatch.Tests.UnitTests
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
             result.Success.Should().BeTrue();
-            launched.Should().BeTrue();
+            installed.Should().BeTrue();
             scmStopRequested.Should().BeTrue();
             exitRequested.Should().BeTrue();
             File.Exists(Path.Combine(tempTarget, "app", "test.txt")).Should().BeFalse();
@@ -359,7 +359,7 @@ namespace StorageWatch.Tests.UnitTests
             var installer = new AgentUpdateHandoffInstaller(
                 new TestLogger<AgentUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     updateLaunched = true;
                     return true;
@@ -383,7 +383,7 @@ namespace StorageWatch.Tests.UnitTests
             var installer = new AgentUpdateHandoffInstaller(
                 new TestLogger<AgentUpdateHandoffInstaller>(),
                 tempTarget,
-                (_, _) =>
+                (_, _, _, _) =>
                 {
                     updateLaunched = true;
                     return true;
