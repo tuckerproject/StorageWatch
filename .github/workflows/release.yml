@@ -272,15 +272,13 @@ jobs:
         run: |
           $zipFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages" -Recurse -Filter *.zip -File | Select-Object -ExpandProperty FullName
           $installerFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/installer" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
-          $updaterFiles = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/updater" -Recurse -Filter *.exe -File | Select-Object -ExpandProperty FullName
 
           $inputs = @()
           $inputs += $zipFiles
           $inputs += $installerFiles
-          $inputs += $updaterFiles
 
           if ($inputs.Count -eq 0) {
-            throw "No ZIP, updater, or installer assets found for hashing."
+            throw "No ZIP or installer assets found for hashing."
           }
 
           ./build/packaging/compute-hashes.ps1 `
@@ -344,10 +342,10 @@ jobs:
           $agentZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/agent" -Filter *.zip -File | Select-Object -First 1).FullName
           $serverZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/server" -Filter *.zip -File | Select-Object -First 1).FullName
           $uiZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/ui" -Filter *.zip -File | Select-Object -First 1).FullName
-          $updaterExe = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/updater" -Filter *.exe -File | Select-Object -First 1).FullName
+          $updaterZip = (Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts/packages/updater" -Filter StorageWatch.Updater.zip -File | Select-Object -First 1).FullName
 
-          if (-not $agentZip -or -not $serverZip -or -not $uiZip -or -not $updaterExe) {
-            throw "One or more release assets were not found (agent/server/ui ZIPs, updater EXE)."
+          if (-not $agentZip -or -not $serverZip -or -not $uiZip -or -not $updaterZip) {
+            throw "One or more release assets were not found (agent/server/ui/updater ZIPs)."
           }
           $pluginsMetadata = ""
           if (Test-Path "$env:GITHUB_WORKSPACE/artifacts/packages/plugins/plugins.metadata.json") {
@@ -366,7 +364,7 @@ jobs:
             -AgentPackagePath $agentZip `
             -ServerPackagePath $serverZip `
             -UiPackagePath $uiZip `
-            -UpdaterExecutablePath $updaterExe `
+            -UpdaterPackagePath $updaterZip `
             -PluginsMetadataFile $pluginsMetadata `
             -ReleaseNotesUrl $releaseNotesUrl `
             -ManifestVersion 1 `
@@ -462,7 +460,6 @@ jobs:
           files: |
             artifacts/installer/*.exe
             artifacts/packages/**/*.zip
-            artifacts/packages/updater/*.exe
             artifacts/hashes/hashes.json
             artifacts/hashes/SHA256SUMS.txt
             artifacts/manifest/**/*.json

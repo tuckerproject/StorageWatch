@@ -50,6 +50,14 @@ public class ComponentUpdateInfo
     public string Sha256 { get; set; } = "";
 
     public string? ReleaseNotesUrl { get; set; }
+
+    /// <summary>
+    /// Package type for the component. Typically "zip" for most components.
+    /// For updater: "zip" indicates full folder distributed as ZIP.
+    /// </summary>
+    [JsonPropertyName("packageType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PackageType { get; set; }
 }
 
 public class PluginUpdateInfo : ComponentUpdateInfo

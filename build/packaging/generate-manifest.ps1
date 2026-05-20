@@ -29,7 +29,7 @@ param(
     [string]$UiPackagePath,
 
     [Parameter(Mandatory = $true)]
-    [string]$UpdaterExecutablePath,
+    [string]$UpdaterPackagePath,
 
     [Parameter()]
     [string]$PluginsMetadataFile = '',
@@ -85,7 +85,7 @@ $resolvedHashesFile = Resolve-ExistingPath -Path $HashesFile -Name 'HashesFile'
 $resolvedAgentPackagePath = Resolve-ExistingPath -Path $AgentPackagePath -Name 'AgentPackagePath'
 $resolvedServerPackagePath = Resolve-ExistingPath -Path $ServerPackagePath -Name 'ServerPackagePath'
 $resolvedUiPackagePath = Resolve-ExistingPath -Path $UiPackagePath -Name 'UiPackagePath'
-$resolvedUpdaterExecutablePath = Resolve-ExistingPath -Path $UpdaterExecutablePath -Name 'UpdaterExecutablePath'
+$resolvedUpdaterPackagePath = Resolve-ExistingPath -Path $UpdaterPackagePath -Name 'UpdaterPackagePath'
 
 $resolvedPluginsMetadataFile = ''
 if (-not [string]::IsNullOrWhiteSpace($PluginsMetadataFile)) {
@@ -115,12 +115,29 @@ if (-not (Test-Path -LiteralPath $manifestDirectory)) {
 $agentFileName = Split-Path -Leaf $resolvedAgentPackagePath
 $serverFileName = Split-Path -Leaf $resolvedServerPackagePath
 $uiFileName = Split-Path -Leaf $resolvedUiPackagePath
-$updaterFileName = Split-Path -Leaf $resolvedUpdaterExecutablePath
+
+# Check if updater package is a folder or ZIP
+$updaterIsFolder = Test-Path -LiteralPath $resolvedUpdaterPackagePath -PathType Container
+if ($updaterIsFolder) {
+    # Create a ZIP from the folder for distribution
+    $resolvedPackageOutputDir = Split-Path -Parent $resolvedUpdaterPackagePath
+    $updaterZipPath = Join-Path $resolvedPackageOutputDir 'StorageWatch.Updater.zip'
+    if (Test-Path -LiteralPath $updaterZipPath) {
+        Remove-Item -LiteralPath $updaterZipPath -Force
+    }
+    Compress-Archive -Path (Join-Path $resolvedUpdaterPackagePath '*') -DestinationPath $updaterZipPath -CompressionLevel Optimal -Force
+    $updaterArtifactPath = $updaterZipPath
+} else {
+    # Already a ZIP
+    $updaterArtifactPath = $resolvedUpdaterPackagePath
+}
+
+$updaterFileName = Split-Path -Leaf $updaterArtifactPath
 
 $agentHash = Get-HashForPath -Path $resolvedAgentPackagePath -Entries $hashEntries
 $serverHash = Get-HashForPath -Path $resolvedServerPackagePath -Entries $hashEntries
 $uiHash = Get-HashForPath -Path $resolvedUiPackagePath -Entries $hashEntries
-$updaterHash = Get-HashForPath -Path $resolvedUpdaterExecutablePath -Entries $hashEntries
+$updaterHash = Get-HashForPath -Path $updaterArtifactPath -Entries $hashEntries
 
 $plugins = @()
 if (-not [string]::IsNullOrWhiteSpace($resolvedPluginsMetadataFile)) {
@@ -171,12 +188,14 @@ $updaterInfo = [ordered]@{
     version     = $Version
     downloadUrl = (New-DownloadUrl -BaseUrl $BaseDownloadUrl -FileName $updaterFileName)
     sha256      = $updaterHash
+    packageType = 'zip'
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesUrl)) {
     $agentInfo['releaseNotesUrl'] = $ReleaseNotesUrl
     $serverInfo['releaseNotesUrl'] = $ReleaseNotesUrl
     $uiInfo['releaseNotesUrl'] = $ReleaseNotesUrl
+    $updaterInfo['releaseNotesUrl'] = $ReleaseNotesUrl
 }
 
 $manifest = [ordered]@{

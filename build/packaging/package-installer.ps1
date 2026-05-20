@@ -78,9 +78,23 @@ if ($ValidatePayload) {
             throw "Required payload directory missing: $path"
         }
 
-        $updaterPath = Join-Path $path 'updater\StorageWatch.Updater.exe'
-        if (-not (Test-Path -LiteralPath $updaterPath)) {
-            throw "Required updater executable missing from payload: $updaterPath"
+        # Validate full updater folder structure (not just EXE)
+        $updaterExePath = Join-Path $path 'updater\StorageWatch.Updater.exe'
+        $updaterDllPath = Join-Path $path 'updater\StorageWatch.Updater.dll'
+        $updaterDepsPath = Join-Path $path 'updater\StorageWatch.Updater.deps.json'
+        $updaterRuntimeConfigPath = Join-Path $path 'updater\StorageWatch.Updater.runtimeconfig.json'
+
+        if (-not (Test-Path -LiteralPath $updaterExePath)) {
+            throw "Required updater executable missing from payload: $updaterExePath"
+        }
+        if (-not (Test-Path -LiteralPath $updaterDllPath)) {
+            throw "Required updater DLL missing from payload: $updaterDllPath"
+        }
+        if (-not (Test-Path -LiteralPath $updaterDepsPath)) {
+            throw "Required updater deps.json missing from payload: $updaterDepsPath"
+        }
+        if (-not (Test-Path -LiteralPath $updaterRuntimeConfigPath)) {
+            throw "Required updater runtimeconfig.json missing from payload: $updaterRuntimeConfigPath"
         }
     }
 }

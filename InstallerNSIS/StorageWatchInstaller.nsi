@@ -430,16 +430,16 @@ Function ApplyFolderPermissions
 FunctionEnd
 
 Function InstallSharedUpdater
-    ; Install exactly one shared updater at $INSTDIR\Updater\StorageWatch.Updater.exe
+    ; Install shared updater folder at $INSTDIR\Updater\ (all files recursively)
     IfFileExists "$INSTDIR\Updater\StorageWatch.Updater.exe" compareVersions copyMissing
 
 copyMissing:
-    DetailPrint "[INSTALL] Updater EXE installed (missing target)."
+    DetailPrint "[INSTALL] Updater folder installed (missing target)."
     SetOutPath "$INSTDIR\Updater"
     SetOverwrite on
-    File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
-    File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
-    File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+    File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*.*"
+    File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*.*"
+    File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*.*"
     Return
 
 compareVersions:
@@ -453,27 +453,27 @@ compareVersions:
     ClearErrors
     ${GetFileVersion} "$INSTDIR\Updater\StorageWatch.Updater.exe" $1
     ${If} ${Errors}
-        DetailPrint "[INSTALL] Existing shared updater version unknown. Updater EXE installed."
+        DetailPrint "[INSTALL] Existing shared updater version unknown. Updater folder installed."
         SetOutPath "$INSTDIR\Updater"
         SetOverwrite on
-        File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
-        File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
-        File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+        File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*.*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*.*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*.*"
         Return
     ${EndIf}
 
     ${VersionCompare} $0 $1 $2
     ${If} $2 == 1
-        DetailPrint "[INSTALL] Updater EXE installed (installer version is newer)."
+        DetailPrint "[INSTALL] Updater folder installed (installer version is newer)."
         SetOutPath "$INSTDIR\Updater"
         SetOverwrite on
-        File /nonfatal "${PAYLOAD_DIR}\UI\updater\StorageWatch.Updater.exe"
-        File /nonfatal "${PAYLOAD_DIR}\Agent\updater\StorageWatch.Updater.exe"
-        File /nonfatal "${PAYLOAD_DIR}\Server\updater\StorageWatch.Updater.exe"
+        File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*.*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*.*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*.*"
     ${ElseIf} $2 == 0
-        DetailPrint "[INSTALL] Updater EXE skipped due to newer installed version."
+        DetailPrint "[INSTALL] Updater folder skipped due to newer installed version."
     ${Else}
-        DetailPrint "[INSTALL] Updater EXE skipped (installed version is equal)."
+        DetailPrint "[INSTALL] Updater folder skipped (installed version is equal)."
     ${EndIf}
 FunctionEnd
 
@@ -485,13 +485,10 @@ Function ApplyUpdaterPermissions
 FunctionEnd
 
 Function CleanupLegacyUpdaterCopies
-    ; Ensure only one updater copy remains on disk.
-    Delete "$INSTDIR\Agent\updater\StorageWatch.Updater.exe"
-    Delete "$INSTDIR\Server\updater\StorageWatch.Updater.exe"
-    Delete "$INSTDIR\UI\updater\StorageWatch.Updater.exe"
-    RMDir "$INSTDIR\Agent\updater"
-    RMDir "$INSTDIR\Server\updater"
-    RMDir "$INSTDIR\UI\updater"
+    ; Remove legacy component-specific updater copies (now using shared updater folder)
+    RMDir /r "$INSTDIR\Agent\updater"
+    RMDir /r "$INSTDIR\Server\updater"
+    RMDir /r "$INSTDIR\UI\updater"
 FunctionEnd
 
 Function CreateAgentProgramData

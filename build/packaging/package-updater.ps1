@@ -99,8 +99,6 @@ $publishArgs = @(
     '--runtime', $RuntimeIdentifier,
     '--self-contained', ($SelfContained.ToString().ToLowerInvariant()),
     '--output', $resolvedPublishDir,
-    '/p:PublishSingleFile=true',
-    '/p:IncludeNativeLibrariesForSelfExtract=false',
     "/p:Version=$Version",
     "/p:InformationalVersion=$Version"
 )
@@ -117,11 +115,20 @@ if (-not (Test-Path -LiteralPath $updaterExe)) {
 }
 
 $packagedExecutablePath = $null
+$packagedFolderPath = $null
 if ($CopyToPackageOutput) {
     Ensure-Directory -Path $resolvedPackageOutputDir
-    $packagedExecutablePath = Join-Path $resolvedPackageOutputDir $ExecutableFileName
-    Copy-Item -LiteralPath $updaterExe -Destination $packagedExecutablePath -Force
+    $updaterPackageDir = Join-Path $resolvedPackageOutputDir 'updater'
 
+    # Copy entire publish folder
+    if (Test-Path -LiteralPath $updaterPackageDir) {
+        Remove-Item -LiteralPath $updaterPackageDir -Recurse -Force
+    }
+    Copy-Item -LiteralPath $resolvedPublishDir -Destination $updaterPackageDir -Recurse -Force
+    $packagedFolderPath = $updaterPackageDir
+
+    # Sign the EXE within the package folder
+    $packagedExecutablePath = Join-Path $updaterPackageDir $ExecutableFileName
     if (Test-Path -LiteralPath $signScript) {
         $signed = & $signScript -FilePath $packagedExecutablePath
         if ($signed) {
@@ -148,5 +155,6 @@ Write-Host "Updater EXE SHA256: $updaterSha256"
     PublishDir = $resolvedPublishDir
     ExecutablePath = $updaterExe
     PackageOutputDir = if ($CopyToPackageOutput) { $resolvedPackageOutputDir } else { $null }
+    PackagedFolderPath = $packagedFolderPath
     PackagedExecutablePath = $packagedExecutablePath
 }

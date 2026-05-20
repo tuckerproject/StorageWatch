@@ -145,22 +145,34 @@ namespace StorageWatchServer.Services.AutoUpdate
 
         private static string ResolveUpdaterExecutablePath(string installDir)
         {
-            var candidates = new[]
+            // Priority 1: Shared updater folder (new architecture)
+            var sharedUpdaterPath = Path.Combine(installDir, "..", "Updater", "StorageWatch.Updater.exe");
+            if (File.Exists(sharedUpdaterPath))
+                return sharedUpdaterPath;
+
+            // Priority 2: Component-local updater folder (embedded in update package)
+            var componentUpdaterPath = Path.Combine(AppContext.BaseDirectory, "updater", "StorageWatch.Updater.exe");
+            if (File.Exists(componentUpdaterPath))
+                return componentUpdaterPath;
+
+            // Priority 3: Legacy paths (for backward compatibility during transition)
+            var legacyCandidates = new[]
             {
                 Path.Combine(installDir, "StorageWatchUpdater.exe"),
                 Path.Combine(installDir, "StorageWatch.Updater.exe"),
-                Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
                 Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe")
             };
 
-            foreach (var candidate in candidates)
+            foreach (var candidate in legacyCandidates)
             {
                 if (File.Exists(candidate))
                     return candidate;
             }
 
-            throw new FileNotFoundException("Updater executable was not found.");
+            throw new FileNotFoundException(
+                "Updater executable was not found. " +
+                $"Searched: {sharedUpdaterPath}, {componentUpdaterPath}, and legacy locations.");
         }
 
         private static bool LaunchUpdaterProcess(string updaterPath, string stagingDir, string manifestPath, string installDir)

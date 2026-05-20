@@ -155,18 +155,22 @@ $updaterResult = & $updaterPackScript `
     -OutputRoot $resolvedOutputRoot `
     -Force:$Force.IsPresent
 
-if (-not $updaterResult -or (-not (Test-Path -LiteralPath $updaterResult.PackagedExecutablePath) -and -not (Test-Path -LiteralPath $updaterResult.ExecutablePath))) {
-    throw "Failed to publish updater executable."
+if (-not $updaterResult -or (-not $updaterResult.PackagedFolderPath -and -not $updaterResult.PublishDir)) {
+    throw "Failed to publish updater."
 }
 
-$sourceUpdaterExe = if ($updaterResult.PackagedExecutablePath -and (Test-Path -LiteralPath $updaterResult.PackagedExecutablePath)) {
-    $updaterResult.PackagedExecutablePath
+# Determine source folder for updater
+$sourceUpdaterFolder = if ($updaterResult.PackagedFolderPath -and (Test-Path -LiteralPath $updaterResult.PackagedFolderPath)) {
+    $updaterResult.PackagedFolderPath
 } else {
-    $updaterResult.ExecutablePath
+    $updaterResult.PublishDir
 }
 
-Ensure-Directory -Path $componentUpdaterDir
-Copy-Item -LiteralPath $sourceUpdaterExe -Destination (Join-Path $componentUpdaterDir 'StorageWatch.Updater.exe') -Force
+# Copy entire updater publish folder into component's updater subfolder
+if (Test-Path -LiteralPath $componentUpdaterDir) {
+    Remove-Item -LiteralPath $componentUpdaterDir -Recurse -Force
+}
+Copy-Item -LiteralPath $sourceUpdaterFolder -Destination $componentUpdaterDir -Recurse -Force
 
 if (Test-Path -LiteralPath $signScript) {
     Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |

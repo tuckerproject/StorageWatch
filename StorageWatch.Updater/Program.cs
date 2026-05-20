@@ -1,5 +1,7 @@
 using StorageWatch.Updater;
 using StorageWatch.Updater.Services.Logging;
+using StorageWatch.Shared.Update.Models;
+using System.Text.Json;
 
 // Initialize logging at the very start
 var logFilePath = LogDirectoryInitializer.GetLogFilePath("updater.log");
@@ -21,6 +23,37 @@ try
     logger.Log($"[PARSED] ManifestPath: {arguments.ManifestPath}");
     logger.Log($"[PARSED] SourcePath: {arguments.SourcePath}");
     logger.Log($"[PARSED] TargetPath: {arguments.TargetPath}");
+
+    // Check for updater self-update (if manifest path provided)
+    if (!string.IsNullOrWhiteSpace(arguments.ManifestPath) && File.Exists(arguments.ManifestPath))
+    {
+        try
+        {
+            logger.Log("[SELF-UPDATE] Checking for updater self-update...");
+            var manifestJson = await File.ReadAllTextAsync(arguments.ManifestPath);
+            var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson);
+
+            if (manifest?.Updater != null)
+            {
+                var selfUpdateManager = new SelfUpdateManager();
+                if (selfUpdateManager.IsUpdateAvailable(manifest.Updater))
+                {
+                    logger.Log("[SELF-UPDATE] Updater update available. Initiating self-update...");
+                    await selfUpdateManager.UpdateSelfAsync(manifest.Updater);
+                    // Process exits in UpdateSelfAsync if successful
+                }
+                else
+                {
+                    logger.Log("[SELF-UPDATE] Updater is already up to date.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.Log($"[SELF-UPDATE] Failed to check/apply updater self-update: {ex.Message}");
+            // Continue with component update even if self-update fails
+        }
+    }
 
     if (arguments.UpdateUI)
     {
