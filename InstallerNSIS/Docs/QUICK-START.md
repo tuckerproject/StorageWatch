@@ -25,6 +25,11 @@ dotnet publish StorageWatchServer\StorageWatchServer.csproj `
 dotnet publish StorageWatchUI\StorageWatchUI.csproj `
   -c Release -f net10.0-windows `
   -o InstallerNSIS\Payload\UI\
+
+# Shared Updater
+dotnet publish StorageWatch.Updater\StorageWatch.Updater.csproj `
+  -c Release -f net10.0 -r win-x64 --self-contained false `
+  -o InstallerNSIS\Payload\Updater\
 ```
 
 ## 2. Build the Installer

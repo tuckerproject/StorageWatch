@@ -157,18 +157,17 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
-        public async Task ServiceUpdateInstaller_ExtractsAndCopiesFiles_TriggersRestart()
+        public async Task ServiceUpdateInstaller_StagesAndHandsOffToUpdater_TriggersScmStopAndExit()
         {
             var tempSource = TestHelpers.CreateTempDirectory();
             var tempTarget = TestHelpers.CreateTempDirectory();
             var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            var updaterExePath = CreateSharedUpdaterExecutable(tempTarget);
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             var installed = false;
             var scmStopRequested = false;
@@ -352,8 +351,7 @@ namespace StorageWatch.Tests.UnitTests
             var tempTarget = TestHelpers.CreateTempDirectory();
             var nonExistentStagingDir = Path.Combine(tempTarget, "non-existent-staging");
             var manifestPath = Path.Combine(nonExistentStagingDir, "manifest.json");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
+            _ = CreateSharedUpdaterExecutable(tempTarget);
 
             var updateLaunched = false;
             var installer = new AgentUpdateHandoffInstaller(
@@ -369,6 +367,14 @@ namespace StorageWatch.Tests.UnitTests
 
             result.Success.Should().BeFalse();
             updateLaunched.Should().BeFalse();
+        }
+
+        private static string CreateSharedUpdaterExecutable(string installDir)
+        {
+            var updaterExePath = Path.GetFullPath(Path.Combine(installDir, "..", "Updater", "StorageWatch.Updater.exe"));
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
+            File.WriteAllText(updaterExePath, string.Empty);
+            return updaterExePath;
         }
 
         [Fact]

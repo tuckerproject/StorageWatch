@@ -437,9 +437,7 @@ copyMissing:
     DetailPrint "[INSTALL] Updater folder installed (missing target)."
     SetOutPath "$INSTDIR\Updater"
     SetOverwrite on
-    File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*"
-    File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*"
-    File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*"
+    File /r /nonfatal "${PAYLOAD_DIR}\Updater\*"
     Return
 
 compareVersions:
@@ -456,9 +454,7 @@ compareVersions:
         DetailPrint "[INSTALL] Existing shared updater version unknown. Updater folder installed."
         SetOutPath "$INSTDIR\Updater"
         SetOverwrite on
-        File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*"
-        File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*"
-        File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Updater\*"
         Return
     ${EndIf}
 
@@ -467,9 +463,7 @@ compareVersions:
         DetailPrint "[INSTALL] Updater folder installed (installer version is newer)."
         SetOutPath "$INSTDIR\Updater"
         SetOverwrite on
-        File /r /nonfatal "${PAYLOAD_DIR}\UI\updater\*"
-        File /r /nonfatal "${PAYLOAD_DIR}\Agent\updater\*"
-        File /r /nonfatal "${PAYLOAD_DIR}\Server\updater\*"
+        File /r /nonfatal "${PAYLOAD_DIR}\Updater\*"
     ${ElseIf} $2 == 0
         DetailPrint "[INSTALL] Updater folder skipped due to newer installed version."
     ${Else}

@@ -190,6 +190,123 @@ public class RawRowIngestionServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IngestRawRowsAsync_WithMultipleMachines_KeepsRowsSeparated()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var machine1Rows = new List<RawDriveRow>
+        {
+            new()
+            {
+                MachineName = "Machine1",
+                DriveLetter = "C:",
+                TotalSpaceGb = 500,
+                UsedSpaceGb = 300,
+                FreeSpaceGb = 200,
+                PercentFree = 40,
+                Timestamp = now
+            }
+        };
+
+        var machine2Rows = new List<RawDriveRow>
+        {
+            new()
+            {
+                MachineName = "Machine2",
+                DriveLetter = "D:",
+                TotalSpaceGb = 1000,
+                UsedSpaceGb = 200,
+                FreeSpaceGb = 800,
+                PercentFree = 80,
+                Timestamp = now
+            }
+        };
+
+        // Act
+        await _ingestionService!.IngestRawRowsAsync("Machine1", machine1Rows);
+        await _ingestionService.IngestRawRowsAsync("Machine2", machine2Rows);
+
+        // Assert
+        var serverOptions = _factory!.GetOptions();
+        await using var connection = new SqliteConnection($"Data Source={serverOptions.DatabasePath}");
+        await connection.OpenAsync();
+
+        const string query = @"
+            SELECT MachineName, DriveLetter
+            FROM RawDriveRows
+            ORDER BY MachineName, DriveLetter";
+
+        await using var command = new SqliteCommand(query, connection);
+        await using var reader = await command.ExecuteReaderAsync();
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("Machine1", reader.GetString(0));
+        Assert.Equal("C:", reader.GetString(1));
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("Machine2", reader.GetString(0));
+        Assert.Equal("D:", reader.GetString(1));
+
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task IngestRawRowsAsync_WithTimeWindow_QueryCanFilterRecentRows()
+    {
+        // Arrange
+        var machineName = "TimeWindowMachine";
+        var oldTimestamp = DateTime.UtcNow.AddDays(-5);
+        var recentTimestamp = DateTime.UtcNow;
+
+        await _ingestionService!.IngestRawRowsAsync(machineName, new List<RawDriveRow>
+        {
+            new()
+            {
+                MachineName = machineName,
+                DriveLetter = "C:",
+                TotalSpaceGb = 500,
+                UsedSpaceGb = 400,
+                FreeSpaceGb = 100,
+                PercentFree = 20,
+                Timestamp = oldTimestamp
+            }
+        });
+
+        await _ingestionService.IngestRawRowsAsync(machineName, new List<RawDriveRow>
+        {
+            new()
+            {
+                MachineName = machineName,
+                DriveLetter = "C:",
+                TotalSpaceGb = 500,
+                UsedSpaceGb = 350,
+                FreeSpaceGb = 150,
+                PercentFree = 30,
+                Timestamp = recentTimestamp
+            }
+        });
+
+        // Act
+        var serverOptions = _factory!.GetOptions();
+        await using var connection = new SqliteConnection($"Data Source={serverOptions.DatabasePath}");
+        await connection.OpenAsync();
+
+        const string query = @"
+            SELECT COUNT(*)
+            FROM RawDriveRows
+            WHERE MachineName = @machineName AND Timestamp >= @startUtc";
+
+        await using var command = new SqliteCommand(query, connection);
+        command.Parameters.AddWithValue("@machineName", machineName);
+        command.Parameters.AddWithValue("@startUtc", DateTime.UtcNow.AddDays(-1));
+
+        var recentCount = (long?)await command.ExecuteScalarAsync();
+
+        // Assert
+        Assert.Equal(1, recentCount);
+    }
+
+    [Fact]
     public async Task IngestRawRowsAsync_PreservesTimestamp()
     {
         // Arrange

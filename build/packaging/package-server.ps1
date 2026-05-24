@@ -100,9 +100,7 @@ $resolvedPublishDir = if ([System.IO.Path]::IsPathRooted($PublishDir)) { $Publis
 $resolvedPackageOutputDir = if ([System.IO.Path]::IsPathRooted($PackageOutputDir)) { $PackageOutputDir } else { Join-Path $resolvedRepoRoot $PackageOutputDir }
 $resolvedPayloadComponentDir = if ([System.IO.Path]::IsPathRooted($PayloadComponentDir)) { $PayloadComponentDir } else { Join-Path $resolvedRepoRoot $PayloadComponentDir }
 $packagePath = Join-Path $resolvedPackageOutputDir $PackageFileName
-$updaterPackScript = Join-Path $resolvedRepoRoot 'build/packaging/package-updater.ps1'
 $signScript = Join-Path $resolvedRepoRoot 'build/packaging/sign-executable.ps1'
-$componentUpdaterDir = Join-Path $resolvedPublishDir 'updater'
 
 Ensure-Directory -Path $resolvedOutputRoot
 Ensure-Directory -Path $resolvedPackageOutputDir
@@ -144,37 +142,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed for Server with exit code $LASTEXITCODE."
 }
 
-if (-not (Test-Path -LiteralPath $updaterPackScript)) {
-    throw "Updater packaging script not found: $updaterPackScript"
-}
-
-$updaterResult = & $updaterPackScript `
-    -RepoRoot $resolvedRepoRoot `
-    -Version $Version `
-    -Configuration $Configuration `
-    -OutputRoot $resolvedOutputRoot `
-    -Force:$Force.IsPresent
-
-if (-not $updaterResult -or (-not $updaterResult.PackagedFolderPath -and -not $updaterResult.PublishDir)) {
-    throw "Failed to publish updater."
-}
-
-# Determine source folder for updater
-$sourceUpdaterFolder = if ($updaterResult.PackagedFolderPath -and (Test-Path -LiteralPath $updaterResult.PackagedFolderPath)) {
-    $updaterResult.PackagedFolderPath
-} else {
-    $updaterResult.PublishDir
-}
-
-# Copy entire updater publish folder into component's updater subfolder
-if (Test-Path -LiteralPath $componentUpdaterDir) {
-    Remove-Item -LiteralPath $componentUpdaterDir -Recurse -Force
-}
-Copy-Item -LiteralPath $sourceUpdaterFolder -Destination $componentUpdaterDir -Recurse -Force
-
 if (Test-Path -LiteralPath $signScript) {
     Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
-        Where-Object { $_.Name -like 'StorageWatch*.exe' -and -not $_.FullName.StartsWith($componentUpdaterDir + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase) } |
+        Where-Object { $_.Name -like 'StorageWatch*.exe' } |
         ForEach-Object {
             & $signScript -FilePath $_.FullName | Out-Null
         }

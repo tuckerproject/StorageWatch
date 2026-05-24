@@ -40,18 +40,19 @@ function Assert-VersionMatch([string]$actualVersion, [string]$expectedVersion, [
     }
 }
 
-function Assert-ZipContainsUpdater([string]$zipPath, [string]$label) {
+function Assert-ZipDoesNotContainUpdater([string]$zipPath, [string]$label) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
-        # Check for full updater folder structure
-        $requiredEntries = @(
+        $forbiddenEntries = @(
             'updater/StorageWatch.Updater.exe',
-            'updater/StorageWatch.Updater.dll'
+            'updater/StorageWatch.Updater.dll',
+            'updater/StorageWatch.Updater.deps.json',
+            'updater/StorageWatch.Updater.runtimeconfig.json'
         )
-        foreach ($requiredEntry in $requiredEntries) {
-            $entry = $zip.Entries | Where-Object { $_.FullName -ieq $requiredEntry } | Select-Object -First 1
-            if (-not $entry) {
-                throw "$label ZIP does not contain $requiredEntry (expected full updater folder)"
+        foreach ($forbiddenEntry in $forbiddenEntries) {
+            $entry = $zip.Entries | Where-Object { $_.FullName -ieq $forbiddenEntry } | Select-Object -First 1
+            if ($entry) {
+                throw "$label ZIP contains forbidden updater entry '$forbiddenEntry'. Updater must be packaged separately as shared payload."
             }
         }
     }
@@ -123,18 +124,16 @@ if (-not $updaterZip) {
     throw 'Updater ZIP was not found in artifacts/packages/updater.'
 }
 
-Assert-ZipContainsUpdater -zipPath $uiZip -label 'UI'
-Assert-ZipContainsUpdater -zipPath $agentZip -label 'Agent'
-Assert-ZipContainsUpdater -zipPath $serverZip -label 'Server'
+Assert-ZipDoesNotContainUpdater -zipPath $uiZip -label 'UI'
+Assert-ZipDoesNotContainUpdater -zipPath $agentZip -label 'Agent'
+Assert-ZipDoesNotContainUpdater -zipPath $serverZip -label 'Server'
 
 $payloadRoot = Join-Path $resolvedRepoRoot 'InstallerNSIS/Payload'
 $requiredPayloadUpdaterPaths = @(
-    (Join-Path $payloadRoot 'UI/updater/StorageWatch.Updater.exe'),
-    (Join-Path $payloadRoot 'UI/updater/StorageWatch.Updater.dll'),
-    (Join-Path $payloadRoot 'Agent/updater/StorageWatch.Updater.exe'),
-    (Join-Path $payloadRoot 'Agent/updater/StorageWatch.Updater.dll'),
-    (Join-Path $payloadRoot 'Server/updater/StorageWatch.Updater.exe'),
-    (Join-Path $payloadRoot 'Server/updater/StorageWatch.Updater.dll')
+    (Join-Path $payloadRoot 'Updater/StorageWatch.Updater.exe'),
+    (Join-Path $payloadRoot 'Updater/StorageWatch.Updater.dll'),
+    (Join-Path $payloadRoot 'Updater/StorageWatch.Updater.deps.json'),
+    (Join-Path $payloadRoot 'Updater/StorageWatch.Updater.runtimeconfig.json')
 )
 
 foreach ($payloadPath in $requiredPayloadUpdaterPaths) {
@@ -172,40 +171,8 @@ if ($signingExpected) {
     Write-Warning "[SMOKE] Skipping Authenticode validation for updater executable (signing not performed)."
 }
 
-$componentZipExtractRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("storagewatch-updater-smoke-" + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $componentZipExtractRoot -Force | Out-Null
-try {
-    $zipMap = @{
-        UI = $uiZip
-        Agent = $agentZip
-        Server = $serverZip
-    }
-
-    foreach ($key in $zipMap.Keys) {
-        $targetDir = Join-Path $componentZipExtractRoot $key
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zipMap[$key], $targetDir)
-        $exeInZip = Join-Path $targetDir 'updater/StorageWatch.Updater.exe'
-        $dllInZip = Join-Path $targetDir 'updater/StorageWatch.Updater.dll'
-        if (-not (Test-Path -LiteralPath $exeInZip)) {
-            throw "$key ZIP extraction did not produce updater executable at updater/StorageWatch.Updater.exe"
-        }
-        if (-not (Test-Path -LiteralPath $dllInZip)) {
-            throw "$key ZIP extraction did not produce updater DLL at updater/StorageWatch.Updater.dll"
-        }
-        if ($signingExpected) {
-            Assert-AuthenticodeValid -filePath $exeInZip -label "$key ZIP updater executable"
-        } else {
-            Write-Warning "[SMOKE] Skipping Authenticode validation for $key ZIP updater executable (signing not performed)."
-        }
-    }
-}
-finally {
-    if (Test-Path -LiteralPath $componentZipExtractRoot) {
-        Remove-Item -LiteralPath $componentZipExtractRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    if (Test-Path -LiteralPath $tempUpdaterExtract) {
-        Remove-Item -LiteralPath $tempUpdaterExtract -Recurse -Force -ErrorAction SilentlyContinue
-    }
+if (Test-Path -LiteralPath $tempUpdaterExtract) {
+    Remove-Item -LiteralPath $tempUpdaterExtract -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json

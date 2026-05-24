@@ -13,8 +13,7 @@ namespace StorageWatch.Tests.UnitTests
         [Fact]
         public void UpdaterServiceRestartHandler_RequestRestart_LaunchesUpdaterAndExits()
         {
-            var updaterPath = Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe");
-            File.WriteAllText(updaterPath, string.Empty);
+            var updaterPath = CreateSharedUpdaterExecutable();
 
             try
             {
@@ -57,8 +56,7 @@ namespace StorageWatch.Tests.UnitTests
         [Fact]
         public void UpdaterServiceRestartHandler_RequestRestart_DoesNotExitWhenUpdaterLaunchFails()
         {
-            var updaterPath = Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe");
-            File.WriteAllText(updaterPath, string.Empty);
+            var updaterPath = CreateSharedUpdaterExecutable();
 
             try
             {
@@ -80,6 +78,14 @@ namespace StorageWatch.Tests.UnitTests
                 if (File.Exists(updaterPath))
                     File.Delete(updaterPath);
             }
+        }
+
+        private static string CreateSharedUpdaterExecutable()
+        {
+            var updaterPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"));
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterPath)!);
+            File.WriteAllText(updaterPath, string.Empty);
+            return updaterPath;
         }
     }
 }

@@ -5,6 +5,8 @@ namespace StorageWatch.Updater;
 /// </summary>
 internal class UpdaterArguments
 {
+    public bool SelfUpdateStage { get; set; }
+    public bool SelfUpdateApply { get; set; }
     public bool UpdateUI { get; set; }
     public bool UpdateAgent { get; set; }
     public bool UpdateServer { get; set; }
@@ -14,6 +16,8 @@ internal class UpdaterArguments
     public string? ManifestPath { get; set; }
     public string? SourcePath { get; set; }
     public string? TargetPath { get; set; }
+    public string? SelfUpdateStagingPath { get; set; }
+    public string? ContinueArguments { get; set; }
 }
 
 /// <summary>
@@ -77,6 +81,14 @@ internal class ArgumentParser
 
                 switch (arg)
                 {
+                    case "--self-update-stage":
+                        arguments.SelfUpdateStage = true;
+                        break;
+
+                    case "--self-update-apply":
+                        arguments.SelfUpdateApply = true;
+                        break;
+
                     case "--update-ui":
                         arguments.UpdateUI = true;
                         break;
@@ -112,6 +124,28 @@ internal class ArgumentParser
                         }
                         break;
 
+                    case "--self-update-staging":
+                        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                        {
+                            arguments.SelfUpdateStagingPath = args[++i];
+                        }
+                        else
+                        {
+                            errors.Add("Error: --self-update-staging flag requires a path argument.");
+                        }
+                        break;
+
+                    case "--continue-args":
+                        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                        {
+                            arguments.ContinueArguments = args[++i];
+                        }
+                        else
+                        {
+                            errors.Add("Error: --continue-args flag requires an argument string.");
+                        }
+                        break;
+
                     case "--source":
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
@@ -141,12 +175,18 @@ internal class ArgumentParser
             }
 
             // Validate that at least one update or restart action is specified
+            bool hasSelfUpdateAction = arguments.SelfUpdateStage || arguments.SelfUpdateApply;
             bool hasUpdateAction = arguments.UpdateUI || arguments.UpdateAgent || arguments.UpdateServer;
             bool hasRestartAction = arguments.RestartUI || arguments.RestartAgent || arguments.RestartServer;
 
-            if (!hasUpdateAction && !hasRestartAction)
+            if (!hasSelfUpdateAction && !hasUpdateAction && !hasRestartAction)
             {
                 errors.Add("Error: At least one update or restart action must be specified.");
+            }
+
+            if (arguments.SelfUpdateStage && arguments.SelfUpdateApply)
+            {
+                errors.Add("Error: --self-update-stage and --self-update-apply cannot be used together.");
             }
 
             // Set result
@@ -206,6 +246,8 @@ internal class ArgumentParser
         Console.WriteLine("Usage: StorageWatch.Updater [options]");
         Console.WriteLine();
         Console.WriteLine("Options:");
+        Console.WriteLine("  --self-update-stage      Stage and initiate updater self-update apply flow");
+        Console.WriteLine("  --self-update-apply      Apply staged updater self-update to target folder");
         Console.WriteLine("  --update-ui              Update the UI component");
         Console.WriteLine("  --update-agent           Update the Agent component");
         Console.WriteLine("  --update-server          Update the Server component");
@@ -215,5 +257,7 @@ internal class ArgumentParser
         Console.WriteLine("  --manifest <path>        Path to the update manifest file");
         Console.WriteLine("  --source <path>          Path to the source directory containing update files");
         Console.WriteLine("  --target <path>          Path to the target installation directory");
+        Console.WriteLine("  --self-update-staging <path> Path to extracted updater staging folder");
+        Console.WriteLine("  --continue-args <text>   Serialized arguments for post-self-update continuation");
     }
 }

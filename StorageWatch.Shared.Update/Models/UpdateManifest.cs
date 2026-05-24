@@ -53,7 +53,7 @@ public class ComponentUpdateInfo
 
     /// <summary>
     /// Package type for the component. Typically "zip" for most components.
-    /// For updater: "zip" indicates full folder distributed as ZIP.
+    /// For updater: "zip" indicates the shared updater folder distributed as ZIP.
     /// </summary>
     [JsonPropertyName("packageType")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

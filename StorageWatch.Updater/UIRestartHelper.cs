@@ -4,6 +4,18 @@ namespace StorageWatch.Updater;
 
 internal class UIRestartHelper
 {
+    private readonly IProcessLauncher _processLauncher;
+
+    public UIRestartHelper()
+    {
+        _processLauncher = new ProcessLauncher();
+    }
+
+    internal UIRestartHelper(IProcessLauncher processLauncher)
+    {
+        _processLauncher = processLauncher;
+    }
+
     public bool TryRestartUI(string uiExecutablePath)
     {
         if (string.IsNullOrWhiteSpace(uiExecutablePath))
@@ -15,9 +27,13 @@ internal class UIRestartHelper
         try
         {
             Console.WriteLine("UI relaunch begins.");
-            var process = Process.Start(uiExecutablePath);
+            var started = _processLauncher.Start(new ProcessStartInfo
+            {
+                FileName = uiExecutablePath,
+                UseShellExecute = false
+            });
 
-            if (process == null)
+            if (!started)
             {
                 Console.WriteLine("UI relaunch failed.");
                 return false;

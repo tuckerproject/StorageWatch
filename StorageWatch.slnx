@@ -24,6 +24,7 @@
     <File Path="InstallerNSIS/Docs/README.md" />
   </Folder>
   <Project Path="StorageWatch.Shared.Update/StorageWatch.Shared.Update.csproj" />
+  <Project Path="StorageWatch.Updater.Tests/StorageWatch.Updater.Tests.csproj" />
   <Project Path="StorageWatch.Updater/StorageWatch.Updater.csproj" />
   <Project Path="StorageWatchAgent.Tests/StorageWatchAgent.Tests.csproj" />
   <Project Path="StorageWatchAgent/StorageWatchAgent.csproj" />

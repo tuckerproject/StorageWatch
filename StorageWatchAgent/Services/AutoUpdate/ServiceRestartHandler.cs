@@ -79,23 +79,11 @@ namespace StorageWatch.Services.AutoUpdate
 
         private static string ResolveUpdaterExecutablePath()
         {
-            var candidates = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"),
-                Path.Combine(AppContext.BaseDirectory, "StorageWatch.Updater.exe"),
-                Path.Combine(AppContext.BaseDirectory, "StorageWatchUpdater.exe"),
-                Path.Combine(AppContext.BaseDirectory, "..", "StorageWatch.Updater.exe"),
-                Path.Combine(AppContext.BaseDirectory, "..", "StorageWatchUpdater.exe")
-            };
+            var sharedUpdaterPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Updater", "StorageWatch.Updater.exe"));
+            if (File.Exists(sharedUpdaterPath))
+                return sharedUpdaterPath;
 
-            foreach (var candidate in candidates)
-            {
-                var fullPath = Path.GetFullPath(candidate);
-                if (File.Exists(fullPath))
-                    return fullPath;
-            }
-
-            throw new FileNotFoundException("Updater executable not found.");
+            throw new FileNotFoundException($"Updater executable not found at expected shared path: {sharedUpdaterPath}");
         }
     }
 }

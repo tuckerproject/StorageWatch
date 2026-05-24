@@ -32,6 +32,15 @@ param(
     [string]$PackageOutputDir = '',
 
     [Parameter()]
+    [bool]$StageToPayload = $true,
+
+    [Parameter()]
+    [string]$PayloadRoot = (Join-Path $RepoRoot 'InstallerNSIS\Payload'),
+
+    [Parameter()]
+    [string]$PayloadUpdaterDir = '',
+
+    [Parameter()]
     [string]$ExecutableFileName = 'StorageWatch.Updater.exe',
 
     [Parameter()]
@@ -57,6 +66,11 @@ function Clear-Directory([string]$Path) {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
+function Copy-DirectoryContent([string]$Source, [string]$Destination) {
+    Ensure-Directory -Path $Destination
+    Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
+}
+
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedProjectPath = if ([System.IO.Path]::IsPathRooted($ProjectPath)) { $ProjectPath } else { Join-Path $resolvedRepoRoot $ProjectPath }
 $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $resolvedRepoRoot $OutputRoot }
@@ -74,8 +88,13 @@ if ([string]::IsNullOrWhiteSpace($PackageOutputDir)) {
     $PackageOutputDir = Join-Path $OutputRoot 'packages/updater'
 }
 
+if ([string]::IsNullOrWhiteSpace($PayloadUpdaterDir)) {
+    $PayloadUpdaterDir = Join-Path $PayloadRoot 'Updater'
+}
+
 $resolvedPublishDir = if ([System.IO.Path]::IsPathRooted($PublishDir)) { $PublishDir } else { Join-Path $resolvedRepoRoot $PublishDir }
 $resolvedPackageOutputDir = if ([System.IO.Path]::IsPathRooted($PackageOutputDir)) { $PackageOutputDir } else { Join-Path $resolvedRepoRoot $PackageOutputDir }
+$resolvedPayloadUpdaterDir = if ([System.IO.Path]::IsPathRooted($PayloadUpdaterDir)) { $PayloadUpdaterDir } else { Join-Path $resolvedRepoRoot $PayloadUpdaterDir }
 
 if ((Test-Path -LiteralPath $resolvedPublishDir) -and (-not $Force)) {
     throw "Updater publish directory already exists: $resolvedPublishDir. Use -Force to overwrite."
@@ -85,6 +104,9 @@ if (-not $PSCmdlet.ShouldProcess('StorageWatch.Updater publish', 'Publish update
     Write-Host "[WhatIf] Would publish updater from '$resolvedProjectPath' to '$resolvedPublishDir'."
     if ($CopyToPackageOutput) {
         Write-Host "[WhatIf] Would copy updater executable to '$resolvedPackageOutputDir'."
+    }
+    if ($StageToPayload) {
+        Write-Host "[WhatIf] Would stage updater payload to '$resolvedPayloadUpdaterDir'."
     }
     return
 }
@@ -107,6 +129,18 @@ Write-Host 'Publishing Updater...'
 & dotnet @publishArgs | Out-Host
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed for Updater with exit code $LASTEXITCODE."
+}
+
+if ($StageToPayload) {
+    Clear-Directory -Path $resolvedPayloadUpdaterDir
+
+    $updaterSourceForPayload = if ($packagedFolderPath -and (Test-Path -LiteralPath $packagedFolderPath)) {
+        $packagedFolderPath
+    } else {
+        $resolvedPublishDir
+    }
+
+    Copy-DirectoryContent -Source $updaterSourceForPayload -Destination $resolvedPayloadUpdaterDir
 }
 
 $updaterExe = Join-Path $resolvedPublishDir $ExecutableFileName
@@ -157,4 +191,5 @@ Write-Host "Updater EXE SHA256: $updaterSha256"
     PackageOutputDir = if ($CopyToPackageOutput) { $resolvedPackageOutputDir } else { $null }
     PackagedFolderPath = $packagedFolderPath
     PackagedExecutablePath = $packagedExecutablePath
+    PayloadDir = if ($StageToPayload) { $resolvedPayloadUpdaterDir } else { $null }
 }

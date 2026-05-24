@@ -85,19 +85,17 @@ namespace StorageWatchUI.Tests.Services
         }
 
         [Fact]
-        public async Task UiUpdateInstaller_ExtractsAndCopiesFiles_RequestsRestartOnPrompt()
+        public async Task UiUpdateInstaller_StagesAndHandsOffToUpdater_RequestsApplicationExit()
         {
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
+            var updaterExePath = CreateSharedUpdaterExecutable(tempTarget);
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
-
             var launched = false;
             var exitRequested = false;
 
@@ -142,14 +140,12 @@ namespace StorageWatchUI.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
+            var updaterExePath = CreateSharedUpdaterExecutable(tempTarget);
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
-
             var launched = false;
             string? launchedExe = null;
             string? launchedStagingDir = null;
@@ -176,7 +172,7 @@ namespace StorageWatchUI.Tests.Services
             result.Success.Should().BeTrue();
             launched.Should().BeTrue();
             exitRequested.Should().BeTrue();
-            launchedExe.Should().Be(updaterExePath);
+            Path.GetFullPath(launchedExe!).Should().Be(updaterExePath);
             launchedStagingDir.Should().NotBeNullOrWhiteSpace();
             launchedManifestPath.Should().NotBeNullOrWhiteSpace();
             launchedInstallDir.Should().Be(tempTarget);
@@ -191,14 +187,12 @@ namespace StorageWatchUI.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
+            _ = CreateSharedUpdaterExecutable(tempTarget);
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
-
             var installer = new UiUpdateHandoffInstaller(
                 new TestLogger<UiUpdateHandoffInstaller>(),
                 tempTarget,
@@ -274,8 +268,7 @@ namespace StorageWatchUI.Tests.Services
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var nonExistentStagingDir = Path.Combine(tempTarget, "non-existent-staging");
             var manifestPath = Path.Combine(nonExistentStagingDir, "manifest.json");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatchUpdater.exe");
-            await File.WriteAllTextAsync(updaterExePath, string.Empty);
+            _ = CreateSharedUpdaterExecutable(tempTarget);
 
             var updateLaunched = false;
             var installer = new UiUpdateHandoffInstaller(
@@ -292,6 +285,14 @@ namespace StorageWatchUI.Tests.Services
 
             result.Success.Should().BeFalse();
             updateLaunched.Should().BeFalse();
+        }
+
+        private static string CreateSharedUpdaterExecutable(string installDir)
+        {
+            var updaterExePath = Path.GetFullPath(Path.Combine(installDir, "..", "Updater", "StorageWatch.Updater.exe"));
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
+            File.WriteAllText(updaterExePath, string.Empty);
+            return updaterExePath;
         }
 
         [Fact]

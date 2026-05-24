@@ -35,6 +35,13 @@ dotnet publish StorageWatchUI\StorageWatchUI.csproj `
   -o InstallerNSIS\Payload\UI\
 ```
 
+#### Shared Updater
+```powershell
+dotnet publish StorageWatch.Updater\StorageWatch.Updater.csproj `
+  -c Release -f net10.0 -r win-x64 --self-contained false `
+  -o InstallerNSIS\Payload\Updater\
+```
+
 ### 2. Prepare SQLite Binaries
 
 Copy required SQLite runtime files to:
@@ -102,11 +109,16 @@ Write-Host "Publishing StorageWatchUI..."
 dotnet publish StorageWatchUI\StorageWatchUI.csproj `
   -c Release -f net10.0 -o InstallerNSIS\Payload\UI\
 
+Write-Host "Publishing StorageWatch.Updater..."
+dotnet publish StorageWatch.Updater\StorageWatch.Updater.csproj `
+  -c Release -f net10.0 -r win-x64 --self-contained false -o InstallerNSIS\Payload\Updater\
+
 # Verify payload directories
 $requiredDirs = @(
     "InstallerNSIS\Payload\Agent",
     "InstallerNSIS\Payload\Server",
     "InstallerNSIS\Payload\UI",
+    "InstallerNSIS\Payload\Updater",
     "InstallerNSIS\Payload\SQLite",
     "InstallerNSIS\Payload\Config",
     "InstallerNSIS\Payload\Plugins"
@@ -188,6 +200,13 @@ InstallerNSIS\Payload\
 │   ├── StorageWatchUI.exe
 │   ├── StorageWatchUI.dll
 │   ├── appsettings.json
+│   └── (all dependencies)
+│
+├── Updater\
+│   ├── StorageWatch.Updater.exe
+│   ├── StorageWatch.Updater.dll
+│   ├── StorageWatch.Updater.deps.json
+│   ├── StorageWatch.Updater.runtimeconfig.json
 │   └── (all dependencies)
 │
 ├── SQLite\

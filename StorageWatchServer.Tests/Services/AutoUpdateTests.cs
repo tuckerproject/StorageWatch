@@ -116,12 +116,13 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            var updaterExePath = Path.Combine(tempTarget, "..", "Updater", "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             var launched = false;
@@ -154,12 +155,13 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            var updaterExePath = Path.Combine(tempTarget, "..", "Updater", "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             string? launchedExe = null;
@@ -224,12 +226,13 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            var updaterExePath = Path.Combine(tempTarget, "..", "Updater", "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
             await File.WriteAllTextAsync(sourceFile, "updated");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             var installer = new ServerUpdateHandoffInstaller(
@@ -252,7 +255,7 @@ namespace StorageWatchServer.Tests.Services
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
             var zipPath = Path.Combine(TestDirectoryFactory.CreateTempDirectory(), "update.zip");
-            var updaterExePath = Path.Combine(tempTarget, "StorageWatch.Updater.exe");
+            var updaterExePath = Path.Combine(tempTarget, "..", "Updater", "StorageWatch.Updater.exe");
 
             var sourceFile = Path.Combine(tempSource, "app", "test.txt");
             var newFile = Path.Combine(tempSource, "app", "new.txt");
@@ -260,6 +263,7 @@ namespace StorageWatchServer.Tests.Services
             await File.WriteAllTextAsync(sourceFile, "updated");
             await File.WriteAllTextAsync(newFile, "new-file");
             ZipFile.CreateFromDirectory(tempSource, zipPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
             await File.WriteAllTextAsync(updaterExePath, string.Empty);
 
             var launched = false;

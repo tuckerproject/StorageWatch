@@ -12,12 +12,19 @@ Place the files below before running `makensis.exe`:
 ```
 InstallerNSIS/
   Payload/
-    Service/
+    Agent/
       StorageWatchAgent.exe
-      (service dependencies)
+      (agent dependencies)
+    Server/
+      StorageWatchServer.exe
+      (server dependencies)
     UI/
       StorageWatchUI.exe
       (ui dependencies)
+    Updater/
+      StorageWatch.Updater.exe
+      StorageWatch.Updater.dll
+      (updater dependencies)
     SQLite/
       (SQLite runtime files)
     Plugins/

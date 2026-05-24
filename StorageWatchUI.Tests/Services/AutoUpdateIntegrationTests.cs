@@ -35,9 +35,7 @@ namespace StorageWatchUI.Tests.Services
             Directory.CreateDirectory(Path.GetDirectoryName(payloadFilePath)!);
             await File.WriteAllTextAsync(payloadFilePath, "integration-payload-v1", Encoding.UTF8);
 
-            var updaterExePath = Path.Combine(targetRoot, "StorageWatch.Updater.exe");
-            var systemExe = Path.Combine(Environment.SystemDirectory, "whoami.exe");
-            File.Copy(systemExe, updaterExePath, overwrite: true);
+            var updaterExePath = CreateSharedUpdaterExecutable(targetRoot);
 
             ZipFile.CreateFromDirectory(payloadRoot, zipPath);
             var zipBytes = await File.ReadAllBytesAsync(zipPath);
@@ -219,6 +217,15 @@ namespace StorageWatchUI.Tests.Services
             public ValueTask<bool> WaitForNextTickAsync(CancellationToken cancellationToken) => ValueTask.FromResult(false);
 
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+
+        private static string CreateSharedUpdaterExecutable(string installDir)
+        {
+            var updaterExePath = Path.GetFullPath(Path.Combine(installDir, "..", "Updater", "StorageWatch.Updater.exe"));
+            Directory.CreateDirectory(Path.GetDirectoryName(updaterExePath)!);
+            var systemExe = Path.Combine(Environment.SystemDirectory, "whoami.exe");
+            File.Copy(systemExe, updaterExePath, overwrite: true);
+            return updaterExePath;
         }
     }
 }

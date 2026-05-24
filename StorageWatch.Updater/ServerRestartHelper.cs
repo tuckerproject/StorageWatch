@@ -4,6 +4,18 @@ namespace StorageWatch.Updater;
 
 internal class ServerRestartHelper
 {
+    private readonly IProcessLauncher _processLauncher;
+
+    public ServerRestartHelper()
+    {
+        _processLauncher = new ProcessLauncher();
+    }
+
+    internal ServerRestartHelper(IProcessLauncher processLauncher)
+    {
+        _processLauncher = processLauncher;
+    }
+
     public bool TryRestartServer(string serverLaunchTarget)
     {
         if (string.IsNullOrWhiteSpace(serverLaunchTarget))
@@ -15,9 +27,13 @@ internal class ServerRestartHelper
         try
         {
             Console.WriteLine("Server restart begins.");
-            var process = Process.Start(serverLaunchTarget);
+            var started = _processLauncher.Start(new ProcessStartInfo
+            {
+                FileName = serverLaunchTarget,
+                UseShellExecute = false
+            });
 
-            if (process == null)
+            if (!started)
             {
                 Console.WriteLine("Server restart failed.");
                 return false;

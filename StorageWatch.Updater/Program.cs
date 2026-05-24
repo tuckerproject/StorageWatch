@@ -17,12 +17,51 @@ try
     logger.Log($"[PARSED] UpdateUI: {arguments.UpdateUI}");
     logger.Log($"[PARSED] UpdateAgent: {arguments.UpdateAgent}");
     logger.Log($"[PARSED] UpdateServer: {arguments.UpdateServer}");
+    logger.Log($"[PARSED] SelfUpdateStage: {arguments.SelfUpdateStage}");
+    logger.Log($"[PARSED] SelfUpdateApply: {arguments.SelfUpdateApply}");
     logger.Log($"[PARSED] RestartUI: {arguments.RestartUI}");
     logger.Log($"[PARSED] RestartAgent: {arguments.RestartAgent}");
     logger.Log($"[PARSED] RestartServer: {arguments.RestartServer}");
     logger.Log($"[PARSED] ManifestPath: {arguments.ManifestPath}");
     logger.Log($"[PARSED] SourcePath: {arguments.SourcePath}");
     logger.Log($"[PARSED] TargetPath: {arguments.TargetPath}");
+    logger.Log($"[PARSED] SelfUpdateStagingPath: {arguments.SelfUpdateStagingPath}");
+
+    var selfUpdateManager = new SelfUpdateManager();
+
+    if (arguments.SelfUpdateStage)
+    {
+        if (string.IsNullOrWhiteSpace(arguments.ManifestPath) || !File.Exists(arguments.ManifestPath))
+        {
+            logger.Log("[ERROR] --self-update-stage requires --manifest path to an existing manifest file.");
+            Console.WriteLine("Error: --self-update-stage requires --manifest path to an existing manifest file.");
+            Console.WriteLine("Updater exiting.");
+            Environment.Exit(ExitCodes.InvalidArguments);
+        }
+
+        logger.Log("[SELF-UPDATE] Running explicit self-update stage mode.");
+        await selfUpdateManager.RunSelfUpdateStageAsync(arguments.ManifestPath, arguments);
+        logger.Log("[SELF-UPDATE] Stage mode completed.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.Success);
+    }
+
+    if (arguments.SelfUpdateApply)
+    {
+        if (string.IsNullOrWhiteSpace(arguments.SelfUpdateStagingPath) || string.IsNullOrWhiteSpace(arguments.TargetPath))
+        {
+            logger.Log("[ERROR] --self-update-apply requires --self-update-staging and --target.");
+            Console.WriteLine("Error: --self-update-apply requires --self-update-staging and --target.");
+            Console.WriteLine("Updater exiting.");
+            Environment.Exit(ExitCodes.InvalidArguments);
+        }
+
+        logger.Log("[SELF-UPDATE] Running explicit self-update apply mode.");
+        await selfUpdateManager.RunSelfUpdateApplyAsync(arguments);
+        logger.Log("[SELF-UPDATE] Apply mode completed.");
+        Console.WriteLine("Updater exiting.");
+        Environment.Exit(ExitCodes.Success);
+    }
 
     // Check for updater self-update (if manifest path provided)
     if (!string.IsNullOrWhiteSpace(arguments.ManifestPath) && File.Exists(arguments.ManifestPath))
@@ -35,11 +74,10 @@ try
 
             if (manifest?.Updater != null)
             {
-                var selfUpdateManager = new SelfUpdateManager();
                 if (selfUpdateManager.IsUpdateAvailable(manifest.Updater))
                 {
                     logger.Log("[SELF-UPDATE] Updater update available. Initiating self-update...");
-                    await selfUpdateManager.UpdateSelfAsync(manifest.Updater);
+                    await selfUpdateManager.RunLegacySelfUpdateStageAsync(manifest.Updater, arguments);
                     // Process exits in UpdateSelfAsync if successful
                 }
                 else
