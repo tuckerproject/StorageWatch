@@ -182,6 +182,17 @@ jobs:
             -StageToPayload $true `
             -Force
 
+      - name: Package Updater
+        run: |
+          ./build/packaging/package-updater.ps1 `
+            -RepoRoot "$env:GITHUB_WORKSPACE" `
+            -Version "${{ needs.validate.outputs.version }}" `
+            -Channel "${{ needs.validate.outputs.channel }}" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/artifacts" `
+            -Configuration "Release" `
+            -StageToPayload $true `
+            -Force
+
       - name: Package Plugins
         run: |
           ./build/packaging/package-plugins.ps1 `
