@@ -205,6 +205,44 @@ jobs:
             -StageToPayload $true `
             -Force
 
+      - name: Validate shared updater packaging layout
+        run: |
+          $payloadUpdater = "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload/Updater"
+          $updaterZip = "$env:GITHUB_WORKSPACE/artifacts/packages/updater/StorageWatch.Updater.zip"
+
+          if (-not (Test-Path -LiteralPath $payloadUpdater)) {
+            throw "Shared updater payload directory not found: $payloadUpdater"
+          }
+
+          $requiredUpdaterFiles = @(
+            (Join-Path $payloadUpdater 'StorageWatch.Updater.exe'),
+            (Join-Path $payloadUpdater 'StorageWatch.Updater.dll'),
+            (Join-Path $payloadUpdater 'StorageWatch.Updater.deps.json'),
+            (Join-Path $payloadUpdater 'StorageWatch.Updater.runtimeconfig.json')
+          )
+
+          foreach ($path in $requiredUpdaterFiles) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Missing required updater payload file: $path"
+            }
+          }
+
+          if (-not (Test-Path -LiteralPath $updaterZip)) {
+            throw "Updater ZIP not found: $updaterZip"
+          }
+
+          $legacyUpdaterDirs = @(
+            "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload/Agent/updater",
+            "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload/Server/updater",
+            "$env:GITHUB_WORKSPACE/InstallerNSIS/Payload/UI/updater"
+          )
+
+          foreach ($legacyPath in $legacyUpdaterDirs) {
+            if (Test-Path -LiteralPath $legacyPath) {
+              throw "Legacy component-local updater directory should not exist: $legacyPath"
+            }
+          }
+
       - name: Upload packaged components
         uses: actions/upload-artifact@v4
         with:

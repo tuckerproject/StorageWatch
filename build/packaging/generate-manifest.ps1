@@ -87,6 +87,14 @@ $resolvedServerPackagePath = Resolve-ExistingPath -Path $ServerPackagePath -Name
 $resolvedUiPackagePath = Resolve-ExistingPath -Path $UiPackagePath -Name 'UiPackagePath'
 $resolvedUpdaterPackagePath = Resolve-ExistingPath -Path $UpdaterPackagePath -Name 'UpdaterPackagePath'
 
+if ((Split-Path -Leaf $resolvedUpdaterPackagePath) -ne 'StorageWatch.Updater.zip') {
+    throw "UpdaterPackagePath must point to fixed updater artifact 'StorageWatch.Updater.zip': $resolvedUpdaterPackagePath"
+}
+
+if ((Get-Item -LiteralPath $resolvedUpdaterPackagePath).PSIsContainer) {
+    throw "UpdaterPackagePath must be a ZIP file, not a directory: $resolvedUpdaterPackagePath"
+}
+
 $resolvedPluginsMetadataFile = ''
 if (-not [string]::IsNullOrWhiteSpace($PluginsMetadataFile)) {
     $resolvedPluginsMetadataFile = Resolve-ExistingPath -Path $PluginsMetadataFile -Name 'PluginsMetadataFile'
@@ -115,22 +123,7 @@ if (-not (Test-Path -LiteralPath $manifestDirectory)) {
 $agentFileName = Split-Path -Leaf $resolvedAgentPackagePath
 $serverFileName = Split-Path -Leaf $resolvedServerPackagePath
 $uiFileName = Split-Path -Leaf $resolvedUiPackagePath
-
-# Check if updater package is a folder or ZIP
-$updaterIsFolder = Test-Path -LiteralPath $resolvedUpdaterPackagePath -PathType Container
-if ($updaterIsFolder) {
-    # Create a ZIP from the folder for distribution
-    $resolvedPackageOutputDir = Split-Path -Parent $resolvedUpdaterPackagePath
-    $updaterZipPath = Join-Path $resolvedPackageOutputDir 'StorageWatch.Updater.zip'
-    if (Test-Path -LiteralPath $updaterZipPath) {
-        Remove-Item -LiteralPath $updaterZipPath -Force
-    }
-    Compress-Archive -Path (Join-Path $resolvedUpdaterPackagePath '*') -DestinationPath $updaterZipPath -CompressionLevel Optimal -Force
-    $updaterArtifactPath = $updaterZipPath
-} else {
-    # Already a ZIP
-    $updaterArtifactPath = $resolvedUpdaterPackagePath
-}
+$updaterArtifactPath = $resolvedUpdaterPackagePath
 
 $updaterFileName = Split-Path -Leaf $updaterArtifactPath
 

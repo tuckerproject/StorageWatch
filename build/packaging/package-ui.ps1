@@ -159,6 +159,12 @@ Compress-Archive -Path (Join-Path $resolvedPublishDir '*') -DestinationPath $pac
 if ($StageToPayload) {
     Clear-Directory -Path $resolvedPayloadComponentDir
     Copy-DirectoryContent -Source $resolvedPublishDir -Destination $resolvedPayloadComponentDir
+
+    $legacyUpdaterDir = Join-Path $resolvedPayloadComponentDir 'updater'
+    if (Test-Path -LiteralPath $legacyUpdaterDir) {
+        Remove-Item -LiteralPath $legacyUpdaterDir -Recurse -Force
+        Write-Host "[CLEANUP] Removed legacy component-local updater directory '$legacyUpdaterDir'."
+    }
 }
 
 $result = [pscustomobject]@{

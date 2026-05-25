@@ -101,6 +101,18 @@ if ($ValidatePayload) {
     if (-not (Test-Path -LiteralPath $updaterRuntimeConfigPath)) {
         throw "Required updater runtimeconfig.json missing from payload: $updaterRuntimeConfigPath"
     }
+
+    $legacyUpdaterPayloadDirs = @(
+        (Join-Path $resolvedPayloadRoot 'Agent\updater'),
+        (Join-Path $resolvedPayloadRoot 'Server\updater'),
+        (Join-Path $resolvedPayloadRoot 'UI\updater')
+    )
+
+    foreach ($legacyUpdaterPayloadDir in $legacyUpdaterPayloadDirs) {
+        if (Test-Path -LiteralPath $legacyUpdaterPayloadDir) {
+            throw "Legacy component-local updater payload directory detected. Shared updater must be staged only under '$updaterPayloadPath': $legacyUpdaterPayloadDir"
+        }
+    }
 }
 
 Ensure-Directory -Path $resolvedInstallerOutputDir

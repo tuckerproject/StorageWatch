@@ -70,6 +70,19 @@ function Clear-Directory([string]$Path) {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
+function Normalize-DirectoryPath([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    $normalized = $Path.TrimEnd([char[]]@([char]'\', [char]'/'))
+    if ($normalized.Length -eq 2 -and $normalized[1] -eq ':') {
+        return $normalized + '\\'
+    }
+
+    return $normalized
+}
+
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $resolvedRepoRoot $OutputRoot }
 $signScript = Join-Path $resolvedRepoRoot 'build/packaging/sign-executable.ps1'
@@ -116,12 +129,24 @@ foreach ($source in $PluginSourcePaths) {
     $resolvedPluginSources += (Resolve-Path -LiteralPath $candidate).Path
 }
 
+$stageSourceMatchesPayload = $false
+if ($StageToPayload) {
+    $normalizedPayloadPluginsDir = Normalize-DirectoryPath -Path $resolvedPayloadPluginsDir
+    foreach ($resolvedSource in $resolvedPluginSources) {
+        $normalizedSource = Normalize-DirectoryPath -Path $resolvedSource
+        if ([string]::Equals($normalizedSource, $normalizedPayloadPluginsDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $stageSourceMatchesPayload = $true
+            break
+        }
+    }
+}
+
 $plugins = @()
 foreach ($source in $resolvedPluginSources) {
     $plugins += Get-ChildItem -Path $source -Filter $PluginSearchPattern -File -Recurse
 }
 
-$plugins = $plugins | Sort-Object FullName -Unique
+$plugins = @($plugins | Sort-Object FullName -Unique)
 
 if ($plugins.Count -eq 0) {
     throw "No plugin files found using pattern '$PluginSearchPattern'."
@@ -130,13 +155,13 @@ if ($plugins.Count -eq 0) {
 if ($IncludePluginIds.Count -gt 0) {
     $includeSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($id in $IncludePluginIds) { [void]$includeSet.Add($id) }
-    $plugins = $plugins | Where-Object { $includeSet.Contains($_.BaseName) }
+    $plugins = @($plugins | Where-Object { $includeSet.Contains($_.BaseName) })
 }
 
 if ($ExcludePluginIds.Count -gt 0) {
     $excludeSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($id in $ExcludePluginIds) { [void]$excludeSet.Add($id) }
-    $plugins = $plugins | Where-Object { -not $excludeSet.Contains($_.BaseName) }
+    $plugins = @($plugins | Where-Object { -not $excludeSet.Contains($_.BaseName) })
 }
 
 if ($plugins.Count -eq 0) {
@@ -156,7 +181,13 @@ if (-not $PSCmdlet.ShouldProcess("Action description", "Action name")) {
 }
 
 if ($StageToPayload) {
-    Clear-Directory -Path $resolvedPayloadPluginsDir
+    if ($stageSourceMatchesPayload) {
+        Ensure-Directory -Path $resolvedPayloadPluginsDir
+        Write-Host "[INFO] Plugin source includes payload plugins directory. Skipping payload clear to avoid deleting source files."
+    }
+    else {
+        Clear-Directory -Path $resolvedPayloadPluginsDir
+    }
 }
 
 $metadata = @()
@@ -191,7 +222,10 @@ if ($PackageIndividually) {
         }
 
         if ($StageToPayload) {
-            Copy-Item -LiteralPath $plugin.FullName -Destination (Join-Path $resolvedPayloadPluginsDir $plugin.Name) -Force
+            $payloadDestination = Join-Path $resolvedPayloadPluginsDir $plugin.Name
+            if (-not [string]::Equals($plugin.FullName, $payloadDestination, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Copy-Item -LiteralPath $plugin.FullName -Destination $payloadDestination -Force
+            }
         }
 
         $metadata += [pscustomobject]@{
@@ -222,7 +256,10 @@ else {
                 & $signScript -FilePath $stagedFile | Out-Null
             }
             if ($StageToPayload) {
-                Copy-Item -LiteralPath $plugin.FullName -Destination (Join-Path $resolvedPayloadPluginsDir $plugin.Name) -Force
+                $payloadDestination = Join-Path $resolvedPayloadPluginsDir $plugin.Name
+                if (-not [string]::Equals($plugin.FullName, $payloadDestination, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Copy-Item -LiteralPath $plugin.FullName -Destination $payloadDestination -Force
+                }
             }
 
             $metadata += [pscustomobject]@{

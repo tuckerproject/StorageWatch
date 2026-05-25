@@ -143,6 +143,8 @@ foreach ($payloadPath in $requiredPayloadUpdaterPaths) {
 }
 
 # Extract and validate updater ZIP structure
+$tempExtractRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("storagewatch-updater-smoke-{0}" -f ([guid]::NewGuid().ToString('N')))
+New-Item -ItemType Directory -Path $tempExtractRoot -Force | Out-Null
 $tempUpdaterExtract = Join-Path $tempExtractRoot 'updater-validation'
 New-Item -ItemType Directory -Path $tempUpdaterExtract -Force | Out-Null
 [System.IO.Compression.ZipFile]::ExtractToDirectory($updaterZip, $tempUpdaterExtract)
@@ -171,10 +173,6 @@ if ($signingExpected) {
     Write-Warning "[SMOKE] Skipping Authenticode validation for updater executable (signing not performed)."
 }
 
-if (Test-Path -LiteralPath $tempUpdaterExtract) {
-    Remove-Item -LiteralPath $tempUpdaterExtract -Recurse -Force -ErrorAction SilentlyContinue
-}
-
 $manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json
 
 Assert-ManifestComponent -manifest $manifest -componentName 'ui'
@@ -200,5 +198,12 @@ if ([string]::IsNullOrWhiteSpace([string]$manifest.updater.packageType)) {
 
 $updaterFileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($updaterExeFromZip).FileVersion
 Assert-VersionMatch -actualVersion $updaterFileVersion -expectedVersion ([string]$manifest.updater.version) -sourceName 'Updater executable vs manifest updater'
+
+if (Test-Path -LiteralPath $tempUpdaterExtract) {
+    Remove-Item -LiteralPath $tempUpdaterExtract -Recurse -Force -ErrorAction SilentlyContinue
+}
+if (Test-Path -LiteralPath $tempExtractRoot) {
+    Remove-Item -LiteralPath $tempExtractRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host '[SMOKE] Updater artifact smoke tests passed.'

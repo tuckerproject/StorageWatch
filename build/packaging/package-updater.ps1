@@ -7,6 +7,10 @@ param(
     [string]$Version,
 
     [Parameter()]
+    [ValidateSet('stable','prerelease')]
+    [string]$Channel = 'stable',
+
+    [Parameter()]
     [ValidateSet('Debug','Release')]
     [string]$Configuration = 'Release',
 
@@ -103,7 +107,7 @@ if ((Test-Path -LiteralPath $resolvedPublishDir) -and (-not $Force)) {
 if (-not $PSCmdlet.ShouldProcess('StorageWatch.Updater publish', 'Publish updater executable')) {
     Write-Host "[WhatIf] Would publish updater from '$resolvedProjectPath' to '$resolvedPublishDir'."
     if ($CopyToPackageOutput) {
-        Write-Host "[WhatIf] Would copy updater executable to '$resolvedPackageOutputDir'."
+        Write-Host "[WhatIf] Would package updater runtime as '$resolvedPackageOutputDir\StorageWatch.Updater.zip'."
     }
     if ($StageToPayload) {
         Write-Host "[WhatIf] Would stage updater payload to '$resolvedPayloadUpdaterDir'."
@@ -131,18 +135,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed for Updater with exit code $LASTEXITCODE."
 }
 
-if ($StageToPayload) {
-    Clear-Directory -Path $resolvedPayloadUpdaterDir
-
-    $updaterSourceForPayload = if ($packagedFolderPath -and (Test-Path -LiteralPath $packagedFolderPath)) {
-        $packagedFolderPath
-    } else {
-        $resolvedPublishDir
-    }
-
-    Copy-DirectoryContent -Source $updaterSourceForPayload -Destination $resolvedPayloadUpdaterDir
-}
-
 $updaterExe = Join-Path $resolvedPublishDir $ExecutableFileName
 if (-not (Test-Path -LiteralPath $updaterExe)) {
     throw "Updater executable not found after publish: $updaterExe"
@@ -150,9 +142,15 @@ if (-not (Test-Path -LiteralPath $updaterExe)) {
 
 $packagedExecutablePath = $null
 $packagedFolderPath = $null
+$packagePath = $null
 if ($CopyToPackageOutput) {
     Ensure-Directory -Path $resolvedPackageOutputDir
-    $updaterPackageDir = Join-Path $resolvedPackageOutputDir 'updater'
+    $updaterPackageDir = Join-Path $resolvedPackageOutputDir 'StorageWatch.Updater'
+    $packagePath = Join-Path $resolvedPackageOutputDir 'StorageWatch.Updater.zip'
+
+    if ((Test-Path -LiteralPath $packagePath) -and (-not $Force)) {
+        throw "Package already exists: $packagePath. Use -Force to overwrite."
+    }
 
     # Copy entire publish folder
     if (Test-Path -LiteralPath $updaterPackageDir) {
@@ -174,6 +172,24 @@ if ($CopyToPackageOutput) {
             Write-Warning "[SIGN] Signing secrets not configured. Updater EXE was NOT signed. Smoke tests will skip Authenticode validation."
         }
     }
+
+    if (Test-Path -LiteralPath $packagePath) {
+        Remove-Item -LiteralPath $packagePath -Force
+    }
+
+    Compress-Archive -Path (Join-Path $updaterPackageDir '*') -DestinationPath $packagePath -CompressionLevel Optimal -Force
+}
+
+if ($StageToPayload) {
+    Clear-Directory -Path $resolvedPayloadUpdaterDir
+
+    $updaterSourceForPayload = if ($packagedFolderPath -and (Test-Path -LiteralPath $packagedFolderPath)) {
+        $packagedFolderPath
+    } else {
+        $resolvedPublishDir
+    }
+
+    Copy-DirectoryContent -Source $updaterSourceForPayload -Destination $resolvedPayloadUpdaterDir
 }
 
 $targetExeForInfo = if ($packagedExecutablePath -and (Test-Path -LiteralPath $packagedExecutablePath)) { $packagedExecutablePath } else { $updaterExe }
@@ -186,9 +202,11 @@ Write-Host "Updater EXE SHA256: $updaterSha256"
 [pscustomobject]@{
     Component = 'Updater'
     Version = $Version
+    Channel = $Channel
     PublishDir = $resolvedPublishDir
     ExecutablePath = $updaterExe
     PackageOutputDir = if ($CopyToPackageOutput) { $resolvedPackageOutputDir } else { $null }
+    PackagePath = if ($CopyToPackageOutput) { $packagePath } else { $null }
     PackagedFolderPath = $packagedFolderPath
     PackagedExecutablePath = $packagedExecutablePath
     PayloadDir = if ($StageToPayload) { $resolvedPayloadUpdaterDir } else { $null }
