@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using StorageWatch.Shared.Update.Models;
+using StorageWatchUI.Communication;
 using StorageWatchUI.Config;
 using StorageWatchUI.Models;
 using StorageWatchUI.Services.AutoUpdate;
@@ -44,6 +45,7 @@ namespace StorageWatchUI.Tests.ViewModels
 
             return new UpdateViewModel(
                 (checker ?? new Mock<IUiUpdateChecker>()).Object,
+                new ServiceCommunicationClient(),
                 (downloader ?? new Mock<IUiUpdateDownloader>()).Object,
                 (installer ?? new Mock<IUiUpdateInstaller>()).Object,
                 worker.Object,

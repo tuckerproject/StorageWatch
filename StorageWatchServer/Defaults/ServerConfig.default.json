@@ -6,6 +6,7 @@
   },
   "AutoUpdate": {
     "Enabled": true,
-    "ManifestUrl": "https://github.com/tuckerproject/StorageWatch/releases/download/manifest/manifest.json"
+    "ManifestUrl": "https://github.com/tuckerproject/StorageWatch/releases/download/manifest/manifest.json",
+    "UseAgentDrivenUpdates": true
   }
 }

@@ -13,8 +13,6 @@ public class ArgumentParserTests
         {
             "--self-update-stage",
             "--update-ui",
-            "--update-agent",
-            "--update-server",
             "--restart-ui",
             "--restart-agent",
             "--restart-server",
@@ -30,8 +28,8 @@ public class ArgumentParserTests
         result.Success.Should().BeTrue();
         result.Arguments.SelfUpdateStage.Should().BeTrue();
         result.Arguments.UpdateUI.Should().BeTrue();
-        result.Arguments.UpdateAgent.Should().BeTrue();
-        result.Arguments.UpdateServer.Should().BeTrue();
+        result.Arguments.UpdateAgent.Should().BeFalse();
+        result.Arguments.UpdateServer.Should().BeFalse();
         result.Arguments.RestartUI.Should().BeTrue();
         result.Arguments.RestartAgent.Should().BeTrue();
         result.Arguments.RestartServer.Should().BeTrue();
@@ -93,5 +91,17 @@ public class ArgumentParserTests
 
         result.Success.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("Unknown argument", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void TryParse_WhenMultipleComponentUpdateFlagsProvided_ShouldFailValidation()
+    {
+        var parser = new ArgumentParser();
+
+        var result = parser.TryParse(new[] { "--update-ui", "--update-agent", "--source", "C:/temp/source", "--target", "C:/temp/target" });
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("Only one component update flag", StringComparison.OrdinalIgnoreCase));
     }
 }

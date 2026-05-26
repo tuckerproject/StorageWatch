@@ -191,6 +191,19 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesUrl)) {
     $updaterInfo['releaseNotesUrl'] = $ReleaseNotesUrl
 }
 
+if ([string]::IsNullOrWhiteSpace($agentInfo.downloadUrl) -or [string]::IsNullOrWhiteSpace($agentInfo.sha256)) {
+    throw "Agent manifest entry is missing required downloadUrl/sha256 metadata."
+}
+if ([string]::IsNullOrWhiteSpace($serverInfo.downloadUrl) -or [string]::IsNullOrWhiteSpace($serverInfo.sha256)) {
+    throw "Server manifest entry is missing required downloadUrl/sha256 metadata."
+}
+if ([string]::IsNullOrWhiteSpace($uiInfo.downloadUrl) -or [string]::IsNullOrWhiteSpace($uiInfo.sha256)) {
+    throw "UI manifest entry is missing required downloadUrl/sha256 metadata."
+}
+if ([string]::IsNullOrWhiteSpace($updaterInfo.downloadUrl) -or [string]::IsNullOrWhiteSpace($updaterInfo.sha256)) {
+    throw "Updater manifest entry is missing required downloadUrl/sha256 metadata."
+}
+
 $manifest = [ordered]@{
     manifestVersion = $ManifestVersion
     version         = $Version

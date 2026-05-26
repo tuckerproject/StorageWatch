@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using StorageWatch.Shared.Update.Models;
+using StorageWatchServer.Config;
 using StorageWatchServer.Services.AutoUpdate;
 using System;
 using System.Diagnostics;
@@ -20,6 +23,8 @@ namespace StorageWatchServer.Controllers
         private readonly IManifestProvider _manifestProvider;
         private readonly ServerAutoUpdateWorker _autoUpdateWorker;
         private readonly IServerRestartHandler _restartHandler;
+        private readonly Services.IAgentUnifiedUpdateRelayClient _agentRelayClient;
+        private readonly IOptions<AutoUpdateOptions> _autoUpdateOptions;
         private readonly ILogger<UpdateController> _logger;
 
         public UpdateController(
@@ -27,12 +32,16 @@ namespace StorageWatchServer.Controllers
             IManifestProvider manifestProvider,
             ServerAutoUpdateWorker autoUpdateWorker,
             IServerRestartHandler restartHandler,
+            Services.IAgentUnifiedUpdateRelayClient agentRelayClient,
+            IOptions<AutoUpdateOptions> autoUpdateOptions,
             ILogger<UpdateController> logger)
         {
             _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
             _manifestProvider = manifestProvider ?? throw new ArgumentNullException(nameof(manifestProvider));
             _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
             _restartHandler = restartHandler ?? throw new ArgumentNullException(nameof(restartHandler));
+            _agentRelayClient = agentRelayClient ?? throw new ArgumentNullException(nameof(agentRelayClient));
+            _autoUpdateOptions = autoUpdateOptions ?? throw new ArgumentNullException(nameof(autoUpdateOptions));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -42,6 +51,31 @@ namespace StorageWatchServer.Controllers
         [HttpGet("status")]
         public async Task<ActionResult<ServerUpdateStatusDto>> GetStatus(CancellationToken cancellationToken)
         {
+            if (_autoUpdateOptions.Value.UseAgentDrivenUpdates)
+            {
+                var agentStatus = await _agentRelayClient.GetUnifiedStatusAsync(cancellationToken);
+                if (agentStatus != null)
+                {
+                    var server = agentStatus.Components.FirstOrDefault(c => string.Equals(c.Component, "server", StringComparison.OrdinalIgnoreCase));
+                    var agent = agentStatus.Components.FirstOrDefault(c => string.Equals(c.Component, "agent", StringComparison.OrdinalIgnoreCase));
+                    var ui = agentStatus.Components.FirstOrDefault(c => string.Equals(c.Component, "ui", StringComparison.OrdinalIgnoreCase));
+
+                    return Ok(new ServerUpdateStatusDto
+                    {
+                        CurrentVersion = server?.CurrentVersion ?? "0.0.0.0",
+                        CurrentServerVersion = server?.CurrentVersion ?? "0.0.0.0",
+                        CurrentAgentVersion = agent?.CurrentVersion ?? "0.0.0.0",
+                        CurrentUiVersion = ui?.CurrentVersion ?? "0.0.0.0",
+                        LatestVersion = server?.LatestVersion ?? "0.0.0.0",
+                        LatestServerVersion = server?.LatestVersion ?? "0.0.0.0",
+                        LatestAgentVersion = agent?.LatestVersion ?? "0.0.0.0",
+                        LatestUiVersion = ui?.LatestVersion ?? "0.0.0.0",
+                        UpdateAvailable = agentStatus.AnyUpdateAvailable,
+                        IsInstalling = agentStatus.IsInstalling
+                    });
+                }
+            }
+
             var currentServerVersion = GetCurrentVersionString();
             var currentAgentVersion = GetInstalledComponentVersion("StorageWatchAgent.exe");
             var currentUiVersion = GetInstalledComponentVersion("StorageWatchUI.exe");
@@ -98,6 +132,24 @@ namespace StorageWatchServer.Controllers
 
             try
             {
+                if (_autoUpdateOptions.Value.UseAgentDrivenUpdates)
+                {
+                    var relayResult = await _agentRelayClient.StartUnifiedInstallAsync(new UnifiedInstallUpdateRequest
+                    {
+                        UpdateAll = true,
+                        RequestedBy = "WebUI"
+                    }, cancellationToken);
+
+                    if (relayResult != null)
+                    {
+                        return Ok(new UpdateInstallResponseDto
+                        {
+                            Success = relayResult.Success,
+                            Error = relayResult.ErrorMessage ?? string.Empty
+                        });
+                    }
+                }
+
                 _autoUpdateWorker.RequestManualInstall();
                 var installResult = await _autoUpdateWorker.RunServerUpdateAsync(cancellationToken);
                 if (!installResult.Success)

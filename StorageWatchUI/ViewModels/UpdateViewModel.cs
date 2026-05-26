@@ -28,6 +28,7 @@ public class UpdateViewModel : ViewModelBase
     private double _updateProgress;
     private bool _isBannerVisible;
     private readonly IUiUpdateChecker _updateChecker;
+    private readonly ServiceCommunicationClient _serviceCommunicationClient;
     private readonly IUiAutoUpdateWorker _autoUpdateWorker;
     private readonly IUiUpdateUserSettingsStore _userSettingsStore;
     private readonly IOptionsMonitor<AutoUpdateOptions> _autoUpdateOptions;
@@ -41,6 +42,7 @@ public class UpdateViewModel : ViewModelBase
 
     public UpdateViewModel(
         IUiUpdateChecker updateChecker,
+        ServiceCommunicationClient serviceCommunicationClient,
         IUiUpdateDownloader updateDownloader,
         IUiUpdateInstaller updateInstaller,
         IUiAutoUpdateWorker autoUpdateWorker,
@@ -49,6 +51,7 @@ public class UpdateViewModel : ViewModelBase
         ILogger<UpdateViewModel> logger)
     {
         _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
+        _serviceCommunicationClient = serviceCommunicationClient ?? throw new ArgumentNullException(nameof(serviceCommunicationClient));
         _autoUpdateWorker = autoUpdateWorker ?? throw new ArgumentNullException(nameof(autoUpdateWorker));
         _userSettingsStore = userSettingsStore ?? throw new ArgumentNullException(nameof(userSettingsStore));
         _autoUpdateOptions = autoUpdateOptions ?? throw new ArgumentNullException(nameof(autoUpdateOptions));
@@ -213,6 +216,25 @@ public class UpdateViewModel : ViewModelBase
             _progressViewModel.CancelRequested += (s, e) => CancelUpdate();
             _progressDialog.Show();
 
+            var startedViaAgent = await TryRunUnifiedInstallViaAgentAsync(_updateCts.Token);
+            if (startedViaAgent)
+            {
+                var lastResult = await _serviceCommunicationClient.GetLastUnifiedInstallResultAsync(_updateCts.Token);
+                if (lastResult?.Success == true)
+                {
+                    unifiedSucceeded = true;
+                    _logger.LogInformation("[UPDATE] Agent unified orchestration completed successfully");
+                }
+                else
+                {
+                    unifiedFailed = true;
+                    UpdateStatus = lastResult?.ErrorMessage ?? "Update failed.";
+                }
+
+                await RefreshVersionsAsync();
+                return;
+            }
+
             var installed = await _autoUpdateWorker.TryInstallAvailableUpdateAsync(_updateCts.Token);
             if (installed)
             {
@@ -254,8 +276,73 @@ public class UpdateViewModel : ViewModelBase
         }
     }
 
-    private void OnUpdateCheckCompleted(object? sender, ComponentUpdateCheckResult result)
+    private async Task<bool> TryRunUnifiedInstallViaAgentAsync(CancellationToken cancellationToken)
     {
+        try
+        {
+            var installRequest = new UnifiedInstallUpdateRequest
+            {
+                UpdateAll = true,
+                Force = false,
+                RequestedBy = "LocalUI"
+            };
+
+            var startResult = await _serviceCommunicationClient.StartUnifiedInstallAsync(installRequest, cancellationToken);
+            if (startResult == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(startResult.ErrorMessage))
+            {
+                UpdateStatus = startResult.ErrorMessage;
+                return true;
+            }
+
+            var pollAttempts = 0;
+            while (pollAttempts < 120)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var progress = await _serviceCommunicationClient.GetUnifiedInstallProgressAsync(cancellationToken);
+                if (progress != null)
+                {
+                    UpdateStatus = string.IsNullOrWhiteSpace(progress.Status)
+                        ? "Applying updates..."
+                        : progress.Status;
+
+                    if (_progressViewModel != null)
+                    {
+                        _progressViewModel.StatusText = UpdateStatus;
+                        _progressViewModel.Progress = progress.ProgressPercent;
+                        _progressViewModel.IsIndeterminate = progress.IsIndeterminate;
+                    }
+
+                    if (string.Equals(progress.Phase, "completed", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(progress.Phase, "failed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        break;
+                    }
+                }
+
+                pollAttempts++;
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[UPDATE] Agent unified orchestration path unavailable, falling back to legacy local install path.");
+            return false;
+        }
+    }
+
+    private async void OnUpdateCheckCompleted(object? sender, ComponentUpdateCheckResult result)
+    {
+        if (await TryApplyAgentUnifiedStatusAsync(CancellationToken.None))
+        {
+            return;
+        }
+
         RunOnUiThread(() =>
         {
             if (result.Manifest != null)
@@ -357,6 +444,12 @@ public class UpdateViewModel : ViewModelBase
         CurrentUiVersion = GetCurrentVersion();
         CurrentVersion = CurrentUiVersion;
 
+        if (await TryApplyAgentUnifiedStatusAsync(CancellationToken.None))
+        {
+            ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
+            return;
+        }
+
         CurrentAgentVersion = GetInstalledComponentVersion("StorageWatchAgent.exe");
         CurrentServerVersion = GetInstalledComponentVersion("StorageWatchServer.exe");
 
@@ -381,6 +474,47 @@ public class UpdateViewModel : ViewModelBase
         LatestVersion = _latestManifest.Ui.Version;
         IsUpdateAvailable = uiNeedsUpdate || agentNeedsUpdate || serverNeedsUpdate;
         ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
+    }
+
+    private async Task<bool> TryApplyAgentUnifiedStatusAsync(CancellationToken cancellationToken)
+    {
+        UnifiedUpdateStatusInfo? unified;
+        try
+        {
+            unified = await _serviceCommunicationClient.GetUnifiedUpdateStatusAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[AUTOUPDATE] Failed to query Agent unified update status via IPC.");
+            return false;
+        }
+
+        if (unified == null)
+            return false;
+
+        var components = unified.Components
+            .Where(c => !string.IsNullOrWhiteSpace(c.Component))
+            .ToDictionary(c => c.Component.Trim().ToLowerInvariant(), c => c, StringComparer.OrdinalIgnoreCase);
+
+        CurrentAgentVersion = components.TryGetValue("agent", out var agent) ? agent.CurrentVersion : "0.0.0.0";
+        CurrentServerVersion = components.TryGetValue("server", out var server) ? server.CurrentVersion : "0.0.0.0";
+        CurrentUiVersion = components.TryGetValue("ui", out var ui) ? ui.CurrentVersion : CurrentUiVersion;
+        CurrentVersion = CurrentUiVersion;
+
+        if (components.TryGetValue("ui", out var uiComponent))
+        {
+            LatestVersion = string.IsNullOrWhiteSpace(uiComponent.LatestVersion)
+                ? LatestVersion
+                : uiComponent.LatestVersion;
+        }
+
+        IsUpdateAvailable = unified.AnyUpdateAvailable;
+        UpdateStatus = string.IsNullOrWhiteSpace(unified.LastError)
+            ? (IsUpdateAvailable ? "Update available" : "No updates available")
+            : $"Update check failed: {unified.LastError}";
+
+        ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
+        return true;
     }
 
     private static string GetInstalledComponentVersion(string executableName)

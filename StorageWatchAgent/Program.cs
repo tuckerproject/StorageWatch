@@ -159,6 +159,10 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHttpClient<IServiceUpdateChecker, ServiceUpdateChecker>();
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
+        services.AddHttpClient<IUnifiedUpdateChecker, UnifiedUpdateChecker>();
+        services.AddSingleton<IUnifiedUpdateSnapshotStore, InMemoryUnifiedUpdateSnapshotStore>();
+        services.AddSingleton<IUnifiedInstallOrchestrator, UnifiedInstallOrchestrator>();
+        services.AddSingleton<IInstallPathResolver, InstallPathResolver>();
         services.AddSingleton<IServiceRestartHandler, UpdaterServiceRestartHandler>();
 
         services.AddSingleton<IServiceUpdateInstaller, AgentUpdateHandoffInstaller>();

@@ -109,6 +109,7 @@ builder.Services.AddHttpClient<UnifiedUpdateClient>((sp, client) =>
         client.BaseAddress = uri;
     }
 });
+builder.Services.AddSingleton<IAgentUnifiedUpdateRelayClient, AgentUnifiedUpdateRelayClient>();
 builder.Services.AddSingleton<IServerRestartHandler, ServerRestartHandler>();
 builder.Services.AddSingleton<IServerUpdateInstaller, ServerUpdateHandoffInstaller>();
 builder.Services.AddSingleton<IAutoUpdateTimerFactory, AutoUpdateTimerFactory>();

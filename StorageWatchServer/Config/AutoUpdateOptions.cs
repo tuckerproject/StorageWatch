@@ -13,5 +13,11 @@ namespace StorageWatchServer.Config
 
         [Range(1, 10080, ErrorMessage = "CheckIntervalMinutes must be between 1 and 10080")]
         public int CheckIntervalMinutes { get; set; } = 60;
+
+        /// <summary>
+        /// Enables Agent-driven update status/install relay for web update endpoints.
+        /// When disabled, legacy server-local update flows remain active.
+        /// </summary>
+        public bool UseAgentDrivenUpdates { get; set; } = true;
     }
 }

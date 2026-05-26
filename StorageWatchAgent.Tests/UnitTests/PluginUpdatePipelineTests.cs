@@ -200,6 +200,7 @@ namespace StorageWatch.Tests.UnitTests
                     new TrackingPluginUpdateChecker(realChecker, sequence),
                     new TrackingPluginUpdateDownloader(realDownloader, sequence),
                     new TrackingPluginUpdateInstaller(realInstaller, sequence),
+                    new NoOpUnifiedUpdateChecker(),
                     new SingleTickTimerFactory(),
                     new RollingFileLogger(TestHelpers.CreateTempLogFile()));
 
@@ -333,6 +334,31 @@ namespace StorageWatch.Tests.UnitTests
             public Task<UpdateInstallResult> InstallAsync(string zipPath, CancellationToken cancellationToken)
             {
                 return Task.FromResult(new UpdateInstallResult { Success = false, ErrorMessage = "Not used in plugin pipeline test." });
+            }
+        }
+
+        private sealed class NoOpUnifiedUpdateChecker : IUnifiedUpdateChecker
+        {
+            private readonly UnifiedUpdateStatusInfo _status = new()
+            {
+                AnyUpdateAvailable = false,
+                Components =
+                {
+                    new UnifiedUpdateComponentStatus { Component = "agent" },
+                    new UnifiedUpdateComponentStatus { Component = "server" },
+                    new UnifiedUpdateComponentStatus { Component = "ui" },
+                    new UnifiedUpdateComponentStatus { Component = "updater" }
+                }
+            };
+
+            public Task<UnifiedUpdateStatusInfo> RefreshSnapshotAsync(CancellationToken cancellationToken)
+            {
+                return Task.FromResult(_status);
+            }
+
+            public UnifiedUpdateStatusInfo GetLatestSnapshot()
+            {
+                return _status;
             }
         }
 

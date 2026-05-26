@@ -178,6 +178,10 @@ internal class ArgumentParser
             bool hasSelfUpdateAction = arguments.SelfUpdateStage || arguments.SelfUpdateApply;
             bool hasUpdateAction = arguments.UpdateUI || arguments.UpdateAgent || arguments.UpdateServer;
             bool hasRestartAction = arguments.RestartUI || arguments.RestartAgent || arguments.RestartServer;
+            var componentUpdateFlagCount =
+                (arguments.UpdateUI ? 1 : 0) +
+                (arguments.UpdateAgent ? 1 : 0) +
+                (arguments.UpdateServer ? 1 : 0);
 
             if (!hasSelfUpdateAction && !hasUpdateAction && !hasRestartAction)
             {
@@ -187,6 +191,11 @@ internal class ArgumentParser
             if (arguments.SelfUpdateStage && arguments.SelfUpdateApply)
             {
                 errors.Add("Error: --self-update-stage and --self-update-apply cannot be used together.");
+            }
+
+            if (componentUpdateFlagCount > 1)
+            {
+                errors.Add("Error: Only one component update flag may be specified per updater run (--update-ui, --update-agent, or --update-server).");
             }
 
             // Set result

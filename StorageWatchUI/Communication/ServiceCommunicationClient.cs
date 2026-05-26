@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using StorageWatch.Shared.Update.Models;
 using StorageWatchUI.Services.Logging;
 
 namespace StorageWatchUI.Communication;
@@ -238,6 +239,52 @@ public class ServiceCommunicationClient
 
         return response.Data;
     }
+
+    public async Task<UnifiedUpdateStatusInfo?> GetUnifiedUpdateStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ServiceRequest { Command = UnifiedUpdateCommands.GetUnifiedUpdateStatus };
+        var response = await SendRequestAsync(request, cancellationToken);
+
+        if (!response.Success || response.Data == null)
+            return null;
+
+        return JsonSerializer.Deserialize<UnifiedUpdateStatusInfo>(response.Data.Value.GetRawText());
+    }
+
+    public async Task<UnifiedUpdateInstallResult?> StartUnifiedInstallAsync(UnifiedInstallUpdateRequest requestPayload, CancellationToken cancellationToken = default)
+    {
+        var request = new ServiceRequest
+        {
+            Command = UnifiedUpdateCommands.StartUnifiedInstall,
+            Parameters = JsonSerializer.SerializeToElement(requestPayload)
+        };
+
+        var response = await SendRequestAsync(request, cancellationToken);
+        if (!response.Success || response.Data == null)
+            return null;
+
+        return JsonSerializer.Deserialize<UnifiedUpdateInstallResult>(response.Data.Value.GetRawText());
+    }
+
+    public async Task<UnifiedUpdateProgressInfo?> GetUnifiedInstallProgressAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ServiceRequest { Command = UnifiedUpdateCommands.GetUnifiedInstallProgress };
+        var response = await SendRequestAsync(request, cancellationToken);
+        if (!response.Success || response.Data == null)
+            return null;
+
+        return JsonSerializer.Deserialize<UnifiedUpdateProgressInfo>(response.Data.Value.GetRawText());
+    }
+
+    public async Task<UnifiedUpdateInstallResult?> GetLastUnifiedInstallResultAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ServiceRequest { Command = UnifiedUpdateCommands.GetLastUnifiedInstallResult };
+        var response = await SendRequestAsync(request, cancellationToken);
+        if (!response.Success || response.Data == null)
+            return null;
+
+        return JsonSerializer.Deserialize<UnifiedUpdateInstallResult>(response.Data.Value.GetRawText());
+    }
 }
 
 // Models (these should match the service-side models)
@@ -286,3 +333,4 @@ public class LocalDataQuery
     public int DaysBack { get; set; } = 7;
     public int Limit { get; set; } = 1000;
 }
+

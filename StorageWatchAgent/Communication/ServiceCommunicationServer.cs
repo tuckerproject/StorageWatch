@@ -7,7 +7,10 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using StorageWatch.Communication.Models;
+using StorageWatch.Services.AutoUpdate;
 using StorageWatch.Services.Logging;
+using StorageWatch.Shared.Update.Models;
+using SharedUnifiedInstallUpdateRequest = global::StorageWatch.Shared.Update.Models.UnifiedInstallUpdateRequest;
 
 namespace StorageWatch.Communication;
 
@@ -156,6 +159,10 @@ public class ServiceCommunicationServer : BackgroundService
                 "TestAlertSenders" => await HandleTestAlertSendersAsync(cancellationToken),
                 "GetPluginStatus" => await HandleGetPluginStatusAsync(cancellationToken),
                 "GetLocalData" => await HandleGetLocalDataAsync(request, cancellationToken),
+                "GetUnifiedUpdateStatus" => await HandleGetUnifiedUpdateStatusAsync(cancellationToken),
+                "StartUnifiedInstall" => await HandleStartUnifiedInstallAsync(request, cancellationToken),
+                "GetUnifiedInstallProgress" => await HandleGetUnifiedInstallProgressAsync(cancellationToken),
+                "GetLastUnifiedInstallResult" => await HandleGetLastUnifiedInstallResultAsync(cancellationToken),
                 _ => new ServiceResponse
                 {
                     Success = false,
@@ -303,6 +310,73 @@ public class ServiceCommunicationServer : BackgroundService
             Success = true,
             Data = JsonSerializer.SerializeToElement(new { Message = "Local data query not yet implemented" })
         };
+    }
+
+    private Task<ServiceResponse> HandleGetUnifiedUpdateStatusAsync(CancellationToken cancellationToken)
+    {
+        var checker = _serviceProvider.GetRequiredService<IUnifiedUpdateChecker>();
+        var snapshot = checker.GetLatestSnapshot();
+
+        var response = new ServiceResponse
+        {
+            Success = true,
+            Data = JsonSerializer.SerializeToElement(snapshot)
+        };
+
+        return Task.FromResult(response);
+    }
+
+    private async Task<ServiceResponse> HandleStartUnifiedInstallAsync(ServiceRequest request, CancellationToken cancellationToken)
+    {
+        var orchestrator = _serviceProvider.GetRequiredService<IUnifiedInstallOrchestrator>();
+
+        SharedUnifiedInstallUpdateRequest installRequest;
+        try
+        {
+            installRequest = request.Parameters.HasValue
+                ? JsonSerializer.Deserialize<SharedUnifiedInstallUpdateRequest>(request.Parameters.Value.GetRawText()) ?? new SharedUnifiedInstallUpdateRequest { UpdateAll = true }
+                : new SharedUnifiedInstallUpdateRequest { UpdateAll = true };
+        }
+        catch (Exception ex)
+        {
+            return new ServiceResponse
+            {
+                Success = false,
+                ErrorMessage = $"Invalid install request payload: {ex.Message}"
+            };
+        }
+
+        var result = await orchestrator.StartInstallAsync(installRequest, cancellationToken);
+        return new ServiceResponse
+        {
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
+            Data = JsonSerializer.SerializeToElement(result)
+        };
+    }
+
+    private Task<ServiceResponse> HandleGetUnifiedInstallProgressAsync(CancellationToken cancellationToken)
+    {
+        var orchestrator = _serviceProvider.GetRequiredService<IUnifiedInstallOrchestrator>();
+        var progress = orchestrator.GetProgress();
+
+        return Task.FromResult(new ServiceResponse
+        {
+            Success = true,
+            Data = JsonSerializer.SerializeToElement(progress)
+        });
+    }
+
+    private Task<ServiceResponse> HandleGetLastUnifiedInstallResultAsync(CancellationToken cancellationToken)
+    {
+        var orchestrator = _serviceProvider.GetRequiredService<IUnifiedInstallOrchestrator>();
+        var result = orchestrator.GetLastResult();
+
+        return Task.FromResult(new ServiceResponse
+        {
+            Success = true,
+            Data = JsonSerializer.SerializeToElement(result)
+        });
     }
 
     private async Task SendErrorResponse(NamedPipeServerStream pipeServer, string error, CancellationToken cancellationToken)

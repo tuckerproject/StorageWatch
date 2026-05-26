@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using StorageWatch.Shared.Update.Models;
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -75,6 +76,7 @@ namespace StorageWatchServer.Services
             public bool ServerUpdated { get; set; }
             public bool AgentUpdated { get; set; }
             public bool UiUpdated { get; set; }
+            public List<UnifiedUpdateProgressInfo> Progress { get; set; } = new();
             public List<string> Errors { get; set; } = new();
         }
     }

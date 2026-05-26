@@ -88,6 +88,9 @@ if ($ValidatePayload) {
     $updaterDllPath = Join-Path $updaterPayloadPath 'StorageWatch.Updater.dll'
     $updaterDepsPath = Join-Path $updaterPayloadPath 'StorageWatch.Updater.deps.json'
     $updaterRuntimeConfigPath = Join-Path $updaterPayloadPath 'StorageWatch.Updater.runtimeconfig.json'
+    $agentExePath = Join-Path (Join-Path $resolvedPayloadRoot 'Agent') 'StorageWatchAgent.exe'
+    $serverExePath = Join-Path (Join-Path $resolvedPayloadRoot 'Server') 'StorageWatchServer.exe'
+    $uiExePath = Join-Path (Join-Path $resolvedPayloadRoot 'UI') 'StorageWatchUI.exe'
 
     if (-not (Test-Path -LiteralPath $updaterExePath)) {
         throw "Required updater executable missing from payload: $updaterExePath"
@@ -100,6 +103,15 @@ if ($ValidatePayload) {
     }
     if (-not (Test-Path -LiteralPath $updaterRuntimeConfigPath)) {
         throw "Required updater runtimeconfig.json missing from payload: $updaterRuntimeConfigPath"
+    }
+    if (-not (Test-Path -LiteralPath $agentExePath)) {
+        throw "Required agent executable missing from payload: $agentExePath"
+    }
+    if (-not (Test-Path -LiteralPath $serverExePath)) {
+        throw "Required server executable missing from payload: $serverExePath"
+    }
+    if (-not (Test-Path -LiteralPath $uiExePath)) {
+        throw "Required UI executable missing from payload: $uiExePath"
     }
 
     $legacyUpdaterPayloadDirs = @(

@@ -272,6 +272,70 @@ namespace StorageWatch.Tests.UnitTests
         }
 
         [Fact]
+        public async Task UnifiedUpdateChecker_RefreshSnapshotAsync_MapsAllCoreComponentsFromManifest()
+        {
+            var manifestJson = "{\"version\":\"3.0.0\",\"agent\":{\"version\":\"3.0.1\",\"downloadUrl\":\"https://updates.test/agent.zip\",\"sha256\":\"a\"},\"server\":{\"version\":\"3.0.2\",\"downloadUrl\":\"https://updates.test/server.zip\",\"sha256\":\"b\"},\"ui\":{\"version\":\"3.0.3\",\"downloadUrl\":\"https://updates.test/ui.zip\",\"sha256\":\"c\"},\"updater\":{\"version\":\"3.0.4\",\"downloadUrl\":\"https://updates.test/updater.zip\",\"sha256\":\"d\"}}";
+            var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(manifestJson)
+            });
+
+            var httpClient = new HttpClient(handler);
+            var options = new TestOptionsMonitor<AutoUpdateOptions>(new AutoUpdateOptions
+            {
+                Enabled = true,
+                ManifestUrl = "https://updates.test/manifest.json",
+                CheckIntervalMinutes = 60
+            });
+
+            var checker = new UnifiedUpdateChecker(
+                httpClient,
+                options,
+                new InMemoryUnifiedUpdateSnapshotStore(),
+                new TestLogger<UnifiedUpdateChecker>());
+
+            var snapshot = await checker.RefreshSnapshotAsync(CancellationToken.None);
+
+            snapshot.Components.Should().HaveCount(4);
+            snapshot.Components.Should().Contain(c => c.Component == "agent" && c.DownloadUrl == "https://updates.test/agent.zip");
+            snapshot.Components.Should().Contain(c => c.Component == "server" && c.DownloadUrl == "https://updates.test/server.zip");
+            snapshot.Components.Should().Contain(c => c.Component == "ui" && c.DownloadUrl == "https://updates.test/ui.zip");
+            snapshot.Components.Should().Contain(c => c.Component == "updater" && c.DownloadUrl == "https://updates.test/updater.zip");
+        }
+
+        [Fact]
+        public async Task UnifiedInstallOrchestrator_StartInstallAsync_WhenNoUpdatesAvailable_ReturnsSuccessfulNoOp()
+        {
+            var checker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo
+            {
+                AnyUpdateAvailable = false,
+                Components =
+                {
+                    new UnifiedUpdateComponentStatus { Component = "agent", UpdateAvailable = false },
+                    new UnifiedUpdateComponentStatus { Component = "server", UpdateAvailable = false },
+                    new UnifiedUpdateComponentStatus { Component = "ui", UpdateAvailable = false },
+                    new UnifiedUpdateComponentStatus { Component = "updater", UpdateAvailable = false }
+                }
+            });
+
+            var downloader = new ServiceUpdateDownloader(
+                new HttpClient(new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound))),
+                new TestLogger<ServiceUpdateDownloader>());
+
+            var orchestrator = new UnifiedInstallOrchestrator(
+                checker,
+                downloader,
+                new StubInstallPathResolver(TestHelpers.CreateTempDirectory()),
+                new TestLogger<UnifiedInstallOrchestrator>());
+
+            var result = await orchestrator.StartInstallAsync(new UnifiedInstallUpdateRequest { UpdateAll = true }, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
+            result.UpdatedComponents.Should().BeEmpty();
+            result.FailedComponents.Should().BeEmpty();
+        }
+
+        [Fact]
         public async Task AutoUpdateWorker_UsesTimerTicksToRunUpdateCycle()
         {
             var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(new StorageWatchOptions { Mode = StorageWatchMode.Agent });
@@ -287,10 +351,11 @@ namespace StorageWatch.Tests.UnitTests
             var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = Array.Empty<PluginUpdateInfo>() });
             var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = false });
             var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
+            var unifiedChecker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo());
             var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
             var logger = new RollingFileLogger(TestHelpers.CreateTempLogFile());
 
-            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, timerFactory, logger);
+            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, unifiedChecker, timerFactory, logger);
 
             await worker.RunAsync(CancellationToken.None);
 
@@ -309,10 +374,11 @@ namespace StorageWatch.Tests.UnitTests
             var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = Array.Empty<PluginUpdateInfo>() });
             var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = false });
             var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
+            var unifiedChecker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo());
             var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
             var logger = new RollingFileLogger(TestHelpers.CreateTempLogFile());
 
-            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, timerFactory, logger);
+            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, unifiedChecker, timerFactory, logger);
 
             await worker.RunAsync(CancellationToken.None);
 
@@ -331,10 +397,11 @@ namespace StorageWatch.Tests.UnitTests
             var pluginChecker = new FakePluginUpdateChecker(new PluginUpdateCheckResult { Updates = Array.Empty<PluginUpdateInfo>() });
             var pluginDownloader = new FakePluginUpdateDownloader(new PluginDownloadResult { Success = false });
             var pluginInstaller = new FakePluginUpdateInstaller(new UpdateInstallResult { Success = true });
+            var unifiedChecker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo());
             var timerFactory = new FakeAutoUpdateTimerFactory(new[] { true, false });
             var logger = new RollingFileLogger(TestHelpers.CreateTempLogFile());
 
-            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, timerFactory, logger);
+            var worker = new TestAutoUpdateWorker(optionsMonitor, autoUpdateMonitor, serviceChecker, serviceDownloader, serviceInstaller, pluginChecker, pluginDownloader, pluginInstaller, unifiedChecker, timerFactory, logger);
 
             await worker.RunAsync(CancellationToken.None);
 
@@ -418,6 +485,56 @@ namespace StorageWatch.Tests.UnitTests
             var result = await downloader.DownloadAsync(component, CancellationToken.None);
 
             result.Success.Should().BeFalse();
+        }
+
+        private sealed class StubUnifiedUpdateChecker : IUnifiedUpdateChecker
+        {
+            private readonly UnifiedUpdateStatusInfo _status;
+
+            public StubUnifiedUpdateChecker(UnifiedUpdateStatusInfo status)
+            {
+                _status = status;
+            }
+
+            public Task<UnifiedUpdateStatusInfo> RefreshSnapshotAsync(CancellationToken cancellationToken)
+            {
+                return Task.FromResult(_status);
+            }
+
+            public UnifiedUpdateStatusInfo GetLatestSnapshot()
+            {
+                return _status;
+            }
+        }
+
+        private sealed class StubInstallPathResolver : IInstallPathResolver
+        {
+            private readonly string _root;
+
+            public StubInstallPathResolver(string root)
+            {
+                _root = root;
+                Directory.CreateDirectory(Path.Combine(_root, "Updater"));
+                var updaterPath = Path.Combine(_root, "Updater", "StorageWatch.Updater.exe");
+                if (!File.Exists(updaterPath))
+                {
+                    File.WriteAllText(updaterPath, string.Empty);
+                }
+            }
+
+            public ResolvedInstallPaths Resolve()
+            {
+                return new ResolvedInstallPaths
+                {
+                    InstallRoot = _root,
+                    AgentDirectory = Path.Combine(_root, "Agent"),
+                    ServerDirectory = Path.Combine(_root, "Server"),
+                    UiDirectory = Path.Combine(_root, "UI"),
+                    UpdaterDirectory = Path.Combine(_root, "Updater"),
+                    UpdaterExecutablePath = Path.Combine(_root, "Updater", "StorageWatch.Updater.exe"),
+                    UsedRegistryInstallRoot = false
+                };
+            }
         }
 
         private sealed class FakeHttpMessageHandler : HttpMessageHandler
@@ -625,9 +742,10 @@ namespace StorageWatch.Tests.UnitTests
                 IPluginUpdateChecker pluginUpdateChecker,
                 IPluginUpdateDownloader pluginUpdateDownloader,
                 IPluginUpdateInstaller pluginUpdateInstaller,
+                IUnifiedUpdateChecker unifiedUpdateChecker,
                 IAutoUpdateTimerFactory timerFactory,
                 RollingFileLogger logger)
-                : base(storageOptionsMonitor, autoUpdateOptionsMonitor, serviceUpdateChecker, serviceUpdateDownloader, serviceUpdateInstaller, pluginUpdateChecker, pluginUpdateDownloader, pluginUpdateInstaller, timerFactory, logger)
+                : base(storageOptionsMonitor, autoUpdateOptionsMonitor, serviceUpdateChecker, serviceUpdateDownloader, serviceUpdateInstaller, pluginUpdateChecker, pluginUpdateDownloader, pluginUpdateInstaller, unifiedUpdateChecker, timerFactory, logger)
             {
             }
 

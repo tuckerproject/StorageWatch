@@ -18,6 +18,7 @@ namespace StorageWatch.Services.AutoUpdate
         private readonly IPluginUpdateChecker _pluginUpdateChecker;
         private readonly IPluginUpdateDownloader _pluginUpdateDownloader;
         private readonly IPluginUpdateInstaller _pluginUpdateInstaller;
+        private readonly IUnifiedUpdateChecker _unifiedUpdateChecker;
         private readonly IAutoUpdateTimerFactory _timerFactory;
         private readonly RollingFileLogger _logger;
         private bool ManualInstallRequested { get; set; } = false;
@@ -31,6 +32,7 @@ namespace StorageWatch.Services.AutoUpdate
             IPluginUpdateChecker pluginUpdateChecker,
             IPluginUpdateDownloader pluginUpdateDownloader,
             IPluginUpdateInstaller pluginUpdateInstaller,
+            IUnifiedUpdateChecker unifiedUpdateChecker,
             IAutoUpdateTimerFactory timerFactory,
             RollingFileLogger logger)
         {
@@ -42,6 +44,7 @@ namespace StorageWatch.Services.AutoUpdate
             _pluginUpdateChecker = pluginUpdateChecker ?? throw new ArgumentNullException(nameof(pluginUpdateChecker));
             _pluginUpdateDownloader = pluginUpdateDownloader ?? throw new ArgumentNullException(nameof(pluginUpdateDownloader));
             _pluginUpdateInstaller = pluginUpdateInstaller ?? throw new ArgumentNullException(nameof(pluginUpdateInstaller));
+            _unifiedUpdateChecker = unifiedUpdateChecker ?? throw new ArgumentNullException(nameof(unifiedUpdateChecker));
             _timerFactory = timerFactory ?? throw new ArgumentNullException(nameof(timerFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -97,6 +100,20 @@ namespace StorageWatch.Services.AutoUpdate
                 else
                 {
                     _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
+                }
+
+                var unified = await _unifiedUpdateChecker.RefreshSnapshotAsync(stoppingToken);
+                if (!string.IsNullOrWhiteSpace(unified.LastError))
+                {
+                    _logger.Log($"[AUTOUPDATE] Unified update snapshot error: {unified.LastError}");
+                }
+                else if (unified.AnyUpdateAvailable)
+                {
+                    _logger.Log("[AUTOUPDATE] Unified update snapshot indicates at least one component update is available.");
+                }
+                else
+                {
+                    _logger.Log("[AUTOUPDATE] Unified update snapshot indicates no component updates are available.");
                 }
 
                 await RunPluginUpdatesAsync(stoppingToken);
