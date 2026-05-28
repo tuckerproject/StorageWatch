@@ -104,6 +104,9 @@ public partial class App : Application
         // Path provider (runtime path resolution)
         services.AddSingleton<IPathProvider, PathProvider>();
 
+        // Communication
+        services.AddSingleton<Communication.ServiceCommunicationClient>();
+
         // Services
         services.AddSingleton<IDataProvider, LocalDataProvider>();
         services.AddSingleton<IServiceManager, ServiceManager>();

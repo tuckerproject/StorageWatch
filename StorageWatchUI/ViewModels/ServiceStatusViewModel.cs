@@ -29,11 +29,14 @@ public class ServiceStatusViewModel : ViewModelBase
     private bool _canStop;
     private DispatcherTimer? _refreshTimer;
 
-    public ServiceStatusViewModel(IServiceManager serviceManager, RollingFileLogger? logger = null)
+    public ServiceStatusViewModel(
+        IServiceManager serviceManager,
+        ServiceCommunicationClient communicationClient,
+        RollingFileLogger? logger = null)
     {
         _serviceManager = serviceManager;
+        _communicationClient = communicationClient ?? throw new ArgumentNullException(nameof(communicationClient));
         _logger = logger;
-        _communicationClient = new ServiceCommunicationClient(logger);
 
         _logger?.Log("[VIEWMODEL] Loading ServiceStatusViewModel...");
 

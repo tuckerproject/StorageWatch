@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Moq;
+using StorageWatchUI.Communication;
 using StorageWatchUI.Services;
 using StorageWatchUI.ViewModels;
 using System.ServiceProcess;
@@ -17,7 +18,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.IsServiceInstalled()).Returns(true);
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Running);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -37,7 +38,7 @@ public class ServiceStatusViewModelTests
         var mockServiceManager = new Mock<IServiceManager>();
         mockServiceManager.Setup(m => m.IsServiceInstalled()).Returns(false);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -58,7 +59,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.IsServiceInstalled()).Returns(true);
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Stopped);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -78,7 +79,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.IsServiceInstalled()).Returns(true);
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Paused);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -99,7 +100,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Stopped);
         mockServiceManager.Setup(m => m.StartServiceAsync()).ReturnsAsync(true);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -119,7 +120,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Running);
         mockServiceManager.Setup(m => m.StopServiceAsync()).ReturnsAsync(true);
 
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Act
         viewModel.RefreshCommand.Execute(null);
@@ -140,7 +141,7 @@ public class ServiceStatusViewModelTests
         mockServiceManager.Setup(m => m.GetServiceStatus()).Returns(ServiceControllerStatus.Running);
 
         // Act
-        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object);
+        var viewModel = new ServiceStatusViewModel(mockServiceManager.Object, new ServiceCommunicationClient());
 
         // Assert - ViewModel should handle non-admin scenario gracefully
         viewModel.Should().NotBeNull();
