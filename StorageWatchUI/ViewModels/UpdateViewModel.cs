@@ -217,35 +217,26 @@ public class UpdateViewModel : ViewModelBase
             _progressDialog.Show();
 
             var startedViaAgent = await TryRunUnifiedInstallViaAgentAsync(_updateCts.Token);
-            if (startedViaAgent)
+            if (!startedViaAgent)
             {
-                var lastResult = await _serviceCommunicationClient.GetLastUnifiedInstallResultAsync(_updateCts.Token);
-                if (lastResult?.Success == true)
-                {
-                    unifiedSucceeded = true;
-                    _logger.LogInformation("[UPDATE] Agent unified orchestration completed successfully");
-                }
-                else
-                {
-                    unifiedFailed = true;
-                    UpdateStatus = lastResult?.ErrorMessage ?? "Update failed.";
-                }
+                unifiedFailed = true;
+                if (string.IsNullOrWhiteSpace(UpdateStatus))
+                    UpdateStatus = "Unable to start unified install via Agent.";
 
                 await RefreshVersionsAsync();
                 return;
             }
 
-            var installed = await _autoUpdateWorker.TryInstallAvailableUpdateAsync(_updateCts.Token);
-            if (installed)
+            var lastResult = await _serviceCommunicationClient.GetLastUnifiedInstallResultAsync(_updateCts.Token);
+            if (lastResult?.Success == true)
             {
                 unifiedSucceeded = true;
-                _logger.LogInformation("[UPDATE] Updater handoff completed successfully");
+                _logger.LogInformation("[UPDATE] Agent unified orchestration completed successfully");
             }
             else
             {
                 unifiedFailed = true;
-                if (string.IsNullOrWhiteSpace(UpdateStatus))
-                    UpdateStatus = "Update failed.";
+                UpdateStatus = lastResult?.ErrorMessage ?? "Update failed.";
             }
 
             await RefreshVersionsAsync();
@@ -331,7 +322,7 @@ public class UpdateViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[UPDATE] Agent unified orchestration path unavailable, falling back to legacy local install path.");
+            _logger.LogWarning(ex, "[UPDATE] Agent unified orchestration path unavailable.");
             return false;
         }
     }
@@ -345,59 +336,14 @@ public class UpdateViewModel : ViewModelBase
 
         RunOnUiThread(() =>
         {
-            if (result.Manifest != null)
-            {
-                _latestManifest = result.Manifest;
-            }
-
             if (_snoozeUntilUtc.HasValue && DateTimeOffset.UtcNow >= _snoozeUntilUtc.Value)
             {
                 _snoozeUntilUtc = null;
             }
 
-            if (result.IsUpdateAvailable && result.Component != null)
-            {
-                if (!string.IsNullOrWhiteSpace(_skippedVersion) &&
-                    string.Equals(result.Component.Version, _skippedVersion, StringComparison.OrdinalIgnoreCase))
-                {
-                    IsUpdateAvailable = false;
-                    IsBannerVisible = false;
-                    UpdateStatus = "No updates available";
-                    _logger.LogInformation("[AUTOUPDATE] Suppressing skipped UI version: {Version}", _skippedVersion);
-                    return;
-                }
-
-                if (_snoozeUntilUtc.HasValue && DateTimeOffset.UtcNow < _snoozeUntilUtc.Value)
-                {
-                    IsUpdateAvailable = false;
-                    IsBannerVisible = false;
-                    UpdateStatus = "Update reminder snoozed.";
-                    _logger.LogInformation("[AUTOUPDATE] Update notifications snoozed until {SnoozeUntilUtc}.", _snoozeUntilUtc.Value);
-                    return;
-                }
-
-                IsUpdateAvailable = true;
-                LatestVersion = result.Component.Version;
-                ReleaseNotes = string.IsNullOrWhiteSpace(result.Component.ReleaseNotesUrl)
-                    ? "Update details are available in the release notes."
-                    : result.Component.ReleaseNotesUrl;
-                IsBannerVisible = true;
-                UpdateStatus = "Update available";
-                _logger.LogInformation("Update available: {Version}", LatestVersion);
-            }
-            else
-            {
-                IsUpdateAvailable = false;
-                IsBannerVisible = false;
-                UpdateStatus = string.IsNullOrWhiteSpace(result.ErrorMessage)
-                    ? "No updates available"
-                    : $"Update check failed: {result.ErrorMessage}";
-                if (string.IsNullOrWhiteSpace(result.ErrorMessage))
-                    _logger.LogInformation("No updates available");
-                else
-                    _logger.LogWarning("UI update check failed: {Error}", result.ErrorMessage);
-            }
-
+            IsUpdateAvailable = false;
+            IsBannerVisible = false;
+            UpdateStatus = "Unified update status unavailable.";
             ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
         });
     }
@@ -444,35 +390,13 @@ public class UpdateViewModel : ViewModelBase
         CurrentUiVersion = GetCurrentVersion();
         CurrentVersion = CurrentUiVersion;
 
-        if (await TryApplyAgentUnifiedStatusAsync(CancellationToken.None))
+        if (!await TryApplyAgentUnifiedStatusAsync(CancellationToken.None))
         {
-            ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
-            return;
+            IsUpdateAvailable = false;
+            IsBannerVisible = false;
+            UpdateStatus = "Unified update status unavailable.";
         }
 
-        CurrentAgentVersion = GetInstalledComponentVersion("StorageWatchAgent.exe");
-        CurrentServerVersion = GetInstalledComponentVersion("StorageWatchServer.exe");
-
-        var uiResult = await _updateChecker.CheckForUpdateAsync(CancellationToken.None);
-        if (uiResult.Manifest != null)
-        {
-            _latestManifest = uiResult.Manifest;
-        }
-
-        var uiNeedsUpdate = Version.TryParse(_latestManifest.Ui.Version, out var manifestUiVersion)
-            && Version.TryParse(CurrentUiVersion, out var localUiVersion)
-            && manifestUiVersion > localUiVersion;
-
-        var agentNeedsUpdate = Version.TryParse(_latestManifest.Agent.Version, out var manifestAgentVersion)
-            && Version.TryParse(CurrentAgentVersion, out var localAgentVersion)
-            && manifestAgentVersion > localAgentVersion;
-
-        var serverNeedsUpdate = Version.TryParse(_latestManifest.Server.Version, out var manifestServerVersion)
-            && Version.TryParse(CurrentServerVersion, out var localServerVersion)
-            && manifestServerVersion > localServerVersion;
-
-        LatestVersion = _latestManifest.Ui.Version;
-        IsUpdateAvailable = uiNeedsUpdate || agentNeedsUpdate || serverNeedsUpdate;
         ReevaluateBannerVisibility(unifiedUpdateSucceeded: false, unifiedUpdateFailed: false);
     }
 

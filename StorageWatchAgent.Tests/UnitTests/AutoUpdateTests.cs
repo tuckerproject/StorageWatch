@@ -4,6 +4,8 @@ using StorageWatch.Shared.Update.Models;
 using StorageWatch.Services.Alerting.Plugins;
 using StorageWatch.Services.AutoUpdate;
 using StorageWatch.Services.Logging;
+using StorageWatchAgent.Services.AutoUpdate;
+using StorageWatchAgent.Services.AutoUpdate.Models;
 using StorageWatch.Tests.Utilities;
 using System;
 using System.Collections.Generic;
@@ -326,6 +328,7 @@ namespace StorageWatch.Tests.UnitTests
                 checker,
                 downloader,
                 new StubInstallPathResolver(TestHelpers.CreateTempDirectory()),
+                new InMemoryCheckpointStore(),
                 new TestLogger<UnifiedInstallOrchestrator>());
 
             var result = await orchestrator.StartInstallAsync(new UnifiedInstallUpdateRequest { UpdateAll = true }, CancellationToken.None);
@@ -333,6 +336,33 @@ namespace StorageWatch.Tests.UnitTests
             result.Success.Should().BeTrue();
             result.UpdatedComponents.Should().BeEmpty();
             result.FailedComponents.Should().BeEmpty();
+        }
+
+        private sealed class InMemoryCheckpointStore : IUnifiedInstallCheckpointStore
+        {
+            private UnifiedInstallCheckpoint? _checkpoint;
+
+            public Task SaveCheckpointAsync(UnifiedInstallCheckpoint checkpoint, CancellationToken cancellationToken = default)
+            {
+                _checkpoint = checkpoint;
+                return Task.CompletedTask;
+            }
+
+            public Task<UnifiedInstallCheckpoint?> LoadCheckpointAsync(CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(_checkpoint);
+            }
+
+            public Task ClearCheckpointAsync(CancellationToken cancellationToken = default)
+            {
+                _checkpoint = null;
+                return Task.CompletedTask;
+            }
+
+            public Task<bool> CheckpointExistsAsync(CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(_checkpoint != null);
+            }
         }
 
         [Fact]
@@ -359,7 +389,7 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
-            serviceChecker.CallCount.Should().Be(2);
+            unifiedChecker.CallCount.Should().Be(2);
         }
 
         [Fact]
@@ -382,7 +412,7 @@ namespace StorageWatch.Tests.UnitTests
 
             await worker.RunAsync(CancellationToken.None);
 
-            serviceChecker.CallCount.Should().Be(2);
+            unifiedChecker.CallCount.Should().Be(2);
         }
 
         [Fact]
@@ -498,12 +528,20 @@ namespace StorageWatch.Tests.UnitTests
 
             public Task<UnifiedUpdateStatusInfo> RefreshSnapshotAsync(CancellationToken cancellationToken)
             {
+                CallCount++;
                 return Task.FromResult(_status);
             }
+
+            public int CallCount { get; private set; }
 
             public UnifiedUpdateStatusInfo GetLatestSnapshot()
             {
                 return _status;
+            }
+
+            public Task SetInstallingStateAsync(bool isInstalling, CancellationToken cancellationToken)
+            {
+                return Task.CompletedTask;
             }
         }
 

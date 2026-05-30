@@ -7,6 +7,7 @@ using StorageWatch.Services.CentralServer;
 using StorageWatch.Services.Logging;
 using StorageWatch.Services.Monitoring;
 using StorageWatch.Services.AutoUpdate;
+using StorageWatchAgent.Services.AutoUpdate;
 using StorageWatch.Models;
 using StorageWatch.Communication;
 using Microsoft.Extensions.Configuration;
@@ -161,7 +162,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHttpClient<IServiceUpdateDownloader, ServiceUpdateDownloader>();
         services.AddHttpClient<IUnifiedUpdateChecker, UnifiedUpdateChecker>();
         services.AddSingleton<IUnifiedUpdateSnapshotStore, InMemoryUnifiedUpdateSnapshotStore>();
+        services.AddSingleton<IUnifiedInstallCheckpointStore, UnifiedInstallCheckpointStore>();
         services.AddSingleton<IUnifiedInstallOrchestrator, UnifiedInstallOrchestrator>();
+        services.AddHostedService<UnifiedInstallResumeService>();
         services.AddSingleton<IInstallPathResolver, InstallPathResolver>();
         services.AddSingleton<IServiceRestartHandler, UpdaterServiceRestartHandler>();
 

@@ -73,6 +73,7 @@ public interface IUnifiedUpdateChecker
 {
     Task<UnifiedUpdateStatusInfo> RefreshSnapshotAsync(CancellationToken cancellationToken);
     UnifiedUpdateStatusInfo GetLatestSnapshot();
+    Task SetInstallingStateAsync(bool isInstalling, CancellationToken cancellationToken);
 }
 
 public class UnifiedUpdateChecker : IUnifiedUpdateChecker
@@ -97,6 +98,16 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
     public UnifiedUpdateStatusInfo GetLatestSnapshot()
     {
         return _snapshotStore.GetSnapshot();
+    }
+
+    public Task SetInstallingStateAsync(bool isInstalling, CancellationToken cancellationToken)
+    {
+        var current = _snapshotStore.GetSnapshot();
+        current.IsInstalling = isInstalling;
+        _snapshotStore.SaveSnapshot(current);
+
+        _logger.LogDebug("[AUTOUPDATE] Set unified snapshot IsInstalling={IsInstalling}", isInstalling);
+        return Task.CompletedTask;
     }
 
     public async Task<UnifiedUpdateStatusInfo> RefreshSnapshotAsync(CancellationToken cancellationToken)

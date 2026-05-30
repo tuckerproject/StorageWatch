@@ -360,6 +360,11 @@ namespace StorageWatch.Tests.UnitTests
             {
                 return _status;
             }
+
+            public Task SetInstallingStateAsync(bool isInstalling, CancellationToken cancellationToken)
+            {
+                return Task.CompletedTask;
+            }
         }
 
         private sealed class TrackingPluginUpdateChecker : IPluginUpdateChecker

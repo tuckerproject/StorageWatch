@@ -89,19 +89,6 @@ namespace StorageWatch.Services.AutoUpdate
             {
                 stoppingToken.ThrowIfCancellationRequested();
 
-                var result = await _serviceUpdateChecker.CheckForUpdateAsync(stoppingToken);
-                if (!result.IsUpdateAvailable || result.Component == null)
-                {
-                    if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-                        _logger.Log($"[AUTOUPDATE] Update check failed: {result.ErrorMessage}");
-                    else
-                        _logger.Log("[AUTOUPDATE] No service updates available.");
-                }
-                else
-                {
-                    _logger.Log($"[AUTOUPDATE] Service update available: {result.Component.Version}");
-                }
-
                 var unified = await _unifiedUpdateChecker.RefreshSnapshotAsync(stoppingToken);
                 if (!string.IsNullOrWhiteSpace(unified.LastError))
                 {
@@ -109,7 +96,7 @@ namespace StorageWatch.Services.AutoUpdate
                 }
                 else if (unified.AnyUpdateAvailable)
                 {
-                    _logger.Log("[AUTOUPDATE] Unified update snapshot indicates at least one component update is available.");
+                    _logger.Log("[AUTOUPDATE] Unified update snapshot indicates one or more component updates are available.");
                 }
                 else
                 {
