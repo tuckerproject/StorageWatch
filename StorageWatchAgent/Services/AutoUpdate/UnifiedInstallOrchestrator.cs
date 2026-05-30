@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.ServiceProcess;
 using System.Text.Json;
 using StorageWatch.Shared.Update.Models;
 using StorageWatchAgent.Services.AutoUpdate;
@@ -19,12 +20,23 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
 {
     private static readonly string[] DefaultAllOrder = ["updater", "server", "ui", "agent"];
     private static readonly TimeSpan UpdaterInvocationTimeout = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ComponentStopTimeout = TimeSpan.FromSeconds(30);
+
+    private const string UiProcessName = "StorageWatchUI";
+    private const string ServerProcessName = "StorageWatchServer";
+    private const string AgentProcessName = "StorageWatchAgent";
+    private const string ServerServiceName = "StorageWatchServer";
+    private const string AgentServiceName = "StorageWatchAgent";
 
     private readonly IUnifiedUpdateChecker _unifiedUpdateChecker;
     private readonly IServiceUpdateDownloader _serviceUpdateDownloader;
     private readonly IInstallPathResolver _installPathResolver;
     private readonly IUnifiedInstallCheckpointStore _checkpointStore;
     private readonly ILogger<UnifiedInstallOrchestrator> _logger;
+    private readonly Func<string, CancellationToken, Task<(bool Success, string? ErrorMessage)>>? _stopComponentBeforeUpdateOverride;
+    private readonly Func<string, IReadOnlyList<string>, string, (bool Success, string? ErrorMessage)> _runUpdaterProcess;
+    private readonly Func<string, TimeSpan, (bool Success, string? ErrorMessage)> _stopWindowsService;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly SemaphoreSlim _orchestrationGate = new(1, 1);
     private readonly object _stateGate = new();
     private UnifiedUpdateProgressInfo _latestProgress = new()
@@ -51,13 +63,21 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
         IServiceUpdateDownloader serviceUpdateDownloader,
         IInstallPathResolver installPathResolver,
         IUnifiedInstallCheckpointStore checkpointStore,
-        ILogger<UnifiedInstallOrchestrator> logger)
+        ILogger<UnifiedInstallOrchestrator> logger,
+        Func<string, CancellationToken, Task<(bool Success, string? ErrorMessage)>>? stopComponentBeforeUpdate = null,
+        Func<string, IReadOnlyList<string>, string, (bool Success, string? ErrorMessage)>? runUpdaterProcess = null,
+        Func<string, TimeSpan, (bool Success, string? ErrorMessage)>? stopWindowsService = null,
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
     {
         _unifiedUpdateChecker = unifiedUpdateChecker ?? throw new ArgumentNullException(nameof(unifiedUpdateChecker));
         _serviceUpdateDownloader = serviceUpdateDownloader ?? throw new ArgumentNullException(nameof(serviceUpdateDownloader));
         _installPathResolver = installPathResolver ?? throw new ArgumentNullException(nameof(installPathResolver));
         _checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _stopComponentBeforeUpdateOverride = stopComponentBeforeUpdate;
+        _runUpdaterProcess = runUpdaterProcess ?? RunUpdaterProcess;
+        _stopWindowsService = stopWindowsService ?? StopWindowsServiceByName;
+        _delayAsync = delayAsync ?? Task.Delay;
     }
 
     public async Task<UnifiedUpdateInstallResult> StartInstallAsync(UnifiedInstallUpdateRequest request, CancellationToken cancellationToken)
@@ -373,8 +393,20 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
                 break;
             }
 
+            var stop = await StopComponentBeforeUpdateAsync(component, cancellationToken);
+            if (!stop.Success)
+            {
+                componentState.State = ComponentInstallState.Failed;
+                componentState.ErrorMessage = stop.ErrorMessage ?? $"Failed to stop component '{component}' before update.";
+                result.FailedComponents.Add(component);
+                result.ErrorMessage = componentState.ErrorMessage;
+                await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
+                SetProgress(orchestrationId, "failed", component, result.ErrorMessage, ComputePercent(result.UpdatedComponents.Count, checkpoint.Components.Count), false);
+                break;
+            }
+
             // Run updater
-            var run = RunUpdaterProcess(invocation.UpdaterPath, invocation.Arguments, invocation.WorkingDirectory);
+            var run = _runUpdaterProcess(invocation.UpdaterPath, invocation.Arguments, invocation.WorkingDirectory);
             if (!run.Success)
             {
                 componentState.State = ComponentInstallState.Failed;
@@ -473,6 +505,186 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             return 0;
 
         return Math.Clamp((completed / (double)total) * 100d, 0d, 100d);
+    }
+
+    private Task<(bool Success, string? ErrorMessage)> StopComponentBeforeUpdateAsync(string component, CancellationToken cancellationToken)
+    {
+        if (_stopComponentBeforeUpdateOverride != null)
+        {
+            return _stopComponentBeforeUpdateOverride(component, cancellationToken);
+        }
+
+        return component.ToLowerInvariant() switch
+        {
+            "ui" => StopUiAsync(cancellationToken),
+            "server" => StopServerAsync(cancellationToken),
+            "agent" => StopAgentAsync(cancellationToken),
+            _ => Task.FromResult((true, (string?)null))
+        };
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> StopUiAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("[ORCH] Stopping UI before update...");
+
+        var processes = Process.GetProcessesByName(UiProcessName);
+        foreach (var process in processes)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    _ = process.CloseMainWindow();
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        _logger.LogInformation("[ORCH] Waiting for UI to exit...");
+        var exitedGracefully = await WaitForProcessesToExitAsync(UiProcessName, ComponentStopTimeout, cancellationToken);
+        if (!exitedGracefully)
+        {
+            KillProcessesByName(UiProcessName);
+            var exitedAfterKill = await WaitForProcessesToExitAsync(UiProcessName, TimeSpan.FromSeconds(5), cancellationToken);
+            if (!exitedAfterKill)
+            {
+                return (false, "[ORCH] UI stop verification failed. StorageWatchUI process is still running.");
+            }
+        }
+
+        _logger.LogInformation("[ORCH] UI stopped.");
+        return (true, null);
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> StopServerAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("[ORCH] Stopping Server before update...");
+
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                _logger.LogInformation("[ORCH] Waiting for Server to exit...");
+                var serviceStop = _stopWindowsService(ServerServiceName, ComponentStopTimeout);
+                if (!serviceStop.Success)
+                {
+                    _logger.LogWarning("[ORCH] Server service stop attempt failed: {ErrorMessage}", serviceStop.ErrorMessage);
+                }
+            }
+        }
+        catch
+        {
+            // If service isn't installed/accessible, continue with process-based stop fallback.
+        }
+
+        var exited = await WaitForProcessesToExitAsync(ServerProcessName, ComponentStopTimeout, cancellationToken);
+        if (!exited)
+        {
+            KillProcessesByName(ServerProcessName);
+            var exitedAfterKill = await WaitForProcessesToExitAsync(ServerProcessName, TimeSpan.FromSeconds(5), cancellationToken);
+            if (!exitedAfterKill)
+            {
+                return (false, "[ORCH] Server stop verification failed. StorageWatchServer process is still running.");
+            }
+        }
+
+        _logger.LogInformation("[ORCH] Server stopped.");
+        return (true, null);
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> StopAgentAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("[ORCH] Stopping Agent before update...");
+
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                _logger.LogInformation("[ORCH] Waiting for Agent to exit...");
+                var serviceStop = _stopWindowsService(AgentServiceName, ComponentStopTimeout);
+                if (!serviceStop.Success)
+                {
+                    _logger.LogWarning("[ORCH] Agent service stop attempt failed: {ErrorMessage}", serviceStop.ErrorMessage);
+                }
+            }
+        }
+        catch
+        {
+            // Continue with process-based verification fallback.
+        }
+
+        var exited = await WaitForProcessesToExitAsync(AgentProcessName, ComponentStopTimeout, cancellationToken);
+        if (!exited)
+        {
+            KillProcessesByName(AgentProcessName);
+            var exitedAfterKill = await WaitForProcessesToExitAsync(AgentProcessName, TimeSpan.FromSeconds(5), cancellationToken);
+            if (!exitedAfterKill)
+            {
+                return (false, "[ORCH] Agent stop verification failed. StorageWatchAgent process is still running.");
+            }
+        }
+
+        _logger.LogInformation("[ORCH] Agent stopped.");
+        return (true, null);
+    }
+
+    private static (bool Success, string? ErrorMessage) StopWindowsServiceByName(string serviceName, TimeSpan timeout)
+    {
+        try
+        {
+            using var service = new ServiceController(serviceName);
+            _ = service.Status;
+            if (service.Status != ServiceControllerStatus.Stopped && service.Status != ServiceControllerStatus.StopPending)
+            {
+                service.Stop();
+            }
+
+            service.WaitForStatus(ServiceControllerStatus.Stopped, timeout);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private async Task<bool> WaitForProcessesToExitAsync(string processName, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var running = Process.GetProcessesByName(processName).Any(process => !process.HasExited);
+            if (!running)
+            {
+                return true;
+            }
+
+            await _delayAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
+        }
+
+        return !Process.GetProcessesByName(processName).Any(process => !process.HasExited);
+    }
+
+    private static void KillProcessesByName(string processName)
+    {
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     private void SetProgress(string orchestrationId, string phase, string component, string status, double progressPercent, bool isIndeterminate)

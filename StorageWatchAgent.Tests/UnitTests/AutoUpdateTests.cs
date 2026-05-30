@@ -338,6 +338,124 @@ namespace StorageWatch.Tests.UnitTests
             result.FailedComponents.Should().BeEmpty();
         }
 
+        [Theory]
+        [InlineData("ui")]
+        [InlineData("server")]
+        [InlineData("agent")]
+        public async Task UnifiedInstallOrchestrator_StopVerificationFails_SkipsUpdaterLaunch(string component)
+        {
+            var checker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo
+            {
+                AnyUpdateAvailable = true,
+                Components =
+                {
+                    new UnifiedUpdateComponentStatus
+                    {
+                        Component = component,
+                        UpdateAvailable = true,
+                        LatestVersion = "9.0.0",
+                        DownloadUrl = "https://updates.test/component.zip",
+                        Sha256 = "abc"
+                    }
+                }
+            });
+
+            var updatePackage = Path.Combine(TestHelpers.CreateTempDirectory(), "component.zip");
+            using (var archive = ZipFile.Open(updatePackage, ZipArchiveMode.Create))
+            {
+                var entry = archive.CreateEntry("component.bin");
+                await using var stream = entry.Open();
+                await stream.WriteAsync(new byte[] { 1, 2, 3 });
+            }
+
+            var downloader = new FakeServiceUpdateDownloader(new UpdateDownloadResult
+            {
+                Success = true,
+                FilePath = updatePackage
+            });
+
+            var updaterInvoked = false;
+            var orchestrator = new UnifiedInstallOrchestrator(
+                checker,
+                downloader,
+                new StubInstallPathResolver(TestHelpers.CreateTempDirectory()),
+                new InMemoryCheckpointStore(),
+                new TestLogger<UnifiedInstallOrchestrator>(),
+                stopComponentBeforeUpdate: (_, _) => Task.FromResult((false, "forced stop failure")),
+                runUpdaterProcess: (_, _, _) =>
+                {
+                    updaterInvoked = true;
+                    return (true, (string?)null);
+                });
+
+            var result = await orchestrator.StartInstallAsync(new UnifiedInstallUpdateRequest
+            {
+                Components = new List<string> { component }
+            }, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+            result.FailedComponents.Should().Contain(component);
+            result.ErrorMessage.Should().Contain("forced stop failure");
+            updaterInvoked.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task UnifiedInstallOrchestrator_StopSucceeds_InvokesUpdater()
+        {
+            var checker = new StubUnifiedUpdateChecker(new UnifiedUpdateStatusInfo
+            {
+                AnyUpdateAvailable = true,
+                Components =
+                {
+                    new UnifiedUpdateComponentStatus
+                    {
+                        Component = "ui",
+                        UpdateAvailable = true,
+                        LatestVersion = "9.1.0",
+                        DownloadUrl = "https://updates.test/ui.zip",
+                        Sha256 = "abc"
+                    }
+                }
+            });
+
+            var updatePackage = Path.Combine(TestHelpers.CreateTempDirectory(), "ui.zip");
+            using (var archive = ZipFile.Open(updatePackage, ZipArchiveMode.Create))
+            {
+                var entry = archive.CreateEntry("ui.bin");
+                await using var stream = entry.Open();
+                await stream.WriteAsync(new byte[] { 9, 1, 0 });
+            }
+
+            var downloader = new FakeServiceUpdateDownloader(new UpdateDownloadResult
+            {
+                Success = true,
+                FilePath = updatePackage
+            });
+
+            var updaterInvoked = false;
+            var orchestrator = new UnifiedInstallOrchestrator(
+                checker,
+                downloader,
+                new StubInstallPathResolver(TestHelpers.CreateTempDirectory()),
+                new InMemoryCheckpointStore(),
+                new TestLogger<UnifiedInstallOrchestrator>(),
+                stopComponentBeforeUpdate: (_, _) => Task.FromResult((true, (string?)null)),
+                runUpdaterProcess: (_, _, _) =>
+                {
+                    updaterInvoked = true;
+                    return (true, (string?)null);
+                });
+
+            var result = await orchestrator.StartInstallAsync(new UnifiedInstallUpdateRequest
+            {
+                Components = new List<string> { "ui" }
+            }, CancellationToken.None);
+
+            result.Success.Should().BeTrue();
+            result.UpdatedComponents.Should().Contain("ui");
+            updaterInvoked.Should().BeTrue();
+        }
+
         private sealed class InMemoryCheckpointStore : IUnifiedInstallCheckpointStore
         {
             private UnifiedInstallCheckpoint? _checkpoint;
