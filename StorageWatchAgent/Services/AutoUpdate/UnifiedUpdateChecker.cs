@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StorageWatch.Config.Options;
@@ -148,10 +149,10 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
                 IsInstalling = _snapshotStore.GetSnapshot().IsInstalling,
                 Components =
                 {
-                    BuildComponentStatus("agent", "StorageWatchAgent.exe", manifest.Agent),
-                    BuildComponentStatus("server", "StorageWatchServer.exe", manifest.Server),
-                    BuildComponentStatus("ui", "StorageWatchUI.exe", manifest.Ui),
-                    BuildComponentStatus("updater", "StorageWatch.Updater.exe", manifest.Updater)
+                    BuildComponentStatus(_logger, "agent", "StorageWatchAgent.exe", manifest.Agent),
+                    BuildComponentStatus(_logger, "server", "StorageWatchServer.exe", manifest.Server),
+                    BuildComponentStatus(_logger, "ui", "StorageWatchUI.exe", manifest.Ui),
+                    BuildComponentStatus(_logger, "updater", "StorageWatch.Updater.exe", manifest.Updater)
                 }
             };
 
@@ -178,22 +179,32 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
             AnyUpdateAvailable = false,
             Components =
             {
-                BuildComponentStatus("agent", "StorageWatchAgent.exe", latestInfo: null),
-                BuildComponentStatus("server", "StorageWatchServer.exe", latestInfo: null),
-                BuildComponentStatus("ui", "StorageWatchUI.exe", latestInfo: null),
-                BuildComponentStatus("updater", "StorageWatch.Updater.exe", latestInfo: null)
+                BuildComponentStatus(logger: null, "agent", "StorageWatchAgent.exe", latestInfo: null),
+                BuildComponentStatus(logger: null, "server", "StorageWatchServer.exe", latestInfo: null),
+                BuildComponentStatus(logger: null, "ui", "StorageWatchUI.exe", latestInfo: null),
+                BuildComponentStatus(logger: null, "updater", "StorageWatch.Updater.exe", latestInfo: null)
             }
         };
     }
 
-    private static UnifiedUpdateComponentStatus BuildComponentStatus(string component, string executableName, ComponentUpdateInfo? latestInfo)
+    private static UnifiedUpdateComponentStatus BuildComponentStatus(ILogger? logger, string component, string executableName, ComponentUpdateInfo? latestInfo)
     {
-        var currentVersion = GetInstalledComponentVersion(executableName);
+        var currentVersion = GetInstalledComponentVersion(logger, component, executableName);
         var normalizedLatest = string.IsNullOrWhiteSpace(latestInfo?.Version) ? "0.0.0.0" : latestInfo.Version;
+        logger?.LogDebug("[DIAG] BuildComponentStatus: Component={Component}, Executable={Executable}, Latest={Latest}", component, executableName, normalizedLatest);
 
         var updateAvailable = Version.TryParse(currentVersion, out var current)
             && Version.TryParse(normalizedLatest, out var latest)
             && latest > current;
+
+        logger?.LogDebug(
+            "[DIAG] Version comparison: Component={Component}, Current={Current}, Latest={Latest}, CurrentParsed={CurrentParsed}, LatestParsed={LatestParsed}, UpdateAvailable={Available}",
+            component,
+            currentVersion,
+            normalizedLatest,
+            Version.TryParse(currentVersion, out _),
+            Version.TryParse(normalizedLatest, out _),
+            updateAvailable);
 
         return new UnifiedUpdateComponentStatus
         {
@@ -207,7 +218,7 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
         };
     }
 
-    private static string GetInstalledComponentVersion(string executableName)
+    private static string GetInstalledComponentVersion(ILogger? logger, string component, string executableName)
     {
         try
         {
@@ -232,10 +243,44 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
             foreach (var candidate in candidates)
             {
                 var fullPath = Path.GetFullPath(candidate);
-                if (!File.Exists(fullPath))
+                var exists = File.Exists(fullPath);
+                logger?.LogDebug("[DIAG] Checking installed version. Component={Component}, CandidatePath={Path}, Exists={Exists}", component, fullPath, exists);
+                if (!exists)
                     continue;
 
                 var version = FileVersionInfo.GetVersionInfo(fullPath).FileVersion;
+                var productVersion = FileVersionInfo.GetVersionInfo(fullPath).ProductVersion;
+                Version? assemblyVersion = null;
+                string informationalVersion = "<none>";
+                try
+                {
+                    assemblyVersion = AssemblyName.GetAssemblyName(fullPath).Version;
+                }
+                catch
+                {
+                }
+
+                try
+                {
+                    var asm = Assembly.LoadFrom(fullPath);
+                    informationalVersion = asm
+                        .GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), inherit: false)
+                        .OfType<AssemblyInformationalVersionAttribute>()
+                        .FirstOrDefault()?.InformationalVersion ?? "<none>";
+                }
+                catch
+                {
+                }
+
+                logger?.LogDebug(
+                    "[DIAG] Selected installed version. Component={Component}, Path={Path}, FileVersion={Version}, ProductVersion={ProductVersion}, AssemblyVersion={AssemblyVersion}, InformationalVersion={InformationalVersion}",
+                    component,
+                    fullPath,
+                    version,
+                    productVersion,
+                    assemblyVersion?.ToString() ?? "<null>",
+                    informationalVersion);
+
                 if (!string.IsNullOrWhiteSpace(version))
                     return version;
             }
@@ -244,6 +289,7 @@ public class UnifiedUpdateChecker : IUnifiedUpdateChecker
         {
         }
 
+        logger?.LogDebug("[DIAG] No installed version found. Component={Component}, Returning=0.0.0.0", component);
         return "0.0.0.0";
     }
 }

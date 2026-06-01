@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -21,8 +23,9 @@ internal class SelfUpdateManager
     private readonly HttpClient _httpClient;
     private readonly IProcessLauncher _processLauncher;
     private readonly Action<int> _sleepAction;
+    private readonly Action<string>? _diagnosticLogger;
 
-    public SelfUpdateManager()
+    public SelfUpdateManager(Action<string>? diagnosticLogger = null)
     {
         _updaterExePath = Environment.ProcessPath
             ?? throw new InvalidOperationException("Could not determine updater executable path.");
@@ -31,6 +34,8 @@ internal class SelfUpdateManager
         _httpClient = new HttpClient();
         _processLauncher = new ProcessLauncher();
         _sleepAction = Thread.Sleep;
+        _diagnosticLogger = diagnosticLogger;
+        LogDiag($"SelfUpdateManager initialized. ProcessPath={_updaterExePath}, CurrentUpdaterFolder={_currentUpdaterFolder}");
     }
 
     internal SelfUpdateManager(
@@ -38,13 +43,21 @@ internal class SelfUpdateManager
         string currentUpdaterFolder,
         HttpClient httpClient,
         IProcessLauncher processLauncher,
-        Action<int>? sleepAction = null)
+        Action<int>? sleepAction = null,
+        Action<string>? diagnosticLogger = null)
     {
         _updaterExePath = updaterExePath;
         _currentUpdaterFolder = currentUpdaterFolder;
         _httpClient = httpClient;
         _processLauncher = processLauncher;
         _sleepAction = sleepAction ?? Thread.Sleep;
+        _diagnosticLogger = diagnosticLogger;
+        LogDiag($"SelfUpdateManager initialized (injected). ProcessPath={_updaterExePath}, CurrentUpdaterFolder={_currentUpdaterFolder}");
+    }
+
+    private void LogDiag(string message)
+    {
+        _diagnosticLogger?.Invoke($"[DIAG] {message}");
     }
 
     /// <summary>
@@ -52,12 +65,18 @@ internal class SelfUpdateManager
     /// </summary>
     public bool IsUpdateAvailable(ComponentUpdateInfo updaterManifestEntry)
     {
+        LogDiag($"IsUpdateAvailable invoked. ManifestVersionRaw={updaterManifestEntry.Version}, ProcessPath={_updaterExePath}");
         var currentVersion = GetCurrentUpdaterVersion();
+        LogVersionMetadata(_updaterExePath, "updater-current");
         if (!Version.TryParse(updaterManifestEntry.Version, out var manifestVersion))
         {
+            LogDiag($"Manifest updater version parse failed. ManifestVersionRaw={updaterManifestEntry.Version}");
             return false;
         }
-        return manifestVersion > currentVersion;
+
+        var isUpdateAvailable = manifestVersion > currentVersion;
+        LogDiag($"Self-update comparison: Manifest={manifestVersion}, Current={currentVersion}, IsUpdateAvailable={isUpdateAvailable}");
+        return isUpdateAvailable;
     }
 
     public async Task<bool> RunSelfUpdateStageAsync(
@@ -65,12 +84,15 @@ internal class SelfUpdateManager
         UpdaterArguments currentArguments,
         CancellationToken cancellationToken = default)
     {
+        LogDiag($"RunSelfUpdateStageAsync start. ManifestPath={manifestPath}, Exists={File.Exists(manifestPath)}");
         var manifestJson = await File.ReadAllTextAsync(manifestPath, cancellationToken);
         var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson)
             ?? throw new InvalidOperationException("Manifest could not be parsed.");
 
         if (manifest.Updater == null)
             throw new InvalidOperationException("Manifest is missing updater component information.");
+
+        LogDiag($"Manifest updater version: {manifest.Updater.Version}, DownloadUrl={manifest.Updater.DownloadUrl}");
 
         return await RunLegacySelfUpdateStageAsync(manifest.Updater, currentArguments, cancellationToken);
     }
@@ -80,20 +102,28 @@ internal class SelfUpdateManager
         UpdaterArguments currentArguments,
         CancellationToken cancellationToken = default)
     {
+        LogDiag($"RunLegacySelfUpdateStageAsync start. ManifestUpdaterVersion={updaterManifestEntry.Version}, DownloadUrl={updaterManifestEntry.DownloadUrl}");
+
         if (!IsUpdateAvailable(updaterManifestEntry))
+        {
+            LogDiag("Self-update apply not triggered because IsUpdateAvailable=false.");
             return false;
+        }
 
         var tempDir = Path.Combine(Path.GetTempPath(), "StorageWatchUpdaterSelfUpdate", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
+        LogDiag($"Self-update stage paths. TempDir={tempDir}, Target={_currentUpdaterFolder}");
 
         try
         {
             var zipPath = Path.Combine(tempDir, "updater.zip");
+            LogDiag($"Downloading updater package from {updaterManifestEntry.DownloadUrl} to {zipPath}");
             var zipBytes = await _httpClient.GetByteArrayAsync(updaterManifestEntry.DownloadUrl, cancellationToken);
 
             // Verify hash
             using var sha256 = SHA256.Create();
             var downloadedHash = Convert.ToHexString(sha256.ComputeHash(zipBytes)).ToLowerInvariant();
+            LogDiag($"Hash verification. Expected={updaterManifestEntry.Sha256?.ToLowerInvariant()}, Actual={downloadedHash}");
             if (downloadedHash != updaterManifestEntry.Sha256.ToLowerInvariant())
             {
                 throw new InvalidOperationException("Updater ZIP hash mismatch.");
@@ -103,13 +133,27 @@ internal class SelfUpdateManager
 
             var stagingFolder = Path.Combine(tempDir, "staging");
             ZipFile.ExtractToDirectory(zipPath, stagingFolder, overwriteFiles: true);
+            LogDiag($"Extracted self-update package. StagingFolder={stagingFolder}");
 
             var stagedUpdaterExe = Path.Combine(stagingFolder, "StorageWatch.Updater.exe");
+            LogDiag($"Staged updater exe path. Path={stagedUpdaterExe}, Exists={File.Exists(stagedUpdaterExe)}");
             if (!File.Exists(stagedUpdaterExe))
                 throw new InvalidOperationException("Staged updater executable was not found in self-update package.");
 
+            LogVersionMetadata(stagedUpdaterExe, "updater-staged");
+
             var continueArgs = BuildContinuationArguments(currentArguments);
             var encodedContinuation = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(continueArgs)));
+            LogDiag($"Continuation args prepared. Count={continueArgs.Length}, EncodedLength={encodedContinuation.Length}");
+
+            var applyArgs = new[]
+            {
+                "--self-update-apply",
+                "--self-update-staging", stagingFolder,
+                "--target", _currentUpdaterFolder,
+                "--continue-args", encodedContinuation
+            };
+            LogDiag($"Launching self-update apply. Args={string.Join(" ", applyArgs)}");
 
             var applyProcessStarted = _processLauncher.Start(new ProcessStartInfo
             {
@@ -126,6 +170,8 @@ internal class SelfUpdateManager
                 }
             });
 
+            LogDiag($"Self-update apply launch result. Started={applyProcessStarted}");
+
             if (!applyProcessStarted)
                 throw new InvalidOperationException("Failed to launch staged updater apply process.");
 
@@ -134,7 +180,10 @@ internal class SelfUpdateManager
         catch
         {
             if (Directory.Exists(tempDir))
+            {
+                LogDiag($"Self-update stage failed. Cleaning temp directory {tempDir}");
                 Directory.Delete(tempDir, recursive: true);
+            }
             throw;
         }
     }
@@ -148,11 +197,13 @@ internal class SelfUpdateManager
 
         var stagingFolder = Path.GetFullPath(arguments.SelfUpdateStagingPath);
         var targetFolder = Path.GetFullPath(arguments.TargetPath);
+        LogDiag($"RunSelfUpdateApplyAsync start. StagingFolder={stagingFolder}, TargetFolder={targetFolder}, ContinueArgsPresent={!string.IsNullOrWhiteSpace(arguments.ContinueArguments)}");
 
         if (!Directory.Exists(stagingFolder))
             throw new DirectoryNotFoundException($"Self-update staging folder not found: {stagingFolder}");
 
         ReplaceTargetFolderWithRetries(stagingFolder, targetFolder, cancellationToken, _sleepAction);
+        LogDiag($"Self-update apply replacement complete. Source={stagingFolder}, Target={targetFolder}");
 
         if (!string.IsNullOrWhiteSpace(arguments.ContinueArguments))
         {
@@ -161,6 +212,7 @@ internal class SelfUpdateManager
             if (continuationArgs.Length > 0)
             {
                 var updatedUpdaterPath = Path.Combine(targetFolder, "StorageWatch.Updater.exe");
+                LogDiag($"Launching post-apply continuation updater. Path={updatedUpdaterPath}, ArgCount={continuationArgs.Length}");
                 var restart = new ProcessStartInfo
                 {
                     FileName = updatedUpdaterPath,
@@ -175,6 +227,7 @@ internal class SelfUpdateManager
                 }
 
                 _processLauncher.Start(restart);
+                LogDiag("Post-apply continuation launch invoked.");
             }
         }
 
@@ -297,6 +350,45 @@ internal class SelfUpdateManager
     private Version GetCurrentUpdaterVersion()
     {
         var versionInfo = FileVersionInfo.GetVersionInfo(_updaterExePath);
+        LogDiag($"Current updater version metadata. FileVersion={versionInfo.FileVersion}, ProductVersion={versionInfo.ProductVersion}, Path={_updaterExePath}");
         return Version.Parse(versionInfo.FileVersion ?? "0.0.0.0");
+    }
+
+    private void LogVersionMetadata(string path, string label)
+    {
+        try
+        {
+            var versionInfo = FileVersionInfo.GetVersionInfo(path);
+            Version? assemblyVersion = null;
+            string informationalVersion = "<none>";
+
+            try
+            {
+                assemblyVersion = AssemblyName.GetAssemblyName(path).Version;
+            }
+            catch (Exception ex)
+            {
+                LogDiag($"{label} assembly version unavailable. Path={path}, Error={ex.GetType().Name}: {ex.Message}");
+            }
+
+            try
+            {
+                var asm = Assembly.LoadFrom(path);
+                informationalVersion = asm
+                    .GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), inherit: false)
+                    .OfType<AssemblyInformationalVersionAttribute>()
+                    .FirstOrDefault()?.InformationalVersion ?? "<none>";
+            }
+            catch (Exception ex)
+            {
+                LogDiag($"{label} informational version unavailable. Path={path}, Error={ex.GetType().Name}: {ex.Message}");
+            }
+
+            LogDiag($"{label} version metadata. Path={path}, FileVersion={versionInfo.FileVersion}, ProductVersion={versionInfo.ProductVersion}, AssemblyVersion={assemblyVersion?.ToString() ?? "<null>"}, InformationalVersion={informationalVersion}");
+        }
+        catch (Exception ex)
+        {
+            LogDiag($"{label} version metadata read failed. Path={path}, Error={ex.GetType().Name}: {ex.Message}");
+        }
     }
 }

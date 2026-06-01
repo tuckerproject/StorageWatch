@@ -54,6 +54,18 @@ internal class ParseResult
 /// </summary>
 internal class ArgumentParser
 {
+    private static Action<string>? _diagnosticLogger;
+
+    public static void SetDiagnosticLogger(Action<string>? diagnosticLogger)
+    {
+        _diagnosticLogger = diagnosticLogger;
+    }
+
+    private static void LogDiag(string message)
+    {
+        _diagnosticLogger?.Invoke($"[DIAG] {message}");
+    }
+
     /// <summary>
     /// Initializes a new ArgumentParser instance.
     /// </summary>
@@ -69,6 +81,7 @@ internal class ArgumentParser
     /// <returns>A ParseResult containing parsed values or errors.</returns>
     public ParseResult TryParse(string[] args)
     {
+        LogDiag($"ArgumentParser.TryParse start. ArgCount={args.Length}");
         var result = new ParseResult();
         var arguments = new UpdaterArguments();
         var errors = new List<string>();
@@ -83,44 +96,54 @@ internal class ArgumentParser
                 {
                     case "--self-update-stage":
                         arguments.SelfUpdateStage = true;
+                        LogDiag("Flag parsed: --self-update-stage=true");
                         break;
 
                     case "--self-update-apply":
                         arguments.SelfUpdateApply = true;
+                        LogDiag("Flag parsed: --self-update-apply=true");
                         break;
 
                     case "--update-ui":
                         arguments.UpdateUI = true;
+                        LogDiag("Flag parsed: --update-ui=true");
                         break;
 
                     case "--update-agent":
                         arguments.UpdateAgent = true;
+                        LogDiag("Flag parsed: --update-agent=true");
                         break;
 
                     case "--update-server":
                         arguments.UpdateServer = true;
+                        LogDiag("Flag parsed: --update-server=true");
                         break;
 
                     case "--restart-ui":
                         arguments.RestartUI = true;
+                        LogDiag("Flag parsed: --restart-ui=true");
                         break;
 
                     case "--restart-agent":
                         arguments.RestartAgent = true;
+                        LogDiag("Flag parsed: --restart-agent=true");
                         break;
 
                     case "--restart-server":
                         arguments.RestartServer = true;
+                        LogDiag("Flag parsed: --restart-server=true");
                         break;
 
                     case "--manifest":
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
                             arguments.ManifestPath = args[++i];
+                            LogDiag($"Value parsed: --manifest={arguments.ManifestPath}");
                         }
                         else
                         {
                             errors.Add("Error: --manifest flag requires a path argument.");
+                            LogDiag("Validation failed: --manifest missing value");
                         }
                         break;
 
@@ -128,10 +151,12 @@ internal class ArgumentParser
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
                             arguments.SelfUpdateStagingPath = args[++i];
+                            LogDiag($"Value parsed: --self-update-staging={arguments.SelfUpdateStagingPath}");
                         }
                         else
                         {
                             errors.Add("Error: --self-update-staging flag requires a path argument.");
+                            LogDiag("Validation failed: --self-update-staging missing value");
                         }
                         break;
 
@@ -139,10 +164,12 @@ internal class ArgumentParser
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
                             arguments.ContinueArguments = args[++i];
+                            LogDiag("Value parsed: --continue-args provided");
                         }
                         else
                         {
                             errors.Add("Error: --continue-args flag requires an argument string.");
+                            LogDiag("Validation failed: --continue-args missing value");
                         }
                         break;
 
@@ -150,10 +177,12 @@ internal class ArgumentParser
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
                             arguments.SourcePath = args[++i];
+                            LogDiag($"Value parsed: --source={arguments.SourcePath}");
                         }
                         else
                         {
                             errors.Add("Error: --source flag requires a path argument.");
+                            LogDiag("Validation failed: --source missing value");
                         }
                         break;
 
@@ -161,15 +190,18 @@ internal class ArgumentParser
                         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                         {
                             arguments.TargetPath = args[++i];
+                            LogDiag($"Value parsed: --target={arguments.TargetPath}");
                         }
                         else
                         {
                             errors.Add("Error: --target flag requires a path argument.");
+                            LogDiag("Validation failed: --target missing value");
                         }
                         break;
 
                     default:
                         errors.Add($"Error: Unknown argument '{arg}'.");
+                        LogDiag($"Validation failed: unknown argument {arg}");
                         break;
                 }
             }
@@ -186,16 +218,19 @@ internal class ArgumentParser
             if (!hasSelfUpdateAction && !hasUpdateAction && !hasRestartAction)
             {
                 errors.Add("Error: At least one update or restart action must be specified.");
+                LogDiag("Validation failed: no action flags were provided");
             }
 
             if (arguments.SelfUpdateStage && arguments.SelfUpdateApply)
             {
                 errors.Add("Error: --self-update-stage and --self-update-apply cannot be used together.");
+                LogDiag("Validation failed: both --self-update-stage and --self-update-apply were set");
             }
 
             if (componentUpdateFlagCount > 1)
             {
                 errors.Add("Error: Only one component update flag may be specified per updater run (--update-ui, --update-agent, or --update-server).");
+                LogDiag($"Validation failed: multiple component update flags set (count={componentUpdateFlagCount})");
             }
 
             // Set result
@@ -203,11 +238,13 @@ internal class ArgumentParser
             {
                 result.Success = false;
                 result.Errors = errors;
+                LogDiag($"ArgumentParser.TryParse completed with errors. ErrorCount={errors.Count}");
             }
             else
             {
                 result.Success = true;
                 result.Arguments = arguments;
+                LogDiag("ArgumentParser.TryParse completed successfully.");
             }
 
             return result;
@@ -216,6 +253,7 @@ internal class ArgumentParser
         {
             result.Success = false;
             result.Errors.Add($"Exception during parsing: {ex.Message}");
+            LogDiag($"ArgumentParser.TryParse exception: {ex.GetType().Name}: {ex.Message}");
             return result;
         }
     }

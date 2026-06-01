@@ -6,6 +6,18 @@ namespace StorageWatch.Updater;
 /// </summary>
 internal class FileReplacementEngine
 {
+    private static Action<string>? _diagnosticLogger;
+
+    public static void SetDiagnosticLogger(Action<string>? diagnosticLogger)
+    {
+        _diagnosticLogger = diagnosticLogger;
+    }
+
+    private static void LogDiag(string message)
+    {
+        _diagnosticLogger?.Invoke($"[DIAG] {message}");
+    }
+
     /// <summary>
     /// Initializes a new FileReplacementEngine instance.
     /// </summary>
@@ -23,13 +35,17 @@ internal class FileReplacementEngine
     /// <exception cref="ArgumentException">Thrown when paths are null or empty.</exception>
     public bool TryCopyDirectory(string sourceDirectory, string destinationDirectory, CancellationToken cancellationToken = default)
     {
+        LogDiag($"File replacement starting. Source={sourceDirectory}, Target={destinationDirectory}");
         try
         {
             ValidatePath(sourceDirectory, nameof(sourceDirectory));
             ValidatePath(destinationDirectory, nameof(destinationDirectory));
 
             if (!Directory.Exists(sourceDirectory))
+            {
+                LogDiag($"File replacement skipped: source directory does not exist. Source={sourceDirectory}");
                 return false;
+            }
 
             // Create destination directory if it doesn't exist
             EnsureDirectoryExists(destinationDirectory);
@@ -41,10 +57,12 @@ internal class FileReplacementEngine
 
                 var relativePath = Path.GetRelativePath(sourceDirectory, directory);
                 var destinationSubDir = Path.Combine(destinationDirectory, relativePath);
+                LogDiag($"Directory creation: {destinationSubDir}");
                 EnsureDirectoryExists(destinationSubDir);
             }
 
             // Copy all files
+            var copiedCount = 0;
             foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -56,13 +74,22 @@ internal class FileReplacementEngine
                 if (!string.IsNullOrWhiteSpace(destinationDir))
                     EnsureDirectoryExists(destinationDir);
 
+                LogDiag($"Copying file: {file} => {destinationFile}");
                 File.Copy(file, destinationFile, overwrite: true);
+                copiedCount++;
             }
 
+            LogDiag($"Replacement complete. FilesCopied={copiedCount}, Source={sourceDirectory}, Target={destinationDirectory}");
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            LogDiag($"File replacement cancelled. Source={sourceDirectory}, Target={destinationDirectory}");
+            return false;
         }
         catch
         {
+            LogDiag($"File replacement failed. Source={sourceDirectory}, Target={destinationDirectory}");
             return false;
         }
     }
@@ -98,15 +125,20 @@ internal class FileReplacementEngine
     /// <exception cref="ArgumentException">Thrown when paths are null or empty.</exception>
     public bool TryCopyFilesFromStaging(string stagingDirectory, string targetDirectory, CancellationToken cancellationToken = default)
     {
+        LogDiag($"File replacement starting. Source={stagingDirectory}, Target={targetDirectory}");
         try
         {
             ValidatePath(stagingDirectory, nameof(stagingDirectory));
             ValidatePath(targetDirectory, nameof(targetDirectory));
 
             if (!Directory.Exists(stagingDirectory))
+            {
+                LogDiag($"File replacement skipped: staging directory does not exist. Source={stagingDirectory}");
                 return false;
+            }
 
             var files = Directory.GetFiles(stagingDirectory, "*", SearchOption.AllDirectories);
+            var copiedCount = 0;
 
             foreach (var file in files)
             {
@@ -117,15 +149,27 @@ internal class FileReplacementEngine
                 var destinationDir = Path.GetDirectoryName(destinationPath);
 
                 if (!string.IsNullOrWhiteSpace(destinationDir))
+                {
+                    LogDiag($"Directory creation: {destinationDir}");
                     EnsureDirectoryExists(destinationDir);
+                }
 
+                LogDiag($"Copying file: {file} => {destinationPath}");
                 File.Copy(file, destinationPath, overwrite: true);
+                copiedCount++;
             }
 
+            LogDiag($"Replacement complete. FilesCopied={copiedCount}, Source={stagingDirectory}, Target={targetDirectory}");
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            LogDiag($"File replacement cancelled. Source={stagingDirectory}, Target={targetDirectory}");
+            return false;
         }
         catch
         {
+            LogDiag($"File replacement failed. Source={stagingDirectory}, Target={targetDirectory}");
             return false;
         }
     }

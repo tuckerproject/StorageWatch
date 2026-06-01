@@ -82,6 +82,13 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
 
     public async Task<UnifiedUpdateInstallResult> StartInstallAsync(UnifiedInstallUpdateRequest request, CancellationToken cancellationToken)
     {
+        _logger.LogDebug(
+            "[DIAG] StartInstallAsync: UpdateAll={UpdateAll}, RequestedBy={RequestedBy}, Force={Force}, RequestedComponents={RequestedComponents}",
+            request.UpdateAll,
+            request.RequestedBy,
+            request.Force,
+            string.Join(", ", request.Components));
+
         if (!await _orchestrationGate.WaitAsync(0, cancellationToken))
         {
             return new UnifiedUpdateInstallResult
@@ -102,6 +109,16 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             SetProgress(orchestrationId, "initializing", string.Empty, "Preparing update orchestration...", 0, true);
 
             var status = await _unifiedUpdateChecker.RefreshSnapshotAsync(cancellationToken);
+            foreach (var c in status.Components)
+            {
+                _logger.LogDebug(
+                    "[DIAG] Snapshot component: {Component}, Current={Current}, Latest={Latest}, UpdateAvailable={Available}",
+                    c.Component,
+                    c.CurrentVersion,
+                    c.LatestVersion,
+                    c.UpdateAvailable);
+            }
+
             var plan = BuildPlan(request, status);
 
             if (plan.Count == 0)
@@ -299,6 +316,16 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
         CancellationToken cancellationToken)
     {
         var paths = _installPathResolver.Resolve();
+        _logger.LogDebug(
+            "[DIAG] Resolved paths. InstallRoot={InstallRoot}, Agent={Agent}, Server={Server}, UI={UI}, Updater={Updater}, UpdaterExe={UpdaterExe}, UsedRegistryInstallRoot={UsedRegistry}",
+            paths.InstallRoot,
+            paths.AgentDirectory,
+            paths.ServerDirectory,
+            paths.UiDirectory,
+            paths.UpdaterDirectory,
+            paths.UpdaterExecutablePath,
+            paths.UsedRegistryInstallRoot);
+
         var result = new UnifiedUpdateInstallResult
         {
             OrchestrationId = orchestrationId,
@@ -318,6 +345,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
 
             var component = checkpoint.Components[i];
             var componentState = checkpoint.ComponentStates[i];
+            _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
 
             // Skip if already completed (idempotent resume)
             if (componentState.State == ComponentInstallState.Completed)
@@ -331,7 +359,9 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             }
 
             checkpoint.CurrentComponentIndex = i;
+            _logger.LogDebug("[DIAG] Checkpoint index updated: {Index}", checkpoint.CurrentComponentIndex);
             componentState.State = ComponentInstallState.InProgress;
+            _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
             componentState.UpdatedAtUtc = DateTimeOffset.UtcNow;
             await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
 
@@ -359,6 +389,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
                 if (!downloadResult.Success || string.IsNullOrWhiteSpace(downloadResult.FilePath))
                 {
                     componentState.State = ComponentInstallState.Failed;
+                    _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
                     componentState.ErrorMessage = downloadResult.ErrorMessage ?? $"{component} download failed.";
                     result.FailedComponents.Add(component);
                     result.ErrorMessage = componentState.ErrorMessage;
@@ -385,6 +416,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             if (!invocation.Success)
             {
                 componentState.State = ComponentInstallState.Failed;
+                _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
                 componentState.ErrorMessage = invocation.Error;
                 result.FailedComponents.Add(component);
                 result.ErrorMessage = invocation.Error;
@@ -393,10 +425,41 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
                 break;
             }
 
+            var invocationSource = invocation.Arguments
+                .SkipWhile(arg => !string.Equals(arg, "--source", StringComparison.OrdinalIgnoreCase))
+                .Skip(1)
+                .FirstOrDefault();
+            var invocationTarget = invocation.Arguments
+                .SkipWhile(arg => !string.Equals(arg, "--target", StringComparison.OrdinalIgnoreCase))
+                .Skip(1)
+                .FirstOrDefault();
+            var invocationManifest = invocation.Arguments
+                .SkipWhile(arg => !string.Equals(arg, "--manifest", StringComparison.OrdinalIgnoreCase))
+                .Skip(1)
+                .FirstOrDefault();
+            _logger.LogDebug(
+                "[DIAG] PrepareInvocation: Component={Component}, UpdaterPath={Updater}, Source={Source}, Target={Target}, Manifest={Manifest}",
+                component,
+                invocation.UpdaterPath,
+                invocationSource,
+                invocationTarget,
+                invocationManifest);
+            _logger.LogDebug("[DIAG] Scheduling updater args: {Args}", string.Join(" ", invocation.Arguments));
+            try
+            {
+                var fviUpdater = FileVersionInfo.GetVersionInfo(invocation.UpdaterPath);
+                _logger.LogDebug("[DIAG] Updater version at invocation: {Version}", fviUpdater.FileVersion);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "[DIAG] Failed to read updater version at invocation from {Path}", invocation.UpdaterPath);
+            }
+
             var stop = await StopComponentBeforeUpdateAsync(component, cancellationToken);
             if (!stop.Success)
             {
                 componentState.State = ComponentInstallState.Failed;
+                _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
                 componentState.ErrorMessage = stop.ErrorMessage ?? $"Failed to stop component '{component}' before update.";
                 result.FailedComponents.Add(component);
                 result.ErrorMessage = componentState.ErrorMessage;
@@ -410,6 +473,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             if (!run.Success)
             {
                 componentState.State = ComponentInstallState.Failed;
+                _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
                 componentState.ErrorMessage = run.ErrorMessage;
                 result.FailedComponents.Add(component);
                 result.ErrorMessage = run.ErrorMessage ?? $"Failed to launch updater for component '{component}'.";
@@ -420,6 +484,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
 
             // Mark completed
             componentState.State = ComponentInstallState.Completed;
+            _logger.LogDebug("[DIAG] Component execution state: Component={Component}, State={State}", component, componentState.State);
             componentState.UpdatedAtUtc = DateTimeOffset.UtcNow;
             result.UpdatedComponents.Add(component);
             await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
@@ -478,25 +543,55 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
         return checkpoint;
     }
 
-    private static List<string> BuildPlan(UnifiedInstallUpdateRequest request, UnifiedUpdateStatusInfo status)
+    private List<string> BuildPlan(UnifiedInstallUpdateRequest request, UnifiedUpdateStatusInfo status)
     {
         var updateable = status.Components
             .Where(component => component.UpdateAvailable)
             .Select(component => component.Component)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        _logger.LogDebug("[DIAG] BuildPlan: Updateable components: {List}", string.Join(", ", updateable));
+
+        var unavailable = status.Components
+            .Where(component => !component.UpdateAvailable)
+            .Select(component => $"{component.Component}(Current={component.CurrentVersion}, Latest={component.LatestVersion})")
+            .ToList();
+        if (unavailable.Count > 0)
+        {
+            _logger.LogDebug("[DIAG] BuildPlan: Components skipped due to UpdateAvailable=false: {List}", string.Join(", ", unavailable));
+        }
+
         if (request.UpdateAll)
         {
-            return DefaultAllOrder.Where(updateable.Contains).ToList();
+            var plan = DefaultAllOrder.Where(updateable.Contains).ToList();
+            _logger.LogDebug("[DIAG] BuildPlan: Final ordered plan: {List}", string.Join(", ", plan));
+            var droppedByOrder = updateable.Where(component => !DefaultAllOrder.Contains(component, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (droppedByOrder.Count > 0)
+            {
+                _logger.LogDebug("[DIAG] BuildPlan: Updateable components not in default order and therefore not scheduled: {List}", string.Join(", ", droppedByOrder));
+            }
+
+            return plan;
         }
 
         if (request.Components.Count == 0)
+        {
+            _logger.LogDebug("[DIAG] BuildPlan: No requested components and UpdateAll=false; returning empty plan.");
             return new List<string>();
+        }
 
-        return request.Components
+        var explicitlySkipped = request.Components.Where(component => !updateable.Contains(component)).ToList();
+        if (explicitlySkipped.Count > 0)
+        {
+            _logger.LogDebug("[DIAG] BuildPlan: Requested components skipped because UpdateAvailable=false or missing: {List}", string.Join(", ", explicitlySkipped));
+        }
+
+        var explicitPlan = request.Components
             .Where(updateable.Contains)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        _logger.LogDebug("[DIAG] BuildPlan: Final ordered plan: {List}", string.Join(", ", explicitPlan));
+        return explicitPlan;
     }
 
     private static double ComputePercent(int completed, int total)
