@@ -53,6 +53,7 @@ namespace StorageWatch.Services
             var logFilePath = LogDirectoryInitializer.GetLogFilePath("agent.log");
             Directory.CreateDirectory(Path.GetDirectoryName(logFilePath)!);
             _logger = new RollingFileLogger(logFilePath);
+            _logger.Log("[DIAG-WORKER] Worker constructor entered.");
 
             // Get current options snapshot
             var options = _optionsMonitor.CurrentValue;
@@ -71,13 +72,16 @@ namespace StorageWatch.Services
             var schemaInitializer = new SqliteSchema(options.Database.ConnectionString, _logger);
             try
             {
+                _logger.Log("[DIAG-WORKER] Starting SQLite database initialization.");
                 schemaInitializer.InitializeDatabaseAsync().Wait();
+                _logger.Log("[DIAG-WORKER] SQLite database initialization completed successfully.");
                 if (options.General.EnableStartupLogging)
                     _logger.Log("[STARTUP] SQLite database initialized");
             }
             catch (Exception ex)
             {
                 _logger.Log($"[STARTUP ERROR] Failed to initialize SQLite database: {ex}");
+                _logger.Log($"[DIAG-WORKER] SQLite database initialization failed; rethrowing exception. {ex}");
                 throw;
             }
 
@@ -107,13 +111,16 @@ namespace StorageWatch.Services
             // Initialize the retention manager for automatic data cleanup
             try
             {
+                _logger.Log("[DIAG-WORKER] Starting retention manager initialization.");
                 _retentionManager = new RetentionManager(options.Database.ConnectionString, options.Retention, _logger);
+                _logger.Log("[DIAG-WORKER] Retention manager initialization completed successfully.");
                 if (options.General.EnableStartupLogging)
                     _logger.Log("[STARTUP] Retention manager initialized");
             }
             catch (Exception ex)
             {
                 _logger.Log($"[STARTUP ERROR] Failed to initialize retention manager: {ex}");
+                _logger.Log($"[DIAG-WORKER] Retention manager initialization failed; rethrowing exception. {ex}");
                 throw;
             }
 
@@ -131,32 +138,73 @@ namespace StorageWatch.Services
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.Log("[WORKER] ExecuteAsync started");
+            _logger.Log("[DIAG-WORKER] ExecuteAsync entered.");
+            bool cancellationObserved = false;
 
-            // Start the notification loop as a background task (disk monitoring and alerts)
-            // This runs continuously while respecting the associated stoppingToken
-            _ = _notificationLoop.RunAsync(stoppingToken);
-
-            // Run the main worker loop: periodically check if SQL reporting should execute
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                // Check if the current time matches the scheduled SQL collection time
-                await _sqlScheduler.CheckAndRunAsync(DateTime.Now);
+                // Start the notification loop as a background task (disk monitoring and alerts)
+                // This runs continuously while respecting the associated stoppingToken
+                _logger.Log("[DIAG-WORKER] Starting notification loop task.");
+                _ = _notificationLoop.RunAsync(stoppingToken);
+                _logger.Log("[DIAG-WORKER] Notification loop task started.");
 
-                // Check if retention cleanup should execute (non-blocking)
-                if (_retentionManager != null)
+                // Run the main worker loop: periodically check if SQL reporting should execute
+                _logger.Log("[DIAG-WORKER] Checking stoppingToken.IsCancellationRequested for loop condition.");
+                while (!stoppingToken.IsCancellationRequested)
                 {
+                    _logger.Log("[DIAG-WORKER] Loop iteration started.");
+
+                    // Check if the current time matches the scheduled SQL collection time
+                    _logger.Log("[DIAG-SCHED] Invoking SqlReporterScheduler.CheckAndRunAsync.");
                     try
                     {
-                        await _retentionManager.CheckAndCleanupAsync();
+                        await _sqlScheduler.CheckAndRunAsync(DateTime.Now);
+                        _logger.Log("[DIAG-SCHED] SqlReporterScheduler.CheckAndRunAsync completed.");
                     }
                     catch (Exception ex)
                     {
-                        _logger.Log($"[WORKER ERROR] Retention cleanup failed: {ex}");
+                        _logger.Log($"[DIAG-SCHED] SqlReporterScheduler.CheckAndRunAsync failed; rethrowing exception. {ex}");
+                        throw;
                     }
+
+                    // Check if retention cleanup should execute (non-blocking)
+                    if (_retentionManager != null)
+                    {
+                        _logger.Log("[DIAG-WORKER] Invoking retention cleanup check.");
+                        try
+                        {
+                            await _retentionManager.CheckAndCleanupAsync();
+                            _logger.Log("[DIAG-WORKER] Retention cleanup check completed.");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Log($"[WORKER ERROR] Retention cleanup failed: {ex}");
+                        }
+                    }
+
+                    _logger.Log("[DIAG-WORKER] Loop iteration completed.");
+
+                    // Wait 30 seconds before checking again
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    _logger.Log("[DIAG-WORKER] Delay completed.");
+                    _logger.Log("[DIAG-WORKER] Checking stoppingToken.IsCancellationRequested for loop condition.");
                 }
 
-                // Wait 30 seconds before checking again
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                if (!cancellationObserved && stoppingToken.IsCancellationRequested)
+                {
+                    cancellationObserved = true;
+                    _logger.Log("[DIAG-WORKER] stoppingToken.IsCancellationRequested transitioned to true.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[DIAG-WORKER] ExecuteAsync encountered fatal exception; rethrowing. {ex}");
+                throw;
+            }
+            finally
+            {
+                _logger.Log("[DIAG-WORKER] ExecuteAsync exiting.");
             }
 
             _logger.Log("[WORKER] ExecuteAsync exiting");

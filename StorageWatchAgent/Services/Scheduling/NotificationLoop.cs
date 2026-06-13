@@ -81,104 +81,133 @@ namespace StorageWatch.Services.Scheduling
         /// <param name="token">Cancellation token for stopping the loop.</param>
         public async Task RunAsync(CancellationToken token)
         {
-            while (!token.IsCancellationRequested)
+            _logger.Log("[DIAG-NOTIFY] RunAsync entered.");
+            bool cancellationObserved = false;
+
+            try
             {
-                try
+                _logger.Log("[DIAG-NOTIFY] Checking token.IsCancellationRequested for loop condition.");
+                while (!token.IsCancellationRequested)
                 {
-                    // Check each configured drive
-                    foreach (var driveLetter in _options.Monitoring.Drives)
+                    _logger.Log("[DIAG-NOTIFY] Loop iteration started.");
+                    try
                     {
-                        // Get the current disk status for this drive
-                        var status = _monitor.GetStatus(driveLetter);
-
-                        string state;
-                        string message;
-
-                        // ====================================================================
-                        // Determine the current state of the drive
-                        // ====================================================================
-
-                        // Case 1: Drive NOT READY - the drive is disconnected, unmounted, or otherwise unavailable
-                        if (status.TotalSpaceGb == 0)
+                        // Check each configured drive
+                        foreach (var driveLetter in _options.Monitoring.Drives)
                         {
-                            state = "NOT_READY";
-                            message =
-                                $"ALERT — {_machineName}: Drive {status.DriveName} is NOT READY or unavailable.";
-                        }
-                        else
-                        {
-                            // Case 2: Drive is READY - check if free space is below the threshold
-                            bool belowThreshold = status.PercentFree < _options.Monitoring.ThresholdPercent;
+                            // Get the current disk status for this drive
+                            var status = _monitor.GetStatus(driveLetter);
 
-                            if (belowThreshold)
+                            string state;
+                            string message;
+
+                            // ====================================================================
+                            // Determine the current state of the drive
+                            // ====================================================================
+
+                            // Case 1: Drive NOT READY - the drive is disconnected, unmounted, or otherwise unavailable
+                            if (status.TotalSpaceGb == 0)
                             {
-                                // Drive space is critically low
-                                state = "ALERT";
+                                state = "NOT_READY";
                                 message =
-                                    $"ALERT — {_machineName}: Drive {status.DriveName} is below threshold. " +
-                                    $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                                    $"ALERT — {_machineName}: Drive {status.DriveName} is NOT READY or unavailable.";
                             }
                             else
                             {
-                                // Drive space has recovered or is normal
-                                state = "NORMAL";
-                                message =
-                                    $"RECOVERY — {_machineName}: Drive {status.DriveName} has recovered. " +
-                                    $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                                // Case 2: Drive is READY - check if free space is below the threshold
+                                bool belowThreshold = status.PercentFree < _options.Monitoring.ThresholdPercent;
+
+                                if (belowThreshold)
+                                {
+                                    // Drive space is critically low
+                                    state = "ALERT";
+                                    message =
+                                        $"ALERT — {_machineName}: Drive {status.DriveName} is below threshold. " +
+                                        $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                                }
+                                else
+                                {
+                                    // Drive space has recovered or is normal
+                                    state = "NORMAL";
+                                    message =
+                                        $"RECOVERY — {_machineName}: Drive {status.DriveName} has recovered. " +
+                                        $"{status.FreeSpaceGb:F2} GB free ({status.PercentFree:F2}%).";
+                                }
                             }
-                        }
 
-                        // Set the current state on the status object for alert senders to use
-                        status.CurrentState = state;
+                            // Set the current state on the status object for alert senders to use
+                            status.CurrentState = state;
 
-                        // ====================================================================
-                        // Compare current state with the last known state
-                        // ====================================================================
-                        _lastAlertState.TryGetValue(driveLetter, out var lastState);
+                            // ====================================================================
+                            // Compare current state with the last known state
+                            // ====================================================================
+                            _lastAlertState.TryGetValue(driveLetter, out var lastState);
 
-                        if (lastState != state)
-                        {
-                            // State has changed - we may need to send an alert
-
-                            // Check: If no senders are configured, skip network check and just update state
-                            if (_senders.Count == 0)
+                            if (lastState != state)
                             {
-                                _logger.Log("[ALERT FACTORY] No alert senders enabled in config.");
+                                // State has changed - we may need to send an alert
+
+                                // Check: If no senders are configured, skip network check and just update state
+                                if (_senders.Count == 0)
+                                {
+                                    _logger.Log("[ALERT FACTORY] No alert senders enabled in config.");
+                                    _lastAlertState[driveLetter] = state;
+                                    SaveState();
+                                    continue;
+                                }
+
+                                // Check: Only perform network readiness check if GroupMe is enabled
+                                // (GroupMe requires internet connectivity, SMTP might not depending on network config)
+                                if (GroupMeEnabled() && !NetworkReady())
+                                {
+                                    _logger.Log("[ALERT] Network not ready — delaying alert send.");
+                                    // Don't update state yet; we'll retry on the next iteration
+                                    continue;
+                                }
+
+                                // ================================================================
+                                // Send the alert through all configured senders
+                                // ================================================================
+                                foreach (var sender in _senders)
+                                    await sender.SendAlertAsync(status, token);
+
+                                _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
+
+                                // Update and persist the new state
                                 _lastAlertState[driveLetter] = state;
                                 SaveState();
-                                continue;
                             }
-
-                            // Check: Only perform network readiness check if GroupMe is enabled
-                            // (GroupMe requires internet connectivity, SMTP might not depending on network config)
-                            if (GroupMeEnabled() && !NetworkReady())
-                            {
-                                _logger.Log("[ALERT] Network not ready — delaying alert send.");
-                                // Don't update state yet; we'll retry on the next iteration
-                                continue;
-                            }
-
-                            // ================================================================
-                            // Send the alert through all configured senders
-                            // ================================================================
-                            foreach (var sender in _senders)
-                                await sender.SendAlertAsync(status, token);
-
-                            _logger.Log($"[ALERT] State change for {driveLetter}: {lastState} → {state}");
-
-                            // Update and persist the new state
-                            _lastAlertState[driveLetter] = state;
-                            SaveState();
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[ALERT] Notification loop error: {ex}");
+                    catch (Exception ex)
+                    {
+                        _logger.Log($"[ALERT] Notification loop error: {ex}");
+                        _logger.Log($"[DIAG-NOTIFY] Notification loop iteration encountered exception. {ex}");
+                    }
+
+                    _logger.Log("[DIAG-NOTIFY] Loop iteration completed.");
+
+                    // Wait 1 minute before checking again
+                    _logger.Log("[DIAG-NOTIFY] Starting loop delay.");
+                    await Task.Delay(TimeSpan.FromMinutes(1), token);
+                    _logger.Log("[DIAG-NOTIFY] Loop delay completed.");
+                    _logger.Log("[DIAG-NOTIFY] Checking token.IsCancellationRequested for loop condition.");
                 }
 
-                // Wait 1 minute before checking again
-                await Task.Delay(TimeSpan.FromMinutes(1), token);
+                if (!cancellationObserved && token.IsCancellationRequested)
+                {
+                    cancellationObserved = true;
+                    _logger.Log("[DIAG-NOTIFY] token.IsCancellationRequested transitioned to true.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[DIAG-NOTIFY] RunAsync encountered fatal exception; rethrowing. {ex}");
+                throw;
+            }
+            finally
+            {
+                _logger.Log("[DIAG-NOTIFY] RunAsync exiting.");
             }
         }
 
