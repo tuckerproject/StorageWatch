@@ -15,6 +15,8 @@
 
 using System;
 using System.IO;
+using System.Text;
+using System.Threading;
 
 namespace StorageWatch.Services.Logging
 {
@@ -24,8 +26,10 @@ namespace StorageWatch.Services.Logging
     public class RollingFileLogger
     {
         private readonly string _logFilePath;
-        // Lock object to ensure thread-safe write operations when multiple threads log simultaneously
-        private readonly object _lock = new();
+        // Static lock to serialize writes across logger instances targeting the same file system.
+        private static readonly object _sync = new();
+        private const int WriteRetryAttempts = 3;
+        private const int WriteRetryDelayMs = 25;
 
         // Maximum size for a single log file before rotation (1 MB = 1,000,000 bytes)
         private const long MaxSizeBytes = 1_000_000;
@@ -55,15 +59,49 @@ namespace StorageWatch.Services.Logging
         /// <param name="message">The message to write to the log file.</param>
         public void Log(string message)
         {
-            lock (_lock)
+            try
             {
-                // Format the message with a timestamp
-                string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}";
-                // Append the line to the log file
-                File.AppendAllText(_logFilePath, line + Environment.NewLine);
+                lock (_sync)
+                {
+                    // Format the message with a timestamp
+                    string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}";
+                    var writeSucceeded = false;
+                    for (int attempt = 1; attempt <= WriteRetryAttempts; attempt++)
+                    {
+                        try
+                        {
+                            // Append the line to the log file
+                            using var stream = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                            using var writer = new StreamWriter(stream, Encoding.UTF8);
+                            writer.WriteLine(line);
+                            writer.Flush();
+                            writeSucceeded = true;
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            if (attempt < WriteRetryAttempts)
+                            {
+                                Console.Error.WriteLine($"[DIAG-LOG] Write retry due to IOException (attempt {attempt}/{WriteRetryAttempts}).");
+                                Thread.Sleep(WriteRetryDelayMs);
+                                continue;
+                            }
 
-                // Check if rotation is needed (if the file exceeds max size)
-                RollIfNeeded();
+                            // Swallow final exhausted IOException to keep logging non-fatal.
+                            Console.Error.WriteLine("[DIAG-LOG] Write failed after retries; log entry dropped.");
+                        }
+                    }
+
+                    if (!writeSucceeded)
+                        return;
+
+                    // Check if rotation is needed (if the file exceeds max size)
+                    RollIfNeeded();
+                }
+            }
+            catch (Exception)
+            {
+                // Logging must remain non-fatal.
             }
         }
 

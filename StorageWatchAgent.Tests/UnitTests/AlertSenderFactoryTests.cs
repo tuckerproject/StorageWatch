@@ -171,7 +171,8 @@ namespace StorageWatch.Tests.UnitTests
             var registry = new AlertSenderPluginRegistry();
             registry.DiscoverPlugins();
 
-            var manager = new AlertSenderPluginManager(serviceProvider, options, _mockLogger.Object, registry);
+            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(options);
+            var manager = new AlertSenderPluginManager(serviceProvider, optionsMonitor, _mockLogger.Object, registry);
 
             // Act
             var enabledSenders = manager.GetEnabledSenders();
@@ -198,7 +199,8 @@ namespace StorageWatch.Tests.UnitTests
             var registry = new AlertSenderPluginRegistry();
             registry.DiscoverPlugins();
 
-            var manager = new AlertSenderPluginManager(serviceProvider, options, _mockLogger.Object, registry);
+            var optionsMonitor = new TestOptionsMonitor<StorageWatchOptions>(options);
+            var manager = new AlertSenderPluginManager(serviceProvider, optionsMonitor, _mockLogger.Object, registry);
 
             // Act
             var enabledSenders = manager.GetEnabledSenders();

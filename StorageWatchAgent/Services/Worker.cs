@@ -89,7 +89,7 @@ namespace StorageWatch.Services
             var monitor = new DiskAlertMonitor(options);
 
             // Build the list of alert senders using the new plugin architecture
-            var pluginManager = AlertSenderFactory.CreatePluginManager(_serviceProvider, options, _logger);
+            var pluginManager = AlertSenderFactory.CreatePluginManager(_serviceProvider, _optionsMonitor, _logger);
             var senders = pluginManager.GetEnabledSenders();
 
             if (options.General.EnableStartupLogging)

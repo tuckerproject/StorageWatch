@@ -9,6 +9,7 @@
 /// This maintains backward compatibility while enabling future extensibility through plugins.
 /// </summary>
 
+using Microsoft.Extensions.Options;
 using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Services.Alerting.Plugins;
@@ -82,7 +83,7 @@ namespace StorageWatch.Services.Alerting
         /// <returns>Configured AlertSenderPluginManager instance.</returns>
         public static AlertSenderPluginManager CreatePluginManager(
             IServiceProvider serviceProvider,
-            StorageWatchOptions options,
+            IOptionsMonitor<StorageWatchOptions> optionsMonitor,
             RollingFileLogger logger,
             AlertSenderPluginRegistry? registry = null)
         {
@@ -92,7 +93,7 @@ namespace StorageWatch.Services.Alerting
                 registry.DiscoverPlugins(); // Auto-discover plugins in current assembly
             }
 
-            return new AlertSenderPluginManager(serviceProvider, options, logger, registry);
+            return new AlertSenderPluginManager(serviceProvider, optionsMonitor, logger, registry);
         }
     }
 }

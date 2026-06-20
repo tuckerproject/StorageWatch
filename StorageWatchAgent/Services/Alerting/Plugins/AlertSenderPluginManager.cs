@@ -9,6 +9,7 @@
 /// </summary>
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using StorageWatch.Config.Options;
 using StorageWatch.Models;
 using StorageWatch.Models.Plugins;
@@ -38,12 +39,12 @@ namespace StorageWatch.Services.Alerting.Plugins
         /// <param name="registry">Plugin registry.</param>
         public AlertSenderPluginManager(
             IServiceProvider serviceProvider,
-            StorageWatchOptions options,
+            IOptionsMonitor<StorageWatchOptions> optionsMonitor,
             RollingFileLogger logger,
             AlertSenderPluginRegistry registry)
         {
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _options = optionsMonitor?.CurrentValue ?? throw new ArgumentNullException(nameof(optionsMonitor));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }

@@ -106,6 +106,8 @@ namespace StorageWatch.Services.DataRetention
                     deleteCount += await TrimByRowCountAsync(connection);
                 }
 
+                CleanupRotatedAgentLogFiles();
+
                 if (deleteCount > 0)
                 {
                     _logger.Log($"[Retention] Cleanup completed. Deleted {deleteCount} row(s).");
@@ -119,6 +121,60 @@ namespace StorageWatch.Services.DataRetention
             {
                 _logger.Log($"[Retention ERROR] Failed to perform cleanup: {ex}");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Cleans up rotated Agent log files while never touching the active agent.log file.
+        /// </summary>
+        private void CleanupRotatedAgentLogFiles()
+        {
+            try
+            {
+                var logsDirectory = LogDirectoryInitializer.EnsureLogDirectoryExists();
+                var activeAgentLogPath = Path.GetFullPath(Path.Combine(logsDirectory, "agent.log"));
+                var cutoffDate = DateTime.UtcNow.AddDays(-_options.MaxDays);
+
+                var rotatedCandidates = new List<string>();
+                rotatedCandidates.AddRange(Directory.GetFiles(logsDirectory, "agent.log.*", SearchOption.TopDirectoryOnly));
+                rotatedCandidates.AddRange(Directory.GetFiles(logsDirectory, "agent-*.log", SearchOption.TopDirectoryOnly));
+
+                foreach (var candidate in rotatedCandidates)
+                {
+                    var candidateFullPath = Path.GetFullPath(candidate);
+                    if (string.Equals(candidateFullPath, activeAgentLogPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.Log($"[DIAG-LOG] Skipping active log file during retention cleanup: {candidateFullPath}");
+                        continue;
+                    }
+
+                    DateTime lastWriteUtc;
+                    try
+                    {
+                        lastWriteUtc = File.GetLastWriteTimeUtc(candidateFullPath);
+                    }
+                    catch (IOException)
+                    {
+                        _logger.Log($"[DIAG-LOG] Skipping rotated log metadata check due to IO lock: {candidateFullPath}");
+                        continue;
+                    }
+
+                    if (lastWriteUtc >= cutoffDate)
+                        continue;
+
+                    try
+                    {
+                        File.Delete(candidateFullPath);
+                    }
+                    catch (IOException)
+                    {
+                        _logger.Log($"[DIAG-LOG] Skipping rotated log delete due to IO lock: {candidateFullPath}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log($"[DIAG-LOG] Rotated log cleanup skipped due to error: {ex.Message}");
             }
         }
 
