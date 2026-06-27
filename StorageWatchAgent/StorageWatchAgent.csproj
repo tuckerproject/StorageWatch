@@ -21,6 +21,7 @@
 	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.3" />
 	<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.3" />
 	<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+	<PackageReference Include="SourceGear.sqlite3" Version="3.50.2" />
 	<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
   </ItemGroup>
 

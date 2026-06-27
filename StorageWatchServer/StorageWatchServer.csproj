@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.3" />
+    <PackageReference Include="SourceGear.sqlite3" Version="3.50.2" />
   </ItemGroup>
 
   <ItemGroup>
