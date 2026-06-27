@@ -1,0 +1,344 @@
+using Microsoft.Extensions.Logging;
+using StorageWatch.Services.AutoUpdate;
+using StorageWatchAgent.Services.AutoUpdate.Models;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+
+namespace StorageWatchAgent.Services.AutoUpdate;
+
+public enum UnifiedInstallResumeState
+{
+    Pending,
+    InProgress,
+    Completed,
+    Failed,
+    Stale
+}
+
+public sealed class UnifiedInstallCheckpointLoadResult
+{
+    public bool Exists { get; init; }
+
+    public bool IsCorrupted { get; init; }
+
+    public UnifiedInstallCheckpoint? Checkpoint { get; init; }
+
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UnifiedInstallCheckpointValidationResult
+{
+    public UnifiedInstallResumeState State { get; init; }
+
+    public bool IsCorrupted { get; init; }
+
+    public bool ShouldResume => State == UnifiedInstallResumeState.InProgress;
+
+    public bool ShouldDelete => State is UnifiedInstallResumeState.Completed or UnifiedInstallResumeState.Failed or UnifiedInstallResumeState.Stale;
+
+    public string Reason { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> Signals { get; init; } = Array.Empty<string>();
+}
+
+public interface IUnifiedInstallCheckpointValidator
+{
+    UnifiedInstallCheckpointValidationResult Validate(UnifiedInstallCheckpoint checkpoint);
+}
+
+public sealed class UnifiedInstallCheckpointValidator : IUnifiedInstallCheckpointValidator
+{
+    private static readonly TimeSpan StaleCheckpointAge = TimeSpan.FromMinutes(15);
+    private readonly global::StorageWatch.Services.AutoUpdate.IInstallPathResolver _installPathResolver;
+    private readonly ILogger<UnifiedInstallCheckpointValidator> _logger;
+
+    public UnifiedInstallCheckpointValidator(
+        global::StorageWatch.Services.AutoUpdate.IInstallPathResolver installPathResolver,
+        ILogger<UnifiedInstallCheckpointValidator> logger)
+    {
+        _installPathResolver = installPathResolver ?? throw new ArgumentNullException(nameof(installPathResolver));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public UnifiedInstallCheckpointValidationResult Validate(UnifiedInstallCheckpoint checkpoint)
+    {
+        if (checkpoint == null)
+        {
+            return Corrupted("Checkpoint data was null.");
+        }
+
+        var signals = new List<string>();
+        var structuralIssues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(checkpoint.OrchestrationId))
+        {
+            structuralIssues.Add("missing orchestration id");
+        }
+
+        if (checkpoint.Components.Count == 0)
+        {
+            structuralIssues.Add("no components listed");
+        }
+
+        if (checkpoint.ComponentStates.Count == 0)
+        {
+            structuralIssues.Add("no component states listed");
+        }
+
+        if (checkpoint.Components.Count != checkpoint.ComponentStates.Count)
+        {
+            structuralIssues.Add("component and component state counts differ");
+        }
+
+        if (checkpoint.CurrentComponentIndex < 0 || checkpoint.CurrentComponentIndex >= Math.Max(checkpoint.ComponentStates.Count, 1))
+        {
+            structuralIssues.Add($"current component index {checkpoint.CurrentComponentIndex} is out of range");
+        }
+
+        if (checkpoint.ComponentStates.Any(state => string.IsNullOrWhiteSpace(state.Component)))
+        {
+            structuralIssues.Add("at least one component state has no component name");
+        }
+
+        if (checkpoint.ComponentStates
+            .Select(state => state.Component.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count() != checkpoint.ComponentStates.Count)
+        {
+            structuralIssues.Add("duplicate component entries found");
+        }
+
+        if (structuralIssues.Count > 0)
+        {
+            return Corrupted(string.Join("; ", structuralIssues), structuralIssues);
+        }
+
+        if (checkpoint.ComponentStates.All(state => state.State == ComponentInstallState.Completed))
+        {
+            return new UnifiedInstallCheckpointValidationResult
+            {
+                State = UnifiedInstallResumeState.Completed,
+                Reason = "All component states are completed.",
+                Signals = signals
+            };
+        }
+
+        if (checkpoint.ComponentStates.Any(state => state.State == ComponentInstallState.Failed) || !string.IsNullOrWhiteSpace(checkpoint.ErrorMessage))
+        {
+            signals.Add("failure recorded in checkpoint state");
+            if (!string.IsNullOrWhiteSpace(checkpoint.ErrorMessage))
+            {
+                signals.Add($"error='{checkpoint.ErrorMessage}'");
+            }
+
+            return new UnifiedInstallCheckpointValidationResult
+            {
+                State = UnifiedInstallResumeState.Failed,
+                Reason = "Checkpoint captured a failed update state.",
+                Signals = signals
+            };
+        }
+
+        var checkpointAgeSource = checkpoint.LastUpdatedAtUtc == default ? checkpoint.StartedAtUtc : checkpoint.LastUpdatedAtUtc;
+        var checkpointAge = DateTimeOffset.UtcNow - checkpointAgeSource;
+        if (checkpointAge > StaleCheckpointAge)
+        {
+            signals.Add($"age={checkpointAge.TotalMinutes:F1}m");
+            return Stale($"Checkpoint is older than {StaleCheckpointAge.TotalMinutes:F0} minutes.", signals, isCorrupted: false);
+        }
+
+        var paths = _installPathResolver.Resolve();
+        if (string.IsNullOrWhiteSpace(paths.InstallRoot) || !Directory.Exists(paths.InstallRoot))
+        {
+            signals.Add($"install root missing: {paths.InstallRoot}");
+            return Stale("Install root is missing.", signals, isCorrupted: false);
+        }
+
+        if (string.IsNullOrWhiteSpace(paths.UpdaterExecutablePath) || !File.Exists(paths.UpdaterExecutablePath))
+        {
+            signals.Add($"updater missing: {paths.UpdaterExecutablePath}");
+            return Stale("Updater executable is missing.", signals, isCorrupted: false);
+        }
+
+        foreach (var directory in EnumerateExpectedDirectories(paths))
+        {
+            if (!Directory.Exists(directory))
+            {
+                signals.Add($"directory missing: {directory}");
+                return Stale("One or more expected install directories are missing.", signals, isCorrupted: false);
+            }
+        }
+
+        for (var i = 0; i < checkpoint.CurrentComponentIndex; i++)
+        {
+            if (checkpoint.ComponentStates[i].State != ComponentInstallState.Completed)
+            {
+                signals.Add($"prior component not completed: {checkpoint.ComponentStates[i].Component}={checkpoint.ComponentStates[i].State}");
+                return Stale("Checkpoint sequencing is inconsistent.", signals, isCorrupted: true);
+            }
+        }
+
+        var currentState = checkpoint.ComponentStates[checkpoint.CurrentComponentIndex];
+        signals.Add($"current={currentState.Component}:{currentState.State}");
+
+        if (currentState.State == ComponentInstallState.Completed)
+        {
+            return new UnifiedInstallCheckpointValidationResult
+            {
+                State = UnifiedInstallResumeState.Completed,
+                Reason = "Current component already completed.",
+                Signals = signals
+            };
+        }
+
+        if (currentState.State == ComponentInstallState.Pending)
+        {
+            return new UnifiedInstallCheckpointValidationResult
+            {
+                State = UnifiedInstallResumeState.Pending,
+                Reason = "Checkpoint exists but the active component has not started yet.",
+                Signals = signals
+            };
+        }
+
+        if (currentState.State != ComponentInstallState.InProgress)
+        {
+            return Stale($"Current component is in an unexpected state: {currentState.State}.", signals, isCorrupted: true);
+        }
+
+        if (!TryResolveComponentExecutable(paths, currentState.Component, out var executablePath))
+        {
+            signals.Add($"unmapped component: {currentState.Component}");
+            return Stale("Checkpoint references an unknown component.", signals, isCorrupted: true);
+        }
+
+        if (!File.Exists(executablePath))
+        {
+            signals.Add($"component executable missing: {executablePath}");
+            return Stale($"Component executable missing for {currentState.Component}.", signals, isCorrupted: false);
+        }
+
+        if (!TryGetFileVersion(executablePath, out var installedVersion, out var installedVersionText))
+        {
+            signals.Add($"version unreadable: {executablePath}");
+            return Stale($"Unable to read installed version for {currentState.Component}.", signals, isCorrupted: false);
+        }
+
+        if (!Version.TryParse(currentState.TargetVersion, out var targetVersion))
+        {
+            signals.Add($"target version invalid: {currentState.TargetVersion}");
+            return Stale("Checkpoint target version is invalid.", signals, isCorrupted: true);
+        }
+
+        signals.Add($"installed={installedVersionText}");
+        signals.Add($"target={targetVersion}");
+
+        if (targetVersion == installedVersion)
+        {
+            return new UnifiedInstallCheckpointValidationResult
+            {
+                State = UnifiedInstallResumeState.Completed,
+                Reason = "Target version already matches the installed version.",
+                Signals = signals
+            };
+        }
+
+        if (targetVersion < installedVersion)
+        {
+            return Stale("Checkpoint target version is older than the installed version.", signals, isCorrupted: false);
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentState.LocalZipPath) && !File.Exists(currentState.LocalZipPath))
+        {
+            signals.Add($"staged package missing: {currentState.LocalZipPath}");
+            _logger.LogWarning(
+                "[AUTOUPDATE] Resume validation found missing staged package for orchestration {OrchestrationId} component {Component}; resume can continue by redownloading.",
+                checkpoint.OrchestrationId,
+                currentState.Component);
+        }
+
+        if (checkpoint.Components.Any(component => string.IsNullOrWhiteSpace(component)))
+        {
+            return Stale("Checkpoint contains an empty component entry.", signals, isCorrupted: true);
+        }
+
+        if (checkpoint.Components.Count != checkpoint.ComponentStates.Count)
+        {
+            return Stale("Checkpoint component metadata is inconsistent.", signals, isCorrupted: true);
+        }
+
+        return new UnifiedInstallCheckpointValidationResult
+        {
+            State = UnifiedInstallResumeState.InProgress,
+            Reason = "Checkpoint passed freshness, structure, version, and artifact validation.",
+            Signals = signals
+        };
+    }
+
+    private static UnifiedInstallCheckpointValidationResult Corrupted(string reason, IEnumerable<string>? signals = null)
+    {
+        return Stale(reason, signals, isCorrupted: true);
+    }
+
+    private static UnifiedInstallCheckpointValidationResult Stale(string reason, IEnumerable<string>? signals, bool isCorrupted)
+    {
+        return new UnifiedInstallCheckpointValidationResult
+        {
+            State = UnifiedInstallResumeState.Stale,
+            IsCorrupted = isCorrupted,
+            Reason = reason,
+            Signals = signals?.ToArray() ?? Array.Empty<string>()
+        };
+    }
+
+    private static bool TryResolveComponentExecutable(global::StorageWatch.Services.AutoUpdate.ResolvedInstallPaths paths, string component, out string executablePath)
+    {
+        executablePath = string.Empty;
+
+        switch (component.Trim().ToLowerInvariant())
+        {
+            case "agent":
+                executablePath = Path.Combine(paths.AgentDirectory, "StorageWatchAgent.exe");
+                return true;
+            case "server":
+                executablePath = Path.Combine(paths.ServerDirectory, "StorageWatchServer.exe");
+                return true;
+            case "ui":
+                executablePath = Path.Combine(paths.UiDirectory, "StorageWatchUI.exe");
+                return true;
+            case "updater":
+                executablePath = Path.Combine(paths.UpdaterDirectory, "StorageWatch.Updater.exe");
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateExpectedDirectories(global::StorageWatch.Services.AutoUpdate.ResolvedInstallPaths paths)
+    {
+        yield return paths.AgentDirectory;
+        yield return paths.ServerDirectory;
+        yield return paths.UiDirectory;
+        yield return paths.UpdaterDirectory;
+    }
+
+    private static bool TryGetFileVersion(string filePath, out Version version, out string versionText)
+    {
+        version = new Version(0, 0, 0, 0);
+        versionText = string.Empty;
+
+        try
+        {
+            var fileVersion = FileVersionInfo.GetVersionInfo(filePath).FileVersion;
+            versionText = string.IsNullOrWhiteSpace(fileVersion) ? string.Empty : fileVersion;
+            return !string.IsNullOrWhiteSpace(fileVersion) && Version.TryParse(fileVersion, out version);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}

@@ -20,6 +20,11 @@ public interface IUnifiedInstallCheckpointStore
     Task<UnifiedInstallCheckpoint?> LoadCheckpointAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Load the current checkpoint with load metadata so callers can distinguish missing, corrupted, and valid files.
+    /// </summary>
+    Task<UnifiedInstallCheckpointLoadResult> LoadCheckpointResultAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Clear the checkpoint (delete the persisted file).
     /// </summary>
     Task ClearCheckpointAsync(CancellationToken cancellationToken = default);
@@ -94,35 +99,71 @@ public class UnifiedInstallCheckpointStore : IUnifiedInstallCheckpointStore
 
     public async Task<UnifiedInstallCheckpoint?> LoadCheckpointAsync(CancellationToken cancellationToken = default)
     {
+        var result = await LoadCheckpointResultAsync(cancellationToken);
+        return result.Checkpoint;
+    }
+
+    public async Task<UnifiedInstallCheckpointLoadResult> LoadCheckpointResultAsync(CancellationToken cancellationToken = default)
+    {
         await _lock.WaitAsync(cancellationToken);
         try
         {
             if (!File.Exists(CheckpointFilePath))
             {
                 _logger.LogDebug("No checkpoint file found at {Path}", CheckpointFilePath);
-                return null;
+                return new UnifiedInstallCheckpointLoadResult
+                {
+                    Exists = false,
+                    IsCorrupted = false,
+                    Checkpoint = null,
+                    ErrorMessage = null
+                };
             }
 
-            var json = await File.ReadAllTextAsync(CheckpointFilePath, cancellationToken);
-            var checkpoint = JsonSerializer.Deserialize<UnifiedInstallCheckpoint>(json, JsonOptions);
-
-            if (checkpoint != null)
+            try
             {
-                _logger.LogInformation(
-                    "Loaded checkpoint for orchestration {OrchestrationId}, index {Index}/{Total}, installing={Installing}",
-                    checkpoint.OrchestrationId,
-                    checkpoint.CurrentComponentIndex,
-                    checkpoint.Components.Count,
-                    checkpoint.IsInstalling
-                );
-            }
+                var json = await File.ReadAllTextAsync(CheckpointFilePath, cancellationToken);
+                var checkpoint = JsonSerializer.Deserialize<UnifiedInstallCheckpoint>(json, JsonOptions);
 
-            return checkpoint;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load checkpoint from {Path}", CheckpointFilePath);
-            return null;
+                if (checkpoint != null)
+                {
+                    _logger.LogInformation(
+                        "Loaded checkpoint for orchestration {OrchestrationId}, index {Index}/{Total}, installing={Installing}",
+                        checkpoint.OrchestrationId,
+                        checkpoint.CurrentComponentIndex,
+                        checkpoint.Components.Count,
+                        checkpoint.IsInstalling
+                    );
+
+                    return new UnifiedInstallCheckpointLoadResult
+                    {
+                        Exists = true,
+                        IsCorrupted = false,
+                        Checkpoint = checkpoint,
+                        ErrorMessage = null
+                    };
+                }
+
+                _logger.LogWarning("Checkpoint file at {Path} deserialized to null.", CheckpointFilePath);
+                return new UnifiedInstallCheckpointLoadResult
+                {
+                    Exists = true,
+                    IsCorrupted = true,
+                    Checkpoint = null,
+                    ErrorMessage = "Checkpoint file deserialized to null."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load checkpoint from {Path}", CheckpointFilePath);
+                return new UnifiedInstallCheckpointLoadResult
+                {
+                    Exists = true,
+                    IsCorrupted = true,
+                    Checkpoint = null,
+                    ErrorMessage = ex.Message
+                };
+            }
         }
         finally
         {

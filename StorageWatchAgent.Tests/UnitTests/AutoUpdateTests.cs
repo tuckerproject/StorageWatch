@@ -9,6 +9,7 @@ using StorageWatchAgent.Services.AutoUpdate.Models;
 using StorageWatch.Tests.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -471,6 +472,16 @@ namespace StorageWatch.Tests.UnitTests
                 return Task.FromResult(_checkpoint);
             }
 
+            public Task<UnifiedInstallCheckpointLoadResult> LoadCheckpointResultAsync(CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new UnifiedInstallCheckpointLoadResult
+                {
+                    Exists = _checkpoint != null,
+                    IsCorrupted = false,
+                    Checkpoint = _checkpoint
+                });
+            }
+
             public Task ClearCheckpointAsync(CancellationToken cancellationToken = default)
             {
                 _checkpoint = null;
@@ -635,6 +646,225 @@ namespace StorageWatch.Tests.UnitTests
             result.Success.Should().BeFalse();
         }
 
+        [Fact]
+        public void UnifiedInstallCheckpointValidator_ReturnsInProgress_WhenCheckpointIsFreshAndVersionAdvances()
+        {
+            var root = TestHelpers.CreateTempDirectory();
+            var installedVersion = CreateVersionedInstallLayout(root);
+            var targetVersion = new Version(installedVersion.Major + 1, 0, 0, 0).ToString();
+            var checkpoint = CreateCheckpoint("agent", ComponentInstallState.InProgress, targetVersion, DateTimeOffset.UtcNow, includeZip: true);
+
+            var validator = new UnifiedInstallCheckpointValidator(
+                new StubInstallPathResolver(root),
+                new TestLogger<UnifiedInstallCheckpointValidator>());
+
+            var result = validator.Validate(checkpoint);
+
+            result.State.Should().Be(UnifiedInstallResumeState.InProgress);
+            result.ShouldResume.Should().BeTrue();
+            result.ShouldDelete.Should().BeFalse();
+        }
+
+        [Fact]
+        public void UnifiedInstallCheckpointValidator_ReturnsStale_WhenCheckpointIsTooOld()
+        {
+            var root = TestHelpers.CreateTempDirectory();
+            var installedVersion = CreateVersionedInstallLayout(root);
+            var targetVersion = new Version(installedVersion.Major + 1, 0, 0, 0).ToString();
+            var checkpoint = CreateCheckpoint("agent", ComponentInstallState.InProgress, targetVersion, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(20), includeZip: true);
+
+            var validator = new UnifiedInstallCheckpointValidator(
+                new StubInstallPathResolver(root),
+                new TestLogger<UnifiedInstallCheckpointValidator>());
+
+            var result = validator.Validate(checkpoint);
+
+            result.State.Should().Be(UnifiedInstallResumeState.Stale);
+            result.ShouldDelete.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task UnifiedInstallResumeService_DeletesStaleCheckpointAndDoesNotResume()
+        {
+            var root = TestHelpers.CreateTempDirectory();
+            var installedVersion = CreateVersionedInstallLayout(root);
+            var targetVersion = new Version(installedVersion.Major + 1, 0, 0, 0).ToString();
+            var checkpoint = CreateCheckpoint("agent", ComponentInstallState.InProgress, targetVersion, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(20), includeZip: true);
+
+            var store = new InMemoryCheckpointStore();
+            await store.SaveCheckpointAsync(checkpoint, CancellationToken.None);
+
+            var validator = new UnifiedInstallCheckpointValidator(
+                new StubInstallPathResolver(root),
+                new TestLogger<UnifiedInstallCheckpointValidator>());
+            var orchestrator = new RecordingUnifiedInstallOrchestrator();
+            var service = new UnifiedInstallResumeService(
+                store,
+                validator,
+                orchestrator,
+                new TestLogger<UnifiedInstallResumeService>());
+
+            await service.StartAsync(CancellationToken.None);
+
+            orchestrator.ResumeCallCount.Should().Be(0);
+            (await store.CheckpointExistsAsync()).Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task UnifiedInstallResumeService_ResumesOnlyWhenValidationPasses()
+        {
+            var root = TestHelpers.CreateTempDirectory();
+            var installedVersion = CreateVersionedInstallLayout(root);
+            var targetVersion = new Version(installedVersion.Major + 1, 0, 0, 0).ToString();
+            var checkpoint = CreateCheckpoint("agent", ComponentInstallState.InProgress, targetVersion, DateTimeOffset.UtcNow, includeZip: true);
+
+            var store = new InMemoryCheckpointStore();
+            await store.SaveCheckpointAsync(checkpoint, CancellationToken.None);
+
+            var validator = new UnifiedInstallCheckpointValidator(
+                new StubInstallPathResolver(root),
+                new TestLogger<UnifiedInstallCheckpointValidator>());
+            var orchestrator = new RecordingUnifiedInstallOrchestrator();
+            var service = new UnifiedInstallResumeService(
+                store,
+                validator,
+                orchestrator,
+                new TestLogger<UnifiedInstallResumeService>());
+
+            await service.StartAsync(CancellationToken.None);
+            await orchestrator.ResumeCalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            orchestrator.ResumeCallCount.Should().Be(1);
+            (await store.CheckpointExistsAsync()).Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task NetworkTimeoutDownloader_Failure_Regresses_NoResumeCollision()
+        {
+            var component = new ComponentUpdateInfo
+            {
+                Version = "1.0.1",
+                DownloadUrl = "https://example.com/update.zip",
+                Sha256 = "abc123"
+            };
+
+            var handler = new FakeHttpMessageHandler(_ => throw new HttpRequestException("timeout"));
+            var httpClient = new HttpClient(handler);
+            var downloader = new ServiceUpdateDownloader(httpClient, new TestLogger<ServiceUpdateDownloader>());
+
+            var result = await downloader.DownloadAsync(component, CancellationToken.None);
+
+            result.Success.Should().BeFalse();
+        }
+
+        private static UnifiedInstallCheckpoint CreateCheckpoint(string component, ComponentInstallState state, string targetVersion, DateTimeOffset lastUpdatedAtUtc, bool includeZip)
+        {
+            var checkpoint = new UnifiedInstallCheckpoint
+            {
+                OrchestrationId = Guid.NewGuid().ToString("N"),
+                StartedAtUtc = lastUpdatedAtUtc,
+                LastUpdatedAtUtc = lastUpdatedAtUtc,
+                IsInstalling = true,
+                Components = new List<string> { component },
+                CurrentComponentIndex = 0,
+                ComponentStates = new List<ComponentCheckpointState>
+                {
+                    new()
+                    {
+                        Component = component,
+                        State = state,
+                        TargetVersion = targetVersion,
+                        DownloadUrl = "https://example.com/update.zip",
+                        Sha256 = "abc123",
+                        LocalZipPath = null,
+                        UpdatedAtUtc = lastUpdatedAtUtc
+                    }
+                }
+            };
+
+            if (includeZip)
+            {
+                var zipPath = Path.Combine(TestHelpers.CreateTempDirectory(), "update.zip");
+                File.WriteAllText(zipPath, "placeholder");
+                checkpoint.ComponentStates[0].LocalZipPath = zipPath;
+            }
+
+            return checkpoint;
+        }
+
+        private static Version CreateVersionedInstallLayout(string root)
+        {
+            var sourceAssemblyPath = typeof(AutoUpdateTests).Assembly.Location;
+            var fileVersion = FileVersionInfo.GetVersionInfo(sourceAssemblyPath).FileVersion ?? "1.0.0.0";
+            var installedVersion = Version.TryParse(fileVersion, out var version) ? version : new Version(1, 0, 0, 0);
+
+            CopyAssemblyAsExecutable(sourceAssemblyPath, Path.Combine(root, "Agent", "StorageWatchAgent.exe"));
+            CopyAssemblyAsExecutable(sourceAssemblyPath, Path.Combine(root, "Server", "StorageWatchServer.exe"));
+            CopyAssemblyAsExecutable(sourceAssemblyPath, Path.Combine(root, "UI", "StorageWatchUI.exe"));
+            CopyAssemblyAsExecutable(sourceAssemblyPath, Path.Combine(root, "Updater", "StorageWatch.Updater.exe"));
+
+            return installedVersion;
+        }
+
+        private static void CopyAssemblyAsExecutable(string sourceAssemblyPath, string targetPath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            File.Copy(sourceAssemblyPath, targetPath, overwrite: true);
+        }
+
+        private sealed class RecordingUnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
+        {
+            public int ResumeCallCount { get; private set; }
+
+            public TaskCompletionSource<bool> ResumeCalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public Task<UnifiedUpdateInstallResult> StartInstallAsync(UnifiedInstallUpdateRequest request, CancellationToken cancellationToken)
+            {
+                throw new NotImplementedException();
+            }
+
+            public Task<UnifiedUpdateInstallResult> ResumePendingInstallAsync(CancellationToken cancellationToken)
+            {
+                ResumeCallCount++;
+                ResumeCalled.TrySetResult(true);
+                return Task.FromResult(new UnifiedUpdateInstallResult
+                {
+                    OrchestrationId = Guid.NewGuid().ToString("N"),
+                    Success = true,
+                    RestartRequired = false,
+                    ErrorMessage = null,
+                    StartedAtUtc = DateTimeOffset.UtcNow,
+                    CompletedAtUtc = DateTimeOffset.UtcNow
+                });
+            }
+
+            public UnifiedUpdateProgressInfo GetProgress()
+            {
+                return new UnifiedUpdateProgressInfo
+                {
+                    OrchestrationId = string.Empty,
+                    Phase = "idle",
+                    Component = string.Empty,
+                    Status = "Idle",
+                    ProgressPercent = 0,
+                    IsIndeterminate = false
+                };
+            }
+
+            public UnifiedUpdateInstallResult GetLastResult()
+            {
+                return new UnifiedUpdateInstallResult
+                {
+                    OrchestrationId = string.Empty,
+                    Success = true,
+                    RestartRequired = false,
+                    ErrorMessage = null,
+                    StartedAtUtc = DateTimeOffset.UtcNow,
+                    CompletedAtUtc = DateTimeOffset.UtcNow
+                };
+            }
+        }
+
         private sealed class StubUnifiedUpdateChecker : IUnifiedUpdateChecker
         {
             private readonly UnifiedUpdateStatusInfo _status;
@@ -663,7 +893,7 @@ namespace StorageWatch.Tests.UnitTests
             }
         }
 
-        private sealed class StubInstallPathResolver : IInstallPathResolver
+        private sealed class StubInstallPathResolver : global::StorageWatch.Services.AutoUpdate.IInstallPathResolver
         {
             private readonly string _root;
 
@@ -678,9 +908,9 @@ namespace StorageWatch.Tests.UnitTests
                 }
             }
 
-            public ResolvedInstallPaths Resolve()
+            public global::StorageWatch.Services.AutoUpdate.ResolvedInstallPaths Resolve()
             {
-                return new ResolvedInstallPaths
+                return new global::StorageWatch.Services.AutoUpdate.ResolvedInstallPaths
                 {
                     InstallRoot = _root,
                     AgentDirectory = Path.Combine(_root, "Agent"),
