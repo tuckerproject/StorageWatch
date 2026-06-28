@@ -210,7 +210,6 @@ Section -PostInstall
     SetShellVarContext all
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "InstallDir" "$INSTDIR"
     WriteRegStr ${REG_ROOT} "${REG_KEY}" "Role" "$SelectedRole"
-    Call WriteVersionMetadata
     
     ${If} $SelectedRole == "Agent"
         Call StartService
@@ -531,21 +530,6 @@ Function un.PromptDeletePlugins
     deletePlugins:
         RMDir /r "$APPDATA\${APP_NAME}\Plugins"
     donePlugins:
-FunctionEnd
-
-Function WriteVersionMetadata
-    ClearErrors
-    ${GetFileVersion} "$EXEPATH" $0
-    ${If} ${Errors}
-        StrCpy $0 "unknown"
-        DetailPrint "[INSTALL] Could not determine installer version from '$EXEPATH'. Writing 'unknown'."
-    ${EndIf}
-
-    FileOpen $1 "$INSTDIR\version.txt" w
-    FileWrite $1 "StorageWatchVersion=$0$\r$\n"
-    FileClose $1
-
-    DetailPrint "[INSTALL] Wrote version metadata to '$INSTDIR\version.txt': $0"
 FunctionEnd
 
 Function SetOverwriteModeForComponent
