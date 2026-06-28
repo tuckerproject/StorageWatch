@@ -66,6 +66,12 @@ internal class SelfUpdateManager
     public bool IsUpdateAvailable(ComponentUpdateInfo updaterManifestEntry)
     {
         LogDiag($"IsUpdateAvailable invoked. ManifestVersionRaw={updaterManifestEntry.Version}, ProcessPath={_updaterExePath}");
+        if (string.IsNullOrWhiteSpace(updaterManifestEntry.Version) || string.IsNullOrWhiteSpace(updaterManifestEntry.DownloadUrl))
+        {
+            LogDiag($"ERROR: Manifest updater metadata missing required values. Version='{updaterManifestEntry.Version}', DownloadUrl='{updaterManifestEntry.DownloadUrl}'");
+            return false;
+        }
+
         var currentVersion = GetCurrentUpdaterVersion();
         LogVersionMetadata(_updaterExePath, "updater-current");
         if (!Version.TryParse(updaterManifestEntry.Version, out var manifestVersion))
@@ -86,7 +92,10 @@ internal class SelfUpdateManager
     {
         LogDiag($"RunSelfUpdateStageAsync start. ManifestPath={manifestPath}, Exists={File.Exists(manifestPath)}");
         var manifestJson = await File.ReadAllTextAsync(manifestPath, cancellationToken);
-        var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson)
+        var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })
             ?? throw new InvalidOperationException("Manifest could not be parsed.");
 
         if (manifest.Updater == null)

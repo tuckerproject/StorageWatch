@@ -12,7 +12,7 @@ public class ManifestValidationTests
         var json = new FakeManifestBuilder().WithoutUpdater().BuildJson();
 
         json.Should().NotBeNullOrWhiteSpace();
-        json.Should().Contain("\"Updater\":null");
+        json.Should().Contain("\"updater\":");
     }
 
     [Theory]

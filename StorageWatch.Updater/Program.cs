@@ -101,7 +101,10 @@ try
         {
             logger.Log("[SELF-UPDATE] Checking for updater self-update...");
             var manifestJson = await File.ReadAllTextAsync(arguments.ManifestPath);
-            var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson);
+            var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
 
             if (manifest?.Updater != null)
             {

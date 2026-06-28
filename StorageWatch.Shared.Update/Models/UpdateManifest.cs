@@ -9,12 +9,16 @@ public class UpdateManifest
     [JsonPropertyName("version")]
     public string StorageWatchVersion { get; set; } = "";
 
+    [JsonPropertyName("agent")]
     public ComponentUpdateInfo Agent { get; set; } = new();
 
+    [JsonPropertyName("server")]
     public ComponentUpdateInfo Server { get; set; } = new();
 
+    [JsonPropertyName("ui")]
     public ComponentUpdateInfo Ui { get; set; } = new();
 
+    [JsonPropertyName("updater")]
     public ComponentUpdateInfo Updater { get; set; } = new();
 
     public List<PluginUpdateInfo> Plugins { get; set; } = new();
@@ -45,8 +49,10 @@ public class ComponentUpdateInfo
 {
     public string Version { get; set; } = "";
 
+    [JsonPropertyName("downloadUrl")]
     public string DownloadUrl { get; set; } = "";
 
+    [JsonPropertyName("sha256")]
     public string Sha256 { get; set; } = "";
 
     public string? ReleaseNotesUrl { get; set; }
