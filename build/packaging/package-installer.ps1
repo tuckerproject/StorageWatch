@@ -44,6 +44,22 @@ function Ensure-Directory([string]$Path) {
     }
 }
 
+function Copy-ComplianceFiles([string]$SourceRoot, [string]$DestinationRoot) {
+    $noticesPath = Join-Path $SourceRoot 'THIRD-PARTY-NOTICES.txt'
+    $licensesPath = Join-Path $SourceRoot 'licenses'
+
+    if (-not (Test-Path -LiteralPath $noticesPath)) {
+        throw "Third-party notices file not found: $noticesPath"
+    }
+    if (-not (Test-Path -LiteralPath $licensesPath)) {
+        throw "Licenses directory not found: $licensesPath"
+    }
+
+    Ensure-Directory -Path $DestinationRoot
+    Copy-Item -LiteralPath $noticesPath -Destination (Join-Path $DestinationRoot 'THIRD-PARTY-NOTICES.txt') -Force
+    Copy-Item -LiteralPath $licensesPath -Destination (Join-Path $DestinationRoot 'licenses') -Recurse -Force
+}
+
 # Resolve paths
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedPayloadRoot = if ([System.IO.Path]::IsPathRooted($PayloadRoot)) { $PayloadRoot } else { Join-Path $resolvedRepoRoot $PayloadRoot }
@@ -68,6 +84,8 @@ if (-not (Test-Path -LiteralPath $resolvedNsisScriptPath)) {
 if (-not (Test-Path -LiteralPath $resolvedPayloadRoot)) {
     throw "Payload root not found: $resolvedPayloadRoot"
 }
+
+Copy-ComplianceFiles -SourceRoot $resolvedRepoRoot -DestinationRoot $resolvedPayloadRoot
 
 # Validate payload structure
 if ($ValidatePayload) {
@@ -112,6 +130,12 @@ if ($ValidatePayload) {
     }
     if (-not (Test-Path -LiteralPath $uiExePath)) {
         throw "Required UI executable missing from payload: $uiExePath"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $resolvedPayloadRoot 'THIRD-PARTY-NOTICES.txt'))) {
+        throw 'Required third-party notices file missing from payload.'
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $resolvedPayloadRoot 'licenses'))) {
+        throw 'Required licenses directory missing from payload.'
     }
 
     $legacyUpdaterPayloadDirs = @(

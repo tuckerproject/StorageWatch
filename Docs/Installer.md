@@ -8,6 +8,8 @@ StorageWatch uses an NSIS installer (`StorageWatchInstaller.exe`) for Windows de
 - Server binaries to `$INSTDIR\Server`
 - UI binaries to `$INSTDIR\UI`
 - Updater binaries to `$INSTDIR\Updater`
+- `THIRD-PARTY-NOTICES.txt` to `$INSTDIR`
+- license texts to `$INSTDIR\licenses`
 
 ## Windows Services
 

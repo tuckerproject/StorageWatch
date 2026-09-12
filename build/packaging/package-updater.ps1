@@ -75,6 +75,11 @@ function Copy-DirectoryContent([string]$Source, [string]$Destination) {
     Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
 }
 
+function Copy-ComplianceFiles([string]$SourceRoot, [string]$DestinationRoot) {
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'THIRD-PARTY-NOTICES.txt') -Destination (Join-Path $DestinationRoot 'THIRD-PARTY-NOTICES.txt') -Force
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'licenses') -Destination (Join-Path $DestinationRoot 'licenses') -Recurse -Force
+}
+
 $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $resolvedProjectPath = if ([System.IO.Path]::IsPathRooted($ProjectPath)) { $ProjectPath } else { Join-Path $resolvedRepoRoot $ProjectPath }
 $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $resolvedRepoRoot $OutputRoot }
@@ -134,6 +139,8 @@ Write-Host 'Publishing Updater...'
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed for Updater with exit code $LASTEXITCODE."
 }
+
+Copy-ComplianceFiles -SourceRoot $resolvedRepoRoot -DestinationRoot $resolvedPublishDir
 
 $updaterExe = Join-Path $resolvedPublishDir $ExecutableFileName
 if (-not (Test-Path -LiteralPath $updaterExe)) {

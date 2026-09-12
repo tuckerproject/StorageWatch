@@ -187,6 +187,14 @@ Section -StorageWatchUpdater SecUpdater
     Call CleanupLegacyUpdaterCopies
 SectionEnd
 
+Section -LicenseCompliance SecLicenseCompliance
+    SetOutPath "$INSTDIR"
+    File "${PAYLOAD_DIR}\THIRD-PARTY-NOTICES.txt"
+
+    SetOutPath "$INSTDIR\licenses"
+    File /r "${PAYLOAD_DIR}\licenses\*"
+SectionEnd
+
 Section -ProgramData SecProgramData
     SetShellVarContext all
 
@@ -233,6 +241,8 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\UI"
     RMDir /r "$INSTDIR\Server"
     Call un.SafeRemoveSharedUpdater
+    RMDir /r "$INSTDIR\licenses"
+    Delete "$INSTDIR\THIRD-PARTY-NOTICES.txt"
     RMDir "$INSTDIR"
 
     ; Note: Do NOT delete ProgramData directories (Agent, Server, Logs, Plugins)
