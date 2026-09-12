@@ -21,6 +21,12 @@ Ensure payload defaults are present:
 
 - `InstallerNSIS/Payload/Agent/Defaults/AgentConfig.default.json`
 - `InstallerNSIS/Payload/Server/Defaults/ServerConfig.default.json`
+- `InstallerNSIS/Payload/THIRD-PARTY-NOTICES.txt`
+- `InstallerNSIS/Payload/licenses/`
+
+`build/packaging/package-installer.ps1` stages the two license-compliance
+artifacts from the repository root automatically. For manual NSIS builds, copy
+them to the payload root before running `makensis`.
 
 ## Build NSIS Package
 

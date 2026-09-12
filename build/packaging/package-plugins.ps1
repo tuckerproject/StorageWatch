@@ -70,6 +70,11 @@ function Clear-Directory([string]$Path) {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
+function Copy-ComplianceFiles([string]$SourceRoot, [string]$DestinationRoot) {
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'THIRD-PARTY-NOTICES.txt') -Destination (Join-Path $DestinationRoot 'THIRD-PARTY-NOTICES.txt') -Force
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'licenses') -Destination (Join-Path $DestinationRoot 'licenses') -Recurse -Force
+}
+
 function Normalize-DirectoryPath([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) {
         return $Path
@@ -210,6 +215,7 @@ if ($PackageIndividually) {
         try {
             $stagedFile = Join-Path $stagingDir $plugin.Name
             Copy-Item -LiteralPath $plugin.FullName -Destination $stagedFile -Force
+            Copy-ComplianceFiles -SourceRoot $resolvedRepoRoot -DestinationRoot $stagingDir
             if (Test-Path -LiteralPath $signScript) {
                 & $signScript -FilePath $stagedFile | Out-Null
             }
@@ -270,6 +276,7 @@ else {
             }
         }
 
+        Copy-ComplianceFiles -SourceRoot $resolvedRepoRoot -DestinationRoot $stagingDir
         Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
     }
     finally {

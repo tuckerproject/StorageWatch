@@ -78,6 +78,20 @@ jobs:
       run: |
         ./build/packaging/sign-executable.ps1 -FilePath "$env:GITHUB_WORKSPACE/publish/StorageWatch.Updater/StorageWatch.Updater.exe" | Out-Null
 
+    - name: Stage license compliance files
+      if: matrix.configuration == 'Release'
+      shell: pwsh
+      run: |
+        $publishDirectories = @(
+          "$env:GITHUB_WORKSPACE/publish/StorageWatchAgent",
+          "$env:GITHUB_WORKSPACE/publish/StorageWatch.Updater"
+        )
+
+        foreach ($publishDirectory in $publishDirectories) {
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE/THIRD-PARTY-NOTICES.txt" -Destination "$publishDirectory/THIRD-PARTY-NOTICES.txt" -Force
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE/licenses" -Destination "$publishDirectory/licenses" -Recurse -Force
+        }
+
     - name: Print updater build diagnostics
       if: matrix.configuration == 'Release'
       shell: pwsh
