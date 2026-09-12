@@ -1,0 +1,118 @@
+StorageWatch Third-Party Notices
+================================
+
+This file inventories every NuGet package/version resolved by `dotnet restore
+StorageWatch.slnx` on 2026-09-12, including direct and transitive packages.
+License identifiers and copyright notices are taken from each resolved package's
+NuGet metadata. `LICENSE` and `LICENSE.txt` identify package-bundled license
+files. Full license texts are in the repository-root `licenses/` directory.
+
+No resolved Apache-2.0 package contained a package-bundled NOTICE file. As a
+result, there is no additional Apache NOTICE text to reproduce beyond the
+Apache-2.0 license text in `licenses/Apache-2.0.txt`.
+
+Package | Resolved version | SPDX/license type | Copyright notice
+--------|------------------|-------------------|-----------------
+Castle.Core | 5.1.1 | Apache-2.0 | Copyright (c) 2004-2022 Castle Project - http://www.castleproject.org/
+coverlet.collector | 10.0.1 | MIT | (c) 2018 Toni Solarin-Sodara
+coverlet.msbuild | 10.0.1 | MIT | (c) 2018 Toni Solarin-Sodara
+FluentAssertions | 7.0.0 | Apache-2.0 | Copyright Dennis Doomen 2010-2024
+HarfBuzzSharp.NativeAssets.macOS | 8.3.1.1 | MIT | (c) Microsoft Corporation. All rights reserved.
+HarfBuzzSharp.NativeAssets.Win32 | 8.3.1.1 | MIT | (c) Microsoft Corporation. All rights reserved.
+HarfBuzzSharp | 8.3.1.1 | MIT | (c) Microsoft Corporation. All rights reserved.
+LiveChartsCore.SkiaSharpView.WPF | 2.0.5 | MIT | No copyright notice supplied in NuGet metadata.
+LiveChartsCore.SkiaSharpView | 2.0.5 | MIT | No copyright notice supplied in NuGet metadata.
+LiveChartsCore | 2.0.5 | MIT | No copyright notice supplied in NuGet metadata.
+Microsoft.AspNetCore.Mvc.Testing | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.AspNetCore.TestHost | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.CodeCoverage | 17.12.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Data.Sqlite.Core | 10.0.10 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Data.Sqlite.Core | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Data.Sqlite | 10.0.10 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Data.Sqlite | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.Binder | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.CommandLine | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.EnvironmentVariables | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.FileExtensions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.Json | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration.UserSecrets | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Configuration | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.DependencyInjection.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.DependencyInjection | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.DependencyModel | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Diagnostics.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Diagnostics | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.FileProviders.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.FileProviders.Physical | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.FileSystemGlobbing | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Hosting.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Hosting.WindowsServices | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Hosting | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Http | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.Abstractions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.Configuration | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.Console | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.Debug | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.EventLog | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging.EventSource | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Logging | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Options.DataAnnotations | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Options | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Extensions.Primitives | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.NET.Test.Sdk | 17.12.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.TestPlatform.ObjectModel | 17.12.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.TestPlatform.TestHost | 17.12.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+Microsoft.Win32.SystemEvents | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+Moq | 4.20.72 | BSD-3-Clause | Copyright (c) 2007, Clarius Consulting, Manas Technology Solutions, InSTEDD, and Contributors. All rights reserved.
+Newtonsoft.Json | 13.0.1 | MIT | Copyright (c) James Newton-King 2008
+OpenTK.GLWpfControl | 3.3.0 | MIT | Copyright (c) 2020 Team OpenTK.
+OpenTK | 3.3.1 | MIT | Copyright (c) 2006 - 2019 Stefanos Apostolopoulos <stapostol@gmail.com> for the Open Toolkit library.
+SkiaSharp.HarfBuzz | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SkiaSharp.NativeAssets.macOS | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SkiaSharp.NativeAssets.Win32 | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SkiaSharp.Views.Desktop.Common | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SkiaSharp.Views.WPF | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SkiaSharp | 3.119.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+SourceGear.sqlite3 | 3.50.4.5 | PublicDomain-SQLite (package `LICENSE.txt`) | Copyright 2014-2025 SourceGear, LLC
+SQLitePCLRaw.bundle_e_sqlite3 | 2.1.11 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.bundle_e_sqlite3 | 2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.core | 2.1.11 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.core | 2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.lib.e_sqlite3 | 2.1.11 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.lib.e_sqlite3 | 2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.provider.e_sqlite3 | 2.1.11 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.provider.e_sqlite3 | 2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+System.ComponentModel.Annotations | 5.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Configuration.ConfigurationManager | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Diagnostics.EventLog | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Drawing.Common | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Security.Cryptography.ProtectedData | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Security.Permissions | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.ServiceProcess.ServiceController | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Text.Json | 10.0.11 | MIT | (c) Microsoft Corporation. All rights reserved.
+System.Windows.Extensions | 6.0.0 | MIT | (c) Microsoft Corporation. All rights reserved.
+xunit.abstractions | 2.0.3 | Apache-2.0 | No copyright notice supplied in NuGet metadata; upstream license: Copyright (c) .NET Foundation and Contributors, All Rights Reserved.
+xunit.analyzers | 1.12.0 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.analyzers | 1.16.0 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.assert | 2.7.1 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.assert | 2.9.2 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.core | 2.7.1 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.core | 2.9.2 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.extensibility.core | 2.7.1 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.extensibility.core | 2.9.2 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.extensibility.execution | 2.7.1 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.extensibility.execution | 2.9.2 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.runner.visualstudio | 2.5.8 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit.runner.visualstudio | 2.8.2 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit | 2.7.1 | Apache-2.0 | Copyright (C) .NET Foundation
+xunit | 2.9.2 | Apache-2.0 | Copyright (C) .NET Foundation
+
+License source notes
+--------------------
+
+* OpenTK 3.3.1 is MIT/X11 according to the package's upstream license URL.
+* OpenTK.GLWpfControl 3.3.0 is MIT according to its upstream `LICENSE.md`.
+* xunit.abstractions 2.0.3 does not declare a NuGet license expression; its
+  package-supplied upstream license URL identifies the Apache License, Version 2.0.
