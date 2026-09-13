@@ -15,7 +15,7 @@ public class DashboardPagesTests : IAsyncLifetime
     private HttpClient? _client;
     private readonly string _testDatabaseId = Guid.NewGuid().ToString("N")[..8];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Set test environment flag before building the factory
         AppContext.SetData("IsTestEnvironment", true);
@@ -89,7 +89,7 @@ public class DashboardPagesTests : IAsyncLifetime
         await schema.InitializeDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         await (_factory?.DisposeAsync() ?? ValueTask.CompletedTask);

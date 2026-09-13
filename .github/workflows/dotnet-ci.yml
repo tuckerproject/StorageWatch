@@ -53,6 +53,9 @@ jobs:
     - name: Run StorageWatchServer.Tests
       run: dotnet test StorageWatchServer.Tests/StorageWatchServer.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
 
+    - name: Run StorageWatch.Updater.Tests
+      run: dotnet test StorageWatch.Updater.Tests/StorageWatch.Updater.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
+
     - name: Run StorageWatchUI.Tests
       run: dotnet test StorageWatchUI.Tests/StorageWatchUI.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
 
