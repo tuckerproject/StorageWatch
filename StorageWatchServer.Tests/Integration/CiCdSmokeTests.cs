@@ -12,15 +12,68 @@ namespace StorageWatchServer.Tests.Integration
         private static string FindRepositoryRoot()
         {
             var path = AppContext.BaseDirectory;
-            while (!Directory.Exists(Path.Combine(path, ".git")) && path != Path.GetPathRoot(path))
+            while (true)
             {
-                path = Directory.GetParent(path)!.FullName;
+                var gitPath = Path.Combine(path, ".git");
+                if (Directory.Exists(gitPath))
+                    return path;
+
+                if (File.Exists(gitPath))
+                {
+                    ValidateWorktreeGitDirectory(path, gitPath);
+                    return path;
+                }
+
+                var parent = Directory.GetParent(path);
+                if (parent is null)
+                    throw new InvalidOperationException(
+                        $"Could not find repository root while ascending from '{AppContext.BaseDirectory}'.");
+
+                path = parent.FullName;
+            }
+        }
+
+        private static void ValidateWorktreeGitDirectory(string repositoryRoot, string gitFilePath)
+        {
+            var gitFileContents = File.ReadAllText(gitFilePath).Trim();
+            var separatorIndex = gitFileContents.IndexOf(':');
+            if (separatorIndex < 0
+                || !string.Equals(gitFileContents[..separatorIndex].Trim(), "gitdir", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Malformed worktree Git metadata in '{gitFilePath}'. Expected a 'gitdir:' pointer.");
             }
 
-            if (!Directory.Exists(Path.Combine(path, ".git")))
-                throw new InvalidOperationException("Could not find repository root.");
+            var gitDirectoryPointer = gitFileContents[(separatorIndex + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(gitDirectoryPointer)
+                || gitDirectoryPointer.IndexOfAny(['\r', '\n']) >= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Malformed worktree Git metadata in '{gitFilePath}'. The 'gitdir:' pointer is missing or invalid.");
+            }
 
-            return path;
+            string gitDirectory;
+            try
+            {
+                gitDirectory = Path.GetFullPath(
+                    Path.IsPathRooted(gitDirectoryPointer)
+                        ? gitDirectoryPointer
+                        : Path.Combine(repositoryRoot, gitDirectoryPointer));
+            }
+            catch (Exception exception) when (exception is ArgumentException
+                || exception is NotSupportedException
+                || exception is PathTooLongException)
+            {
+                throw new InvalidOperationException(
+                    $"Malformed worktree Git metadata in '{gitFilePath}'. The 'gitdir:' pointer is not a valid path.",
+                    exception);
+            }
+
+            if (!Directory.Exists(gitDirectory))
+            {
+                throw new DirectoryNotFoundException(
+                    $"Worktree Git metadata in '{gitFilePath}' points to missing Git directory '{gitDirectory}'.");
+            }
         }
 
         [Fact]
