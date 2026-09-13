@@ -26,7 +26,7 @@ public class AgentReportingPipelineTests : IAsyncLifetime
     private ServerSchema? _schema;
     private ServerRepository? _repository;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Set test environment flag before building the factory
         AppContext.SetData("IsTestEnvironment", true);
@@ -85,11 +85,11 @@ public class AgentReportingPipelineTests : IAsyncLifetime
         await _schema.InitializeDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
-        await Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -15,13 +15,13 @@ public class RawRowIngestionServiceTests : IAsyncLifetime
     private TestDatabaseFactory? _factory;
     private RawRowIngestionService? _ingestionService;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _factory = await TestDatabaseFactory.CreateAsync();
         _ingestionService = _factory.GetIngestionService();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await (_factory?.DisposeAsync() ?? ValueTask.CompletedTask);
     }

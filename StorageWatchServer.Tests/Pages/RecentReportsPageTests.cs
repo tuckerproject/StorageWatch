@@ -22,7 +22,7 @@ public class RecentReportsPageTests : IAsyncLifetime
     private ServerSchema? _schema;
     private RawRowIngestionService? _ingestionService;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Set test environment flag before building the factory
         AppContext.SetData("IsTestEnvironment", true);
@@ -80,10 +80,10 @@ public class RecentReportsPageTests : IAsyncLifetime
         await _schema.InitializeDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _factory?.Dispose();
-        await Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]
