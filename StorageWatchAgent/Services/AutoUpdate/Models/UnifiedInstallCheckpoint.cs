@@ -101,14 +101,29 @@ public class UnifiedInstallCheckpoint
     public bool RestartServerRequested { get; set; }
 
     /// <summary>
+    /// Indicates that an Agent restart was requested by the updater flow.
+    /// </summary>
+    public bool RestartAgentRequested { get; set; }
+
+    /// <summary>
     /// Indicates whether the UI was running before its update began.
     /// </summary>
     public bool UiWasRunningBeforeUpdate { get; set; }
 
     /// <summary>
+    /// Interactive session that hosted the UI before its update began.
+    /// </summary>
+    public int? UiSessionIdBeforeUpdate { get; set; }
+
+    /// <summary>
     /// Indicates whether the Server service was running before its update began.
     /// </summary>
     public bool ServerWasRunningBeforeUpdate { get; set; }
+
+    /// <summary>
+    /// Indicates whether the Agent service was running before its update began.
+    /// </summary>
+    public bool AgentWasRunningBeforeUpdate { get; set; }
 }
 
 public enum AgentHandoffState

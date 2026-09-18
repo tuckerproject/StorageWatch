@@ -57,7 +57,10 @@ public static class CheckpointHandoffStore
         }
     }
 
-    public static bool TryPersistAgentHandoffComplete(string checkpointPath, Action<string> log)
+    public static bool TryPersistAgentHandoffComplete(
+        string checkpointPath,
+        bool restartAgentRequested,
+        Action<string> log)
     {
         try
         {
@@ -77,6 +80,7 @@ public static class CheckpointHandoffStore
             var now = DateTimeOffset.UtcNow;
             node["handoffCompletedAtUtc"] = now.ToString("O");
             node["handoffState"] = 3;
+            node["restartAgentRequested"] = restartAgentRequested;
             node["lastUpdatedAtUtc"] = now.ToString("O");
             WriteCheckpoint(checkpointPath, node);
             log($"[STEP] Persisted handoff-complete marker to checkpoint: {checkpointPath}");

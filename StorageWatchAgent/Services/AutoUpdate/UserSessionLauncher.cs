@@ -7,7 +7,42 @@ namespace StorageWatch.Services.AutoUpdate;
 
 public interface IUserSessionLauncher
 {
-    bool TryRestartUI(string uiExecutablePath, out int? sessionId);
+    bool TryRestartUI(string uiExecutablePath, int? preferredSessionId, out int? sessionId);
+}
+
+public interface IUserSessionProcessInspector
+{
+    bool TryGetRunningSessionId(string processName, out int? sessionId);
+}
+
+public sealed class UserSessionProcessInspector : IUserSessionProcessInspector
+{
+    public bool TryGetRunningSessionId(string processName, out int? sessionId)
+    {
+        sessionId = null;
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (process.HasExited)
+                    {
+                        continue;
+                    }
+
+                    sessionId = process.SessionId;
+                    return true;
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process exited while its session was being inspected.
+                }
+            }
+        }
+
+        return false;
+    }
 }
 
 public sealed class UserSessionLauncher : IUserSessionLauncher
@@ -19,7 +54,7 @@ public sealed class UserSessionLauncher : IUserSessionLauncher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public bool TryRestartUI(string uiExecutablePath, out int? sessionId)
+    public bool TryRestartUI(string uiExecutablePath, int? preferredSessionId, out int? sessionId)
     {
         sessionId = null;
 
@@ -35,14 +70,16 @@ public sealed class UserSessionLauncher : IUserSessionLauncher
             return false;
         }
 
-        var activeSessionId = NativeMethods.WTSGetActiveConsoleSessionId();
-        if (activeSessionId == NativeMethods.InvalidSessionId)
+        var launchSessionId = preferredSessionId.HasValue
+            ? unchecked((uint)preferredSessionId.Value)
+            : NativeMethods.WTSGetActiveConsoleSessionId();
+        if (launchSessionId == NativeMethods.InvalidSessionId)
         {
             _logger.Log("[UI-RESTART] No interactive session detected; UI restart skipped.");
             return false;
         }
 
-        sessionId = unchecked((int)activeSessionId);
+        sessionId = unchecked((int)launchSessionId);
 
         IntPtr userToken = IntPtr.Zero;
         IntPtr duplicatedToken = IntPtr.Zero;
@@ -50,7 +87,7 @@ public sealed class UserSessionLauncher : IUserSessionLauncher
 
         try
         {
-            if (!NativeMethods.WTSQueryUserToken(activeSessionId, out userToken))
+            if (!NativeMethods.WTSQueryUserToken(launchSessionId, out userToken))
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to query user token for active session.");
             }
