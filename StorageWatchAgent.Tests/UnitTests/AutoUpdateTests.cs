@@ -853,7 +853,8 @@ namespace StorageWatch.Tests.UnitTests
                 LastUpdatedAtUtc = DateTimeOffset.UtcNow,
                 IsInstalling = false,
                 RestartUIRequested = true,
-                RestartServerRequested = false
+                RestartServerRequested = false,
+                UiSessionIdBeforeUpdate = 7
             };
 
             var store = new InMemoryCheckpointStore();
@@ -863,11 +864,13 @@ namespace StorageWatch.Tests.UnitTests
                 new StubInstallPathResolver(root),
                 new TestLogger<UnifiedInstallCheckpointValidator>());
             var orchestrator = new RecordingUnifiedInstallOrchestrator();
-            var service = CreateResumeService(store, validator, orchestrator, root, new FakeUserSessionLauncher(shouldSucceed: true, sessionId: 1));
+            var launcher = new FakeUserSessionLauncher(shouldSucceed: true, sessionId: 7);
+            var service = CreateResumeService(store, validator, orchestrator, root, launcher);
 
             await service.StartAsync(CancellationToken.None);
 
             orchestrator.ResumeCallCount.Should().Be(0);
+            launcher.PreferredSessionId.Should().Be(7);
             (await store.CheckpointExistsAsync()).Should().BeFalse();
         }
 
@@ -877,7 +880,7 @@ namespace StorageWatch.Tests.UnitTests
             var checkpoint = new UnifiedInstallCheckpoint
             {
                 OrchestrationId = Guid.NewGuid().ToString("N"),
-                IsInstalling = true,
+                IsInstalling = false,
                 HandoffState = AgentHandoffState.Completed,
                 HandoffCompletedAtUtc = DateTimeOffset.UtcNow,
                 RestartUIRequested = true,
@@ -959,11 +962,14 @@ namespace StorageWatch.Tests.UnitTests
                 _sessionId = sessionId;
             }
 
-            public bool TryRestartUI(string uiExecutablePath, out int? sessionId)
+            public bool TryRestartUI(string uiExecutablePath, int? preferredSessionId, out int? sessionId)
             {
+                PreferredSessionId = preferredSessionId;
                 sessionId = _sessionId;
                 return _shouldSucceed;
             }
+
+            public int? PreferredSessionId { get; private set; }
         }
 
         private sealed class RecordingRestartIntentProcessor : IUpdateRestartIntentProcessor

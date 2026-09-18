@@ -45,12 +45,13 @@ public class RestartBehaviorIntegrationTests : IDisposable
         var logs = new List<string>();
 
         CheckpointHandoffStore.TryPersistRestartIntent(checkpointPath, restartUiRequested: true, restartServerRequested: true, logs.Add).Should().BeTrue();
-        CheckpointHandoffStore.TryPersistAgentHandoffComplete(checkpointPath, logs.Add).Should().BeTrue();
+        CheckpointHandoffStore.TryPersistAgentHandoffComplete(checkpointPath, restartAgentRequested: true, logs.Add).Should().BeTrue();
 
         using var document = JsonDocument.Parse(File.ReadAllText(checkpointPath));
         var root = document.RootElement;
         root.GetProperty("restartUIRequested").GetBoolean().Should().BeTrue();
         root.GetProperty("restartServerRequested").GetBoolean().Should().BeTrue();
+        root.GetProperty("restartAgentRequested").GetBoolean().Should().BeTrue();
         root.GetProperty("handoffCompletedAtUtc").GetDateTimeOffset().Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
         root.GetProperty("handoffState").GetInt32().Should().Be(3);
         logs.Should().Contain(message => message.Contains("Persisted restart intent", StringComparison.Ordinal));

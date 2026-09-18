@@ -29,11 +29,11 @@ bool TryPersistRestartIntent(bool restartUiRequested, bool restartServerRequeste
     return CheckpointHandoffStore.TryPersistRestartIntent(checkpointPath, restartUiRequested, restartServerRequested, logger.Log);
 }
 
-bool TryPersistAgentHandoffComplete()
+bool TryPersistAgentHandoffComplete(bool restartAgentRequested)
 {
     var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
     var checkpointPath = Path.Combine(programData, "StorageWatch", "Update", "install-plan.json");
-    return CheckpointHandoffStore.TryPersistAgentHandoffComplete(checkpointPath, logger.Log);
+    return CheckpointHandoffStore.TryPersistAgentHandoffComplete(checkpointPath, restartAgentRequested, logger.Log);
 }
 
 try
@@ -288,7 +288,7 @@ try
         logger.Log("[STEP] File replacement succeeded for Agent.");
         Console.WriteLine("File replacement succeeded.");
 
-        if (!TryPersistAgentHandoffComplete())
+        if (!TryPersistAgentHandoffComplete(arguments.RestartAgent))
         {
             logger.Log("[ERROR] Agent update finished but handoff-complete marker could not be persisted.");
             skippedCount++;
@@ -298,19 +298,26 @@ try
             Environment.Exit(ExitCodes.UnexpectedError);
         }
 
-        logger.Log($"[STEP] Agent start begins for service: {serviceName}");
-        Console.WriteLine("Agent start begins.");
-        if (!agentServiceHelper.TryStartAgentService(serviceName))
+        if (arguments.RestartAgent)
         {
-            logger.Log("[ERROR] Agent start failed after file replacement and handoff-complete checkpoint persistence.");
-            skippedCount++;
-            LogComplete();
-            Console.WriteLine("Agent start failed.");
-            Console.WriteLine("Updater exiting.");
-            Environment.Exit(ExitCodes.UnexpectedError);
-        }
+            logger.Log($"[STEP] Agent start begins for service: {serviceName}");
+            Console.WriteLine("Agent start begins.");
+            if (!agentServiceHelper.TryStartAgentService(serviceName))
+            {
+                logger.Log("[ERROR] Agent start failed after file replacement and handoff-complete checkpoint persistence.");
+                skippedCount++;
+                LogComplete();
+                Console.WriteLine("Agent start failed.");
+                Console.WriteLine("Updater exiting.");
+                Environment.Exit(ExitCodes.UnexpectedError);
+            }
 
-        logger.Log("[STEP] Agent start completed.");
+            logger.Log("[STEP] Agent start completed.");
+        }
+        else
+        {
+            logger.Log("[DIAG] Agent restart was not requested; leaving the Agent service stopped after update.");
+        }
 
         logger.Log("[SUCCESS] Agent update completed successfully.");
         updatedCount++;

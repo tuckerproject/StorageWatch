@@ -140,6 +140,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IUnifiedUpdateSnapshotStore, InMemoryUnifiedUpdateSnapshotStore>();
         services.AddSingleton<IUnifiedInstallCheckpointStore, UnifiedInstallCheckpointStore>();
         services.AddSingleton<IInstallPathResolver, InstallPathResolver>();
+        services.AddSingleton<IUserSessionProcessInspector, UserSessionProcessInspector>();
         services.AddSingleton<IUserSessionLauncher, UserSessionLauncher>();
         services.AddSingleton<IUnifiedInstallCheckpointValidator, UnifiedInstallCheckpointValidator>();
         services.AddSingleton<IUpdateRestartIntentProcessor, UpdateRestartIntentProcessor>();

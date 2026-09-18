@@ -34,6 +34,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
     private readonly IInstallPathResolver _installPathResolver;
     private readonly IUnifiedInstallCheckpointStore _checkpointStore;
     private readonly IUpdateRestartIntentProcessor? _restartIntentProcessor;
+    private readonly IUserSessionProcessInspector _userSessionProcessInspector;
     private readonly IHostApplicationLifetime _hostApplicationLifetime;
     private readonly ILogger<UnifiedInstallOrchestrator> _logger;
     private readonly Func<string, CancellationToken, Task<(bool Success, string? ErrorMessage)>>? _stopComponentBeforeUpdateOverride;
@@ -82,7 +83,8 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
         Func<string, IReadOnlyList<string>, string, (bool Success, int? ProcessId, string? ErrorMessage)>? runUpdaterProcessDetached = null,
         Func<string, TimeSpan, (bool Success, string? ErrorMessage)>? stopWindowsService = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
-        IUpdateRestartIntentProcessor? restartIntentProcessor = null)
+        IUpdateRestartIntentProcessor? restartIntentProcessor = null,
+        IUserSessionProcessInspector? userSessionProcessInspector = null)
         : this(
             unifiedUpdateChecker,
             serviceUpdateDownloader,
@@ -95,7 +97,8 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             runUpdaterProcessDetached,
             stopWindowsService,
             delayAsync,
-            restartIntentProcessor)
+            restartIntentProcessor,
+            userSessionProcessInspector)
     {
     }
 
@@ -111,13 +114,15 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
         Func<string, IReadOnlyList<string>, string, (bool Success, int? ProcessId, string? ErrorMessage)>? runUpdaterProcessDetached = null,
         Func<string, TimeSpan, (bool Success, string? ErrorMessage)>? stopWindowsService = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
-        IUpdateRestartIntentProcessor? restartIntentProcessor = null)
+        IUpdateRestartIntentProcessor? restartIntentProcessor = null,
+        IUserSessionProcessInspector? userSessionProcessInspector = null)
     {
         _unifiedUpdateChecker = unifiedUpdateChecker ?? throw new ArgumentNullException(nameof(unifiedUpdateChecker));
         _serviceUpdateDownloader = serviceUpdateDownloader ?? throw new ArgumentNullException(nameof(serviceUpdateDownloader));
         _installPathResolver = installPathResolver ?? throw new ArgumentNullException(nameof(installPathResolver));
         _checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
         _restartIntentProcessor = restartIntentProcessor;
+        _userSessionProcessInspector = userSessionProcessInspector ?? new UserSessionProcessInspector();
         _hostApplicationLifetime = hostApplicationLifetime ?? throw new ArgumentNullException(nameof(hostApplicationLifetime));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _stopComponentBeforeUpdateOverride = stopComponentBeforeUpdate;
@@ -748,8 +753,17 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
     {
         if (string.Equals(component, "ui", StringComparison.OrdinalIgnoreCase))
         {
-            checkpoint.UiWasRunningBeforeUpdate = Process.GetProcessesByName(UiProcessName)
-                .Any(process => !process.HasExited);
+            checkpoint.UiWasRunningBeforeUpdate = _userSessionProcessInspector.TryGetRunningSessionId(
+                UiProcessName,
+                out var uiSessionId);
+            checkpoint.UiSessionIdBeforeUpdate = uiSessionId;
+            await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
+            return;
+        }
+
+        if (string.Equals(component, "agent", StringComparison.OrdinalIgnoreCase))
+        {
+            checkpoint.AgentWasRunningBeforeUpdate = IsServiceRunning(AgentServiceName, AgentProcessName);
             await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
             return;
         }
@@ -759,28 +773,27 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             return;
         }
 
-        var serviceStatusAvailable = false;
+        checkpoint.ServerWasRunningBeforeUpdate = IsServiceRunning(ServerServiceName, ServerProcessName);
+
+        await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
+    }
+
+    private bool IsServiceRunning(string serviceName, string processName)
+    {
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                using var service = new ServiceController(ServerServiceName);
-                checkpoint.ServerWasRunningBeforeUpdate = service.Status == ServiceControllerStatus.Running;
-                serviceStatusAvailable = true;
+                using var service = new ServiceController(serviceName);
+                return service.Status == ServiceControllerStatus.Running;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "[ORCH] Unable to query Server service status; falling back to process detection.");
+            _logger.LogDebug(ex, "[ORCH] Unable to query service status for {ServiceName}; falling back to process detection.", serviceName);
         }
 
-        if (!serviceStatusAvailable)
-        {
-            checkpoint.ServerWasRunningBeforeUpdate = Process.GetProcessesByName(ServerProcessName)
-                .Any(process => !process.HasExited);
-        }
-
-        await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
+        return Process.GetProcessesByName(processName).Any(process => !process.HasExited);
     }
 
     private async Task<(bool Success, string? ErrorMessage)> StopUiAsync(CancellationToken cancellationToken)
@@ -1128,7 +1141,7 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
 
         var restartFlag = component.ToLowerInvariant() switch
         {
-            "agent" => "--restart-agent",
+            "agent" when checkpoint.AgentWasRunningBeforeUpdate => "--restart-agent",
             "server" when checkpoint.ServerWasRunningBeforeUpdate => "--restart-server",
             "ui" when checkpoint.UiWasRunningBeforeUpdate => "--restart-ui",
             _ => string.Empty
