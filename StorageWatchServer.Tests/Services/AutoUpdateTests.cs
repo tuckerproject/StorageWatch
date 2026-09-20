@@ -138,7 +138,8 @@ namespace StorageWatchServer.Tests.Services
                     return true;
                 },
                 () => gracefulStopRequested = true,
-                () => exitRequested = true);
+                () => exitRequested = true,
+                () => true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
@@ -150,7 +151,7 @@ namespace StorageWatchServer.Tests.Services
         }
 
         [Fact]
-        public async Task ServerUpdateInstaller_RequestsRestart_OnlyAfterSuccessfulInstall()
+        public async Task ServerUpdateInstaller_PersistsRunningStateBeforeUpdaterLaunch()
         {
             var tempSource = TestDirectoryFactory.CreateTempDirectory();
             var tempTarget = TestDirectoryFactory.CreateTempDirectory();
@@ -168,6 +169,8 @@ namespace StorageWatchServer.Tests.Services
             string? launchedStagingDir = null;
             string? launchedManifestPath = null;
             string? launchedInstallDir = null;
+            var checkpointMarked = false;
+            var launchedAfterCheckpointMarked = false;
 
             var installer = new ServerUpdateHandoffInstaller(
                 new TestLogger<ServerUpdateHandoffInstaller>(),
@@ -178,10 +181,16 @@ namespace StorageWatchServer.Tests.Services
                     launchedStagingDir = stagingDir;
                     launchedManifestPath = manifestPath;
                     launchedInstallDir = installDir;
+                    launchedAfterCheckpointMarked = checkpointMarked;
                     return true;
                 },
                 () => { },
-                () => { });
+                () => { },
+                () =>
+                {
+                    checkpointMarked = true;
+                    return true;
+                });
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
@@ -190,6 +199,8 @@ namespace StorageWatchServer.Tests.Services
             Assert.NotNull(launchedStagingDir);
             Assert.NotNull(launchedManifestPath);
             Assert.Equal(tempTarget, launchedInstallDir);
+            Assert.True(checkpointMarked);
+            Assert.True(launchedAfterCheckpointMarked);
         }
 
         [Fact]
@@ -210,7 +221,8 @@ namespace StorageWatchServer.Tests.Services
                     return true;
                 },
                 () => gracefulStopRequested = true,
-                () => exitRequested = true);
+                () => exitRequested = true,
+                () => true);
 
             var result = await installer.InstallAsync(missingZipPath, CancellationToken.None);
 
@@ -240,7 +252,8 @@ namespace StorageWatchServer.Tests.Services
                 tempTarget,
                 (_, _, _, _) => false,
                 () => { },
-                () => { });
+                () => { },
+                () => true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 
@@ -276,7 +289,8 @@ namespace StorageWatchServer.Tests.Services
                     return true;
                 },
                 () => { },
-                () => { });
+                () => { },
+                () => true);
 
             var result = await installer.InstallAsync(zipPath, CancellationToken.None);
 

@@ -39,6 +39,54 @@ public class RestartBehaviorIntegrationTests : IDisposable
 
     [Fact]
     [Trait("Category", "Integration")]
+    public void ServerRestartCoordinator_WhenAgentIsUnavailable_UsesPersistedServerDecisionToStartServer()
+    {
+        var checkpointPath = _temp.CreateFile(
+            "Update/install-plan.json",
+            "{\"serverWasRunningBeforeUpdate\":true,\"restartServerRequested\":true}");
+        var serviceNames = new List<string>();
+        var logs = new List<string>();
+        var coordinator = new ServerRestartCoordinator(
+            serviceName =>
+            {
+                serviceNames.Add(serviceName);
+                return true;
+            },
+            logs.Add);
+
+        var result = coordinator.TryRestartIfRequested(checkpointPath, "StorageWatchServer");
+
+        result.Should().BeTrue();
+        serviceNames.Should().ContainSingle().Which.Should().Be("StorageWatchServer");
+        logs.Should().Contain(message => message.Contains(
+            "ServerWasRunningBeforeUpdate=True, RestartServerRequested=True, ServiceName=StorageWatchServer",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public void ServerRestartCoordinator_WhenServerWasNotRunning_IgnoresPersistedRestartIntent()
+    {
+        var checkpointPath = _temp.CreateFile(
+            "Update/install-plan.json",
+            "{\"serverWasRunningBeforeUpdate\":false,\"restartServerRequested\":true}");
+        var startCalled = false;
+        var coordinator = new ServerRestartCoordinator(
+            _ =>
+            {
+                startCalled = true;
+                return true;
+            },
+            _ => { });
+
+        var result = coordinator.TryRestartIfRequested(checkpointPath, "StorageWatchServer");
+
+        result.Should().BeTrue();
+        startCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
     public void CheckpointHandoffStore_PreservesRestartIntent_WhenAgentHandoffCompletes()
     {
         var checkpointPath = _temp.CreateFile("Update/install-plan.json", "{\"orchestrationId\":\"test\",\"restartUIRequested\":false,\"restartServerRequested\":false}");

@@ -5,6 +5,41 @@ namespace StorageWatch.Updater;
 
 public static class CheckpointHandoffStore
 {
+    public static bool TryGetServerRestartDecision(
+        string checkpointPath,
+        out bool serverWasRunningBeforeUpdate,
+        out bool restartServerRequested,
+        Action<string> log)
+    {
+        serverWasRunningBeforeUpdate = false;
+        restartServerRequested = false;
+
+        try
+        {
+            if (!File.Exists(checkpointPath))
+            {
+                log($"[WARN] Server restart decision could not be read because checkpoint file was not found: {checkpointPath}");
+                return false;
+            }
+
+            var node = JsonNode.Parse(File.ReadAllText(checkpointPath)) as JsonObject;
+            if (node == null)
+            {
+                log("[WARN] Server restart decision could not be read because checkpoint JSON was invalid.");
+                return false;
+            }
+
+            serverWasRunningBeforeUpdate = node["serverWasRunningBeforeUpdate"]?.GetValue<bool>() == true;
+            restartServerRequested = node["restartServerRequested"]?.GetValue<bool>() == true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log($"[WARN] Failed to read Server restart decision: {ex.Message}");
+            return false;
+        }
+    }
+
     public static bool TryPersistRestartIntent(
         string checkpointPath,
         bool restartUiRequested,
