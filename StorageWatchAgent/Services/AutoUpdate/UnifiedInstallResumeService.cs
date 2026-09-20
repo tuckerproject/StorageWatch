@@ -100,7 +100,7 @@ public class UnifiedInstallResumeService : IHostedService
                                   || checkpoint.AgentExitRequestedAtUtc.HasValue
                                   || checkpoint.HandoffCompletedAtUtc.HasValue;
 
-            var hasRestartIntent = checkpoint.RestartUIRequested || checkpoint.RestartServerRequested || checkpoint.RestartAgentRequested;
+            var hasRestartIntent = checkpoint.RestartUIRequested || checkpoint.RestartAgentRequested;
             if (checkpoint.HandoffCompletedAtUtc.HasValue && hasRestartIntent)
             {
                 if (!hasAgentComponent || !checkpoint.HandoffStartedAtUtc.HasValue)

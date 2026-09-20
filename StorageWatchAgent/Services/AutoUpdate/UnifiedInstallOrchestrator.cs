@@ -479,7 +479,10 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
                 await _checkpointStore.SaveCheckpointAsync(checkpoint, cancellationToken);
             }
 
-            await CapturePreUpdateRuntimeStateAsync(component, checkpoint, cancellationToken);
+            if (!string.Equals(component, "server", StringComparison.OrdinalIgnoreCase))
+            {
+                await CapturePreUpdateRuntimeStateAsync(component, checkpoint, cancellationToken);
+            }
 
             // Prepare invocation
             var componentStatus = new UnifiedUpdateComponentStatus
@@ -536,6 +539,17 @@ public class UnifiedInstallOrchestrator : IUnifiedInstallOrchestrator
             var isAgentComponent = string.Equals(component, "agent", StringComparison.OrdinalIgnoreCase);
             if (!isAgentComponent)
             {
+                if (string.Equals(component, "server", StringComparison.OrdinalIgnoreCase))
+                {
+                    await CapturePreUpdateRuntimeStateAsync(component, checkpoint, cancellationToken);
+                    if (checkpoint.ServerWasRunningBeforeUpdate
+                        && !invocation.Arguments.Contains("--restart-server", StringComparer.OrdinalIgnoreCase))
+                    {
+                        invocation.Arguments.Add("--restart-server");
+                        invocation.Arguments.Add("--allow-system-restart-intent");
+                    }
+                }
+
                 var stop = await StopComponentBeforeUpdateAsync(component, cancellationToken);
                 if (!stop.Success)
                 {

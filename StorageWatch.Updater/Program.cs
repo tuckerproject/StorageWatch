@@ -29,6 +29,12 @@ bool TryPersistRestartIntent(bool restartUiRequested, bool restartServerRequeste
     return CheckpointHandoffStore.TryPersistRestartIntent(checkpointPath, restartUiRequested, restartServerRequested, logger.Log);
 }
 
+string GetCheckpointPath()
+{
+    var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+    return Path.Combine(programData, "StorageWatch", "Update", "install-plan.json");
+}
+
 bool TryPersistAgentHandoffComplete(bool restartAgentRequested)
 {
     var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -360,11 +366,30 @@ try
 
         if (arguments.RestartServer)
         {
-            logger.Log("[SERVER-RESTART] Restart requested after server update; direct process launch is suppressed in updater.");
-            logger.Log($"[SERVER-RESTART] Suppression context: User={Environment.UserName}, IsWindows={OperatingSystem.IsWindows()}");
             if (!TryPersistRestartIntent(restartUiRequested: false, restartServerRequested: true))
             {
-                logger.Log("[WARN] Server restart intent could not be recorded to checkpoint.");
+                logger.Log("[ERROR] Server update completed but the restart intent could not be persisted.");
+                skippedCount++;
+                LogComplete();
+                Console.WriteLine("Server restart intent persistence failed.");
+                Console.WriteLine("Updater exiting.");
+                Environment.Exit(ExitCodes.UnexpectedError);
+            }
+
+            var serviceName = Environment.GetEnvironmentVariable("STORAGEWATCH_SERVER_SERVICE_NAME");
+            if (string.IsNullOrWhiteSpace(serviceName))
+                serviceName = "StorageWatchServer";
+
+            var serverRestartHelper = new ServerRestartHelper(logger.Log);
+            var restartCoordinator = new ServerRestartCoordinator(serverRestartHelper.TryRestartServer, logger.Log);
+            if (!restartCoordinator.TryRestartIfRequested(GetCheckpointPath(), serviceName))
+            {
+                logger.Log("[ERROR] Server restart decision processing failed after file replacement and restart-intent persistence.");
+                skippedCount++;
+                LogComplete();
+                Console.WriteLine("Server start failed.");
+                Console.WriteLine("Updater exiting.");
+                Environment.Exit(ExitCodes.UnexpectedError);
             }
         }
         else

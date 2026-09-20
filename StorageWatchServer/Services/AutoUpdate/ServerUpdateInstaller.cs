@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -30,6 +31,7 @@ namespace StorageWatchServer.Services.AutoUpdate
         private readonly ILogger<ServerUpdateHandoffInstaller> _logger;
         private readonly string _targetDirectory;
         private readonly Func<string, string, string, string, bool> _updaterLauncher;
+        private readonly Func<bool> _markServerWasRunningBeforeUpdate;
         private readonly Action _gracefulStopAction;
         private readonly Action _exitAction;
 
@@ -40,6 +42,7 @@ namespace StorageWatchServer.Services.AutoUpdate
                 logger,
                 AppContext.BaseDirectory,
                 updaterLauncher: null,
+                markServerWasRunningBeforeUpdate: null,
                 gracefulStopAction: () => lifetime.StopApplication(),
                 exitAction: null)
         {
@@ -50,11 +53,13 @@ namespace StorageWatchServer.Services.AutoUpdate
             string targetDirectory,
             Func<string, string, string, string, bool>? updaterLauncher = null,
             Action? gracefulStopAction = null,
-            Action? exitAction = null)
+            Action? exitAction = null,
+            Func<bool>? markServerWasRunningBeforeUpdate = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _targetDirectory = targetDirectory ?? throw new ArgumentNullException(nameof(targetDirectory));
             _updaterLauncher = updaterLauncher ?? LaunchUpdaterProcess;
+            _markServerWasRunningBeforeUpdate = markServerWasRunningBeforeUpdate ?? TryMarkServerWasRunningBeforeUpdate;
             _gracefulStopAction = gracefulStopAction ?? (() => { });
             _exitAction = exitAction ?? ExitProcess;
         }
@@ -87,6 +92,11 @@ namespace StorageWatchServer.Services.AutoUpdate
 
                 var installDir = Path.GetFullPath(_targetDirectory);
                 var manifestPath = EnsureStagingManifest(stagingDirectory);
+
+                if (!_markServerWasRunningBeforeUpdate())
+                {
+                    throw new InvalidOperationException("Failed to persist ServerWasRunningBeforeUpdate in the existing install checkpoint.");
+                }
 
                 _logger.LogInformation("[AUTOUPDATE] Preparing graceful shutdown before updater handoff.");
                 _gracefulStopAction();
@@ -172,6 +182,42 @@ namespace StorageWatchServer.Services.AutoUpdate
             });
 
             return process != null;
+        }
+
+        private bool TryMarkServerWasRunningBeforeUpdate()
+        {
+            var checkpointPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "StorageWatch",
+                "Update",
+                "install-plan.json");
+
+            try
+            {
+                if (!File.Exists(checkpointPath))
+                {
+                    return false;
+                }
+
+                var checkpoint = JsonNode.Parse(File.ReadAllText(checkpointPath)) as JsonObject;
+                if (checkpoint == null)
+                {
+                    return false;
+                }
+
+                checkpoint["serverWasRunningBeforeUpdate"] = true;
+                checkpoint["lastUpdatedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
+
+                var temporaryPath = checkpointPath + ".tmp";
+                File.WriteAllText(temporaryPath, checkpoint.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporaryPath, checkpointPath, overwrite: true);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[AUTOUPDATE] Failed to mark ServerWasRunningBeforeUpdate in the existing install checkpoint.");
+                return false;
+            }
         }
 
         private static void ExitProcess()

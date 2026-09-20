@@ -12,9 +12,6 @@ public interface IUpdateRestartIntentProcessor
 
 public sealed class UpdateRestartIntentProcessor : IUpdateRestartIntentProcessor
 {
-    private static readonly TimeSpan ServerRestartRetryDelay = TimeSpan.FromSeconds(1);
-    private const int ServerRestartMaxAttempts = 5;
-    private const string ServerServiceName = "StorageWatchServer";
     private const string AgentServiceName = "StorageWatchAgent";
 
     private readonly IUnifiedInstallCheckpointStore _checkpointStore;
@@ -37,43 +34,25 @@ public sealed class UpdateRestartIntentProcessor : IUpdateRestartIntentProcessor
     public async Task<bool> ProcessAsync(UnifiedInstallCheckpoint checkpoint, CancellationToken cancellationToken)
     {
         var restartUiRequested = checkpoint.RestartUIRequested;
-        var restartServerRequested = checkpoint.RestartServerRequested;
         var restartAgentRequested = checkpoint.RestartAgentRequested;
-        _logger.LogInformation("[AUTOUPDATE-RESTART] Processor entered. OrchestrationId={OrchestrationId}, RestartUIRequested={RestartUIRequested}, RestartServerRequested={RestartServerRequested}, CancellationRequested={CancellationRequested}",
+        _logger.LogInformation("[AUTOUPDATE-RESTART] Processor entered. OrchestrationId={OrchestrationId}, RestartUIRequested={RestartUIRequested}, RestartAgentRequested={RestartAgentRequested}, CancellationRequested={CancellationRequested}",
             checkpoint.OrchestrationId,
             restartUiRequested,
-            restartServerRequested,
+            restartAgentRequested,
             cancellationToken.IsCancellationRequested);
-        if (!restartUiRequested && !restartServerRequested && !restartAgentRequested)
+        if (!restartUiRequested && !restartAgentRequested)
         {
             _logger.LogInformation("[AUTOUPDATE-RESTART] No restart intent is pending; processor is exiting. OrchestrationId={OrchestrationId}", checkpoint.OrchestrationId);
             return false;
         }
 
         _logger.LogInformation(
-            "[AUTOUPDATE] Processing restart intent from checkpoint {OrchestrationId}: RestartUIRequested={RestartUIRequested}, RestartServerRequested={RestartServerRequested}",
+            "[AUTOUPDATE] Processing Agent-owned restart intent from checkpoint {OrchestrationId}: RestartUIRequested={RestartUIRequested}, RestartAgentRequested={RestartAgentRequested}",
             checkpoint.OrchestrationId,
             restartUiRequested,
-            restartServerRequested);
+            restartAgentRequested);
 
         var checkpointUpdated = false;
-
-        if (restartServerRequested)
-        {
-            _logger.LogInformation("[AUTOUPDATE-RESTART] Server restart attempt starting. OrchestrationId={OrchestrationId}, ServiceName={ServiceName}", checkpoint.OrchestrationId, ServerServiceName);
-            var serverRestarted = await TryStartServerServiceAsync(ServerServiceName, cancellationToken);
-            _logger.LogInformation("[AUTOUPDATE-RESTART] Server restart attempt completed. OrchestrationId={OrchestrationId}, ServiceName={ServiceName}, Succeeded={Succeeded}", checkpoint.OrchestrationId, ServerServiceName, serverRestarted);
-            if (serverRestarted)
-            {
-                checkpoint.RestartServerRequested = false;
-                checkpointUpdated = true;
-                _logger.LogInformation("[SERVER-RESTART] Restart intent completed via SCM for service {ServiceName}.", ServerServiceName);
-            }
-            else
-            {
-                _logger.LogWarning("[SERVER-RESTART] Restart intent remains pending after SCM start attempts for service {ServiceName}.", ServerServiceName);
-            }
-        }
 
         if (restartUiRequested)
         {
@@ -130,68 +109,62 @@ public sealed class UpdateRestartIntentProcessor : IUpdateRestartIntentProcessor
             catch (Exception ex)
             {
                 checkpoint.RestartUIRequested = restartUiRequested;
-                checkpoint.RestartServerRequested = restartServerRequested;
                 checkpoint.RestartAgentRequested = restartAgentRequested;
                 _logger.LogError(ex, "[AUTOUPDATE-RESTART] Failed to persist cleared restart intent flags; retaining all original intent for retry. OrchestrationId={OrchestrationId}", checkpoint.OrchestrationId);
             }
         }
 
-        var pendingRestartIntents = checkpoint.RestartUIRequested || checkpoint.RestartServerRequested || checkpoint.RestartAgentRequested;
-        _logger.LogInformation("[AUTOUPDATE-RESTART] Processor completed. OrchestrationId={OrchestrationId}, PendingRestartIntents={PendingRestartIntents}, RestartUIRequested={RestartUIRequested}, RestartServerRequested={RestartServerRequested}, IntentClearingDecision={IntentClearingDecision}",
+        var pendingRestartIntents = checkpoint.RestartUIRequested || checkpoint.RestartAgentRequested;
+        _logger.LogInformation("[AUTOUPDATE-RESTART] Processor completed. OrchestrationId={OrchestrationId}, PendingRestartIntents={PendingRestartIntents}, RestartUIRequested={RestartUIRequested}, RestartAgentRequested={RestartAgentRequested}, IntentClearingDecision={IntentClearingDecision}",
             checkpoint.OrchestrationId,
             pendingRestartIntents,
             checkpoint.RestartUIRequested,
-            checkpoint.RestartServerRequested,
+            checkpoint.RestartAgentRequested,
             pendingRestartIntents ? "retain" : "clear");
         return pendingRestartIntents;
-    }
-
-    private async Task<bool> TryStartServerServiceAsync(string serviceName, CancellationToken cancellationToken)
-    {
-        return await TryStartServiceAsync(serviceName, cancellationToken);
     }
 
     private async Task<bool> TryStartServiceAsync(string serviceName, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
         {
-            _logger.LogWarning("[SERVER-RESTART] SCM restart skipped because OS is not Windows.");
+            _logger.LogWarning("[AGENT-RESTART] SCM restart skipped because OS is not Windows.");
             return false;
         }
 
         try
         {
             using var serviceController = new ServiceController(serviceName);
-            _logger.LogInformation("[SERVER-RESTART] Service status before restart attempt: {Status}", serviceController.Status);
+            _logger.LogInformation("[AGENT-RESTART] Service status before restart attempt: {Status}", serviceController.Status);
 
-            for (var attempt = 1; attempt <= ServerRestartMaxAttempts; attempt++)
+            for (var attempt = 1; attempt <= 5; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 serviceController.Refresh();
-                _logger.LogInformation("[SERVER-RESTART] SCM restart attempt {Attempt}/{MaxAttempts}. ServiceName={ServiceName}, Status={Status}", attempt, ServerRestartMaxAttempts, serviceName, serviceController.Status);
+                _logger.LogInformation("[AGENT-RESTART] SCM restart attempt {Attempt}/{MaxAttempts}. ServiceName={ServiceName}, Status={Status}", attempt, 5, serviceName, serviceController.Status);
                 if (serviceController.Status == ServiceControllerStatus.Running)
                 {
-                    _logger.LogInformation("[SERVER-RESTART] Service {ServiceName} is already running on attempt {Attempt}.", serviceName, attempt);
+                    _logger.LogInformation("[AGENT-RESTART] Service {ServiceName} is already running on attempt {Attempt}.", serviceName, attempt);
                     return true;
                 }
 
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
-                    _logger.LogInformation("[SERVER-RESTART] Starting stopped service {ServiceName} on attempt {Attempt}.", serviceName, attempt);
+                    _logger.LogInformation("[AGENT-RESTART] Starting stopped service {ServiceName} on attempt {Attempt}.", serviceName, attempt);
                     serviceController.Start();
                 }
 
-                await Task.Delay(ServerRestartRetryDelay, cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
 
             serviceController.Refresh();
             var started = serviceController.Status == ServiceControllerStatus.Running;
-            _logger.LogInformation("[SERVER-RESTART] SCM restart attempts exhausted. ServiceName={ServiceName}, FinalStatus={Status}, Succeeded={Succeeded}", serviceName, serviceController.Status, started);
+            _logger.LogInformation("[AGENT-RESTART] SCM restart attempts exhausted. ServiceName={ServiceName}, FinalStatus={Status}, Succeeded={Succeeded}", serviceName, serviceController.Status, started);
             return started;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[SERVER-RESTART] Failed to start service {ServiceName} from restart intent.", serviceName);
+            _logger.LogWarning(ex, "[AGENT-RESTART] Failed to start service {ServiceName} from restart intent.", serviceName);
             return false;
         }
     }
