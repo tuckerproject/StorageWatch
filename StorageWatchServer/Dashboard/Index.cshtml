@@ -128,7 +128,9 @@
                     observedInstalling = true;
                     consecutiveIdleStatuses = 0;
                 } else if (observedInstalling) {
-                    return { completed: true };
+                    if (startRequestState.result?.networkError) {
+                        return startRequestState.result;
+                    }
                 } else {
                     consecutiveIdleStatuses += 1;
                     if (startRequestState.result?.networkError) {
