@@ -117,13 +117,23 @@
         const deadline = Date.now() + maxWaitForCompletionMs;
 
         while (Date.now() < deadline) {
+            const statusRequestController = new AbortController();
+            const statusRequestTimeout = setTimeout(
+                () => statusRequestController.abort(),
+                deadline - Date.now());
             try {
-                const response = await fetch('/api/update/status', { cache: 'no-store' });
+                const response = await fetch('/api/update/status', {
+                    cache: 'no-store',
+                    signal: statusRequestController.signal
+                });
                 if (!response.ok) {
                     throw new Error(`Update status request failed with status ${response.status}.`);
                 }
 
                 const status = await response.json();
+                if (Date.now() >= deadline) {
+                    return { timedOut: true };
+                }
                 if (status.isInstalling) {
                     observedInstalling = true;
                     consecutiveIdleStatuses = 0;
@@ -150,6 +160,8 @@
                     console.warn('Unable to check update status while waiting for completion.', err);
                     startRequestState.statusErrorLogged = true;
                 }
+            } finally {
+                clearTimeout(statusRequestTimeout);
             }
 
             if (startRequestState.result && !startRequestState.result.networkError) {
