@@ -107,31 +107,122 @@
         }
     }
 
+    const delayAsync = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    const maxWaitForCompletionMs = 5 * 60 * 1000;
+
+    async function waitForUpdateCompletionAsync(startRequestState) {
+        let observedInstalling = false;
+        let statusUnavailableAfterNetworkError = false;
+        let consecutiveIdleStatuses = 0;
+        const deadline = Date.now() + maxWaitForCompletionMs;
+
+        while (Date.now() < deadline) {
+            const statusRequestController = new AbortController();
+            const statusRequestTimeout = setTimeout(
+                () => statusRequestController.abort(),
+                deadline - Date.now());
+            try {
+                const response = await fetch('/api/update/status', {
+                    cache: 'no-store',
+                    signal: statusRequestController.signal
+                });
+                if (!response.ok) {
+                    throw new Error(`Update status request failed with status ${response.status}.`);
+                }
+
+                const status = await response.json();
+                if (Date.now() >= deadline) {
+                    return { timedOut: true };
+                }
+                if (status.isInstalling) {
+                    observedInstalling = true;
+                    consecutiveIdleStatuses = 0;
+                } else if (observedInstalling) {
+                    if (startRequestState.result?.networkError) {
+                        return startRequestState.result;
+                    }
+                } else {
+                    consecutiveIdleStatuses += 1;
+                    if (startRequestState.result?.networkError) {
+                        if (statusUnavailableAfterNetworkError) {
+                            return { completed: true };
+                        }
+                        if (consecutiveIdleStatuses >= 3) {
+                            return startRequestState.result;
+                        }
+                    }
+                }
+            } catch (err) {
+                if (startRequestState.result?.networkError) {
+                    statusUnavailableAfterNetworkError = true;
+                }
+                if (!startRequestState.statusErrorLogged) {
+                    console.warn('Unable to check update status while waiting for completion.', err);
+                    startRequestState.statusErrorLogged = true;
+                }
+            } finally {
+                clearTimeout(statusRequestTimeout);
+            }
+
+            if (startRequestState.result && !startRequestState.result.networkError) {
+                return startRequestState.result;
+            }
+
+            await delayAsync(1000);
+        }
+
+        return { timedOut: true };
+    }
+
     installButton?.addEventListener('click', async () => {
         modal.removeAttribute('hidden');
         applyProgress({ statusText: 'Checking components...', progress: 0, isIndeterminate: true });
 
-        try {
-            const response = await fetch('?handler=StartUnifiedUpdate', { method: 'GET' });
-            const payload = await response.json();
+        const startRequestState = { result: null, statusErrorLogged: false };
+        void (async () => {
+            try {
+                const response = await fetch('?handler=StartUnifiedUpdate', { method: 'GET' });
+                const payload = await response.json();
+                if (!response.ok) {
+                    throw new Error(payload.errors?.[0] ?? `Update request failed with status ${response.status}.`);
+                }
 
-            if (Array.isArray(payload.progress)) {
-                for (const phase of payload.progress) {
-                    applyProgress(phase);
+                if (Array.isArray(payload.progress)) {
+                    for (const phase of payload.progress) {
+                        applyProgress(phase);
+                    }
+                }
+
+                await refreshVersionsAsync();
+
+                if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+                    banner.removeAttribute('hidden');
+                    startRequestState.result = { error: `Update failed: ${payload.errors[0]}` };
+                } else {
+                    banner.setAttribute('hidden', 'hidden');
+                    startRequestState.result = { completed: true };
+                }
+            } catch (err) {
+                banner.removeAttribute('hidden');
+                startRequestState.result = { networkError: true };
+            }
+        })();
+
+        try {
+            const result = await waitForUpdateCompletionAsync(startRequestState);
+            if (result.error) {
+                alert(result.error);
+            } else if (result.networkError || result.timedOut) {
+                alert('Unable to confirm that the update completed. Please check the update status and try again if needed.');
+            }
+
+            if (result.completed) {
+                try {
+                    await refreshVersionsAsync();
+                } catch (err) {
+                    console.warn('Unable to refresh component versions after the update.', err);
                 }
             }
-
-            await refreshVersionsAsync();
-
-            if (Array.isArray(payload.errors) && payload.errors.length > 0) {
-                banner.removeAttribute('hidden');
-                alert(`Update failed: ${payload.errors[0]}`);
-            } else {
-                banner.setAttribute('hidden', 'hidden');
-            }
-        } catch (err) {
-            banner.removeAttribute('hidden');
-            alert('Update failed. Please try again.');
         } finally {
             modal.setAttribute('hidden', 'hidden');
         }
